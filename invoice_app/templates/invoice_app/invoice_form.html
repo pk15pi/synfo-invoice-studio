@@ -1,0 +1,76 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><a class="back" href="{% url 'invoice_list' %}">&larr; Invoices</a><h1>{% if invoice %}Edit invoice {{ invoice.invoice_number }}{% else %}New invoice <small class="muted">(will be {{ next_number }} when saved)</small>{% endif %}</h1></div>
+<form method="post" id="invform">{% csrf_token %}
+<section class="panel"><div class="form-grid three">
+<div class="form-field"><label>Customer</label><select class="field" name="client" id="client" required><option value="">-- select --</option>{% for c in clients %}<option value="{{ c.pk }}">{{ c.name }}</option>{% endfor %}</select></div>
+<div class="form-field"><label>Invoice date</label><input class="field" type="date" name="invoice_date" id="invoice_date"></div>
+<div class="form-field"><label>Terms (days)</label><input class="field" type="number" min="0" name="terms_days" id="terms_days"></div>
+<div class="form-field"><label>Due date <small>(calculated, editable)</small></label><input class="field" type="date" name="due_date" id="due_date"></div>
+<div class="form-field"><label>PDF number override <small>(optional, PDF only)</small></label><input class="field" name="pdf_number_override" id="pdf_number_override"></div>
+</div></section>
+<section class="panel"><div class="panel-head"><h2>Rows</h2><button type="button" class="button secondary" id="addrow">&#43; Add row</button></div>
+<div class="table-wrap"><table id="rows"><thead><tr><th>Project</th><th>Consultant - Project name</th><th>From</th><th>To</th><th>Days</th><th>Description</th><th>Unit override</th><th>Amount override</th><th>Unit</th><th>Amount</th><th></th></tr></thead><tbody></tbody></table></div>
+<p class="muted"><small>Leave overrides blank to use the project template. Live figures are a preview; the server recalculates everything on save.</small></p></section>
+<section class="panel"><h2>Preview</h2><table class="pdfcols" id="preview"><thead><tr><th>Consultant -Project Name</th><th>Memo/Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody></tbody></table>
+<div class="total-preview"><span>Total INR</span><strong id="total">0.00</strong></div></section>
+<div class="form-actions"><button class="button secondary" name="action" value="preview" formtarget="_blank">Preview PDF</button><button class="button secondary" name="action" value="download">Download PDF (unsaved)</button><button class="button primary" name="action" value="save">{% if invoice %}Save changes{% else %}Save invoice (uses {{ next_number }}){% endif %}</button></div>
+</form>
+{{ projects_json|json_script:"projects-data" }}{{ init_json|json_script:"init-data" }}
+<template id="rowtpl"><tr>
+<td><select class="field" name="line_project"></select></td>
+<td><input class="field" name="line_name"></td><td><input class="field" type="date" name="line_from"></td><td><input class="field" type="date" name="line_to"></td>
+<td><input class="field" name="line_days" style="width:70px"></td><td><input class="field" name="line_desc"></td>
+<td><input class="field" name="line_unit" style="width:90px"></td><td><input class="field" name="line_amount" style="width:100px"></td>
+<td class="num u"></td><td class="num a"></td><td><button type="button" class="link danger del">Remove</button></td></tr></template>
+{% endblock %}
+{% block scripts %}<script>
+(function(){
+const P=JSON.parse(JSON.parse(document.getElementById('projects-data').textContent));
+const I=JSON.parse(JSON.parse(document.getElementById('init-data').textContent));
+const ROUNDING="{{ rounding }}";
+const $=id=>document.getElementById(id), tb=document.querySelector('#rows tbody');
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const pd=s=>{if(!s)return null;const [y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d));};
+const iso=d=>d.toISOString().slice(0,10), pad=n=>String(n).padStart(2,'0');
+const r2=x=>Math.round((x+1e-9)*100)/100, amt=x=>ROUNDING==='rupee_down'?Math.floor(x+1e-9):r2(x);
+const fmt=x=>x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtIN=x=>x.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+function projs(){const c=P[$('client').value];return c?c.projects:[];}
+function desc(base,a,b){if(!a||!b)return base;const p=a.getUTCFullYear()!==b.getUTCFullYear()?`${MONTHS[a.getUTCMonth()]} ${pad(a.getUTCDate())}, ${a.getUTCFullYear()} - `:`${MONTHS[a.getUTCMonth()]} ${pad(a.getUTCDate())} - `;return (base?base+' - ':'')+p+`${MONTHS[b.getUTCMonth()]} ${pad(b.getUTCDate())}, ${b.getUTCFullYear()}`;}
+function calc(tr){
+  const g=n=>tr.querySelector(`[name=${n}]`), p=projs().find(x=>String(x.id)===g('line_project').value);
+  const a=pd(g('line_from').value), b=pd(g('line_to').value);
+  if(a&&b&&b>=a&&tr.dataset.daysAuto!=='0')g('line_days').value=Math.round((b-a)/864e5)+1;
+  if(p&&tr.dataset.descAuto!=='0')g('line_desc').value=desc(p.description,a,b);
+  const days=parseFloat(g('line_days').value)||0; let unit=0, amount=0;
+  if(p){ if(p.type==='variable'){unit=parseFloat(p.daily);amount=amt(unit*days);}
+    else{const ref=b||a||pd($('invoice_date').value)||new Date();const div=p.basis==='30'?30:new Date(Date.UTC(ref.getUTCFullYear(),ref.getUTCMonth()+1,0)).getUTCDate();
+      const m=parseFloat(p.monthly); if(p.full){unit=days?r2(m/days):m;amount=r2(m);}else{unit=r2(m/div);amount=amt(m*days/div);}}}
+  if(g('line_unit').value!==''){unit=parseFloat(g('line_unit').value)||0;if(!p)amount=amt(unit*days);}
+  if(g('line_amount').value!=='')amount=parseFloat(g('line_amount').value)||0;
+  tr.querySelector('.u').textContent=fmt(unit);tr.querySelector('.a').textContent=fmt(amount);
+  return {name:g('line_name').value,desc:g('line_desc').value,days,unit,amount};
+}
+function refresh(){const pv=document.querySelector('#preview tbody');pv.innerHTML='';let t=0;
+  tb.querySelectorAll('tr').forEach(tr=>{const r=calc(tr);if(!r.name)return;t+=r.amount;const row=pv.insertRow();
+    [r.name,r.desc,fmt(r.days),fmt(r.unit),fmt(r.amount)].forEach((v,i)=>{const c=row.insertCell();c.textContent=v;if(i>1)c.className='num';});});
+  $('total').textContent=fmtIN(t);}
+function fillProjects(sel,val){sel.innerHTML='<option value="">(custom)</option>'+projs().map(p=>`<option value="${p.id}">${p.name.replace(/</g,'&lt;')} - ${p.label}</option>`).join('');sel.value=val||'';}
+function addRow(d){d=d||{};const tr=document.getElementById('rowtpl').content.firstElementChild.cloneNode(true);tb.appendChild(tr);
+  const g=n=>tr.querySelector(`[name=${n}]`);fillProjects(g('line_project'),d.project);
+  g('line_name').value=d.name||'';g('line_from').value=d.start||'';g('line_to').value=d.end||'';g('line_days').value=d.days||'';
+  g('line_desc').value=d.desc||'';g('line_unit').value=d.unit||'';g('line_amount').value=d.amount||'';
+  if(d.desc)tr.dataset.descAuto='0'; if(d.days&&d.start&&d.end){const a=pd(d.start),b=pd(d.end);if(Math.round((b-a)/864e5)+1!=parseFloat(d.days))tr.dataset.daysAuto='0';}
+  g('line_project').addEventListener('change',e=>{const p=projs().find(x=>String(x.id)===e.target.value);if(p)g('line_name').value=p.name;tr.dataset.descAuto='1';refresh();});
+  g('line_desc').addEventListener('input',()=>tr.dataset.descAuto='0'); g('line_days').addEventListener('input',()=>tr.dataset.daysAuto='0');
+  tr.querySelector('.del').addEventListener('click',()=>{tr.remove();refresh();});
+  tr.addEventListener('input',refresh);tr.addEventListener('change',refresh);refresh();}
+function due(){const d=pd($('invoice_date').value),t=parseInt($('terms_days').value);if(d&&!isNaN(t)){d.setUTCDate(d.getUTCDate()+t);$('due_date').value=iso(d);}}
+$('client').addEventListener('change',()=>{const c=P[$('client').value];if(c&&c.terms!==null)$('terms_days').value=c.terms;due();
+  tb.innerHTML='';projs().forEach(p=>addRow({project:p.id,name:p.name}));if(!projs().length)addRow();});
+$('invoice_date').addEventListener('change',()=>{due();refresh();});$('terms_days').addEventListener('input',due);
+$('addrow').addEventListener('click',()=>addRow());
+$('client').value=I.client||'';$('invoice_date').value=I.invoice_date||'';$('terms_days').value=I.terms_days??'';$('due_date').value=I.due_date||'';$('pdf_number_override').value=I.pdf_number_override||'';
+if(I.lines&&I.lines.length)I.lines.forEach(addRow);else if(I.client)$('client').dispatchEvent(new Event('change'));else addRow();
+})();
+</script>{% endblock %}

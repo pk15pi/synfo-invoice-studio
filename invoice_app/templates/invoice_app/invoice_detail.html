@@ -1,0 +1,9 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading split"><div><a class="back" href="{% url 'invoice_list' %}">&larr; Invoices</a><h1>Invoice {{ invoice.invoice_number }}</h1>
+<p class="muted">{{ invoice.client.name }} &middot; {{ invoice.invoice_date|date:"F d, Y" }} &middot; terms {{ invoice.terms_days }} &middot; due {{ invoice.due_date|date:"F d, Y" }}{% if invoice.pdf_number_override %} &middot; PDF shows <b>#{{ invoice.pdf_number_override }}</b>{% endif %}</p></div>
+<div><a class="button secondary" href="{% url 'invoice_edit' invoice.pk %}">Edit / reopen</a> <a class="button secondary" target="_blank" href="{% url 'invoice_pdf' invoice.pk %}">Preview PDF</a> <a class="button primary" href="{% url 'invoice_pdf' invoice.pk %}?download=1">Download PDF</a></div></div>
+<section class="panel"><table class="pdfcols"><thead><tr><th>Consultant -Project Name</th><th>Memo/Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody>
+{% for l in lines %}<tr><td>{{ l.project_name }}</td><td>{{ l.description }}</td><td class="num">{{ l.quantity_days }}</td><td class="num">{{ l.unit_price }}</td><td class="num">{{ l.amount }}{% if l.amount_overridden %} <small>(override)</small>{% endif %}</td></tr>{% endfor %}
+<tr><td colspan="4" class="num"><b>Total {{ invoice.currency }}</b></td><td class="num"><b>{{ total_indian }}</b></td></tr></tbody></table></section>
+<form method="post" class="panel form-panel">{% csrf_token %}<h2>PDF number override</h2><p class="muted">Changes only the number printed on the PDF. The saved invoice number and the sequence are not changed.</p>{{ form.pdf_number_override }}<div class="form-actions"><button class="button primary" type="submit">Save override</button></div></form>
+{% endblock %}

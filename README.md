@@ -1,55 +1,75 @@
 # QuantBud Invoice Studio
 
-A small local-only Django monolith for maintaining business/customer/project details and generating invoice PDFs styled after the supplied QuantBud invoice.
+A local-only Django monolith (no login, no admin, no payment gateway) for keeping business,
+customer and project details and generating invoice PDFs that reproduce the QuantBud sample
+invoice on US Letter.
 
 ## Run on Windows
 
-1. Install Python 3.10+.
-2. Extract this folder.
-3. Open Command Prompt/PowerShell in the folder.
-4. Run:
+Double-click `run_windows.bat`, or in PowerShell from this folder:
 
 ```powershell
-py -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-py manage.py migrate
-py manage.py runserver
+py -m venv .venv                      # first time only
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe manage.py migrate
+.venv\Scripts\python.exe manage.py runserver
 ```
 
-5. Open http://127.0.0.1:8000
+Open http://127.0.0.1:8000. `run_windows.bat` copies `db.sqlite3` to a timestamped
+`db.sqlite3.bak-*` file before migrating. The database is never deleted.
 
-## Run on macOS/Linux
+Tests: `.venv\Scripts\python.exe manage.py test`
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
-```
+Sample PDF (QB020 reference data; does **not** consume an invoice number):
+`.venv\Scripts\python.exe manage.py make_sample_invoice`, which writes `test_output\QB020_test.pdf`.
+Add `--defaults` to ignore the saved Business profile.
 
-## Included
+## Screens
 
-- No login, users, admin panel, payment gateway or external service.
-- SQLite database stored locally as `db.sqlite3`.
-- Business details, bank details, invoice prefix/sequence, terms and colors are saved in one settings screen.
-- Multiple customers, each with reusable project templates.
-- Fixed monthly or variable daily project rates.
-- Fixed-monthly or prorated monthly billing; proration can use actual calendar days or a 30-day month.
-- Invoice date, due date and payment terms.
-- PDF generation laid out against the supplied QB020 page: five exact columns (`Consultant -Project Name`, `Memo/Description`, `Qty`, `Unit Price`, `Amount`), blue header, alternating blue/white rows, vertical column dividers, date range inside Memo/Description, total, bank details, signature and footer.
-- Optional one-time invoice number override. The database keeps the automatic invoice number and the sequence continues independently.
+* **Business profile**: company, address, contact, GSTIN, bank details, signature image
+  (stored under `media/signatures/`), name under the signature, footer, invoice prefix,
+  next sequence number, padding, default terms, amount rounding, and the five PDF colours
+  (primary navy, alternate row, white row, border, labels). Colours never change layout.
+* **Customers**: list, detail, add and edit. Fields: name, address (one PDF line per line),
+  country, contact, phone, email, tax info, default terms and notes.
+* **Project templates** for each customer (see the billing rules below).
+* **Invoices**: pick a customer. Its terms load and the due date is calculated (you can edit it).
+  You can add or remove rows; the dates fill in the days and the description. You can
+  override the unit price, amount or description. A live five-column preview is shown; the
+  server recalculates everything. The buttons are **Preview PDF**, **Download PDF** (unsaved,
+  no number used) and **Save**. There is also an invoice list, detail, edit/reopen, and a
+  **PDF number override** that changes only the number printed on the PDF.
 
-## Billing rules
+## Billing rules (Decimal throughout)
 
-- Variable/daily: daily rate × entered billable days.
-- Fixed monthly, prorated: monthly amount ÷ selected divisor × entered days.
-- Fixed monthly, full-month mode: the monthly amount is charged whenever billable days are greater than zero.
-- Divisor: either 30 or the actual number of days in the invoice month.
+| Type | Unit price | Amount |
+|---|---|---|
+| A: Variable | daily rate | daily rate x days |
+| B: Prorated | monthly / divisor | monthly x days / divisor |
+| C: Full monthly | monthly / days | monthly |
 
-## Notes
+The divisor is 30, or the actual number of days in the month of the period **end** date.
+For example, 25 Sep to 31 Oct is 37 days, divided by 31.
 
-- The first automatic number is QB021 because the uploaded reference invoice is QB020. Change prefix and next sequence in Business details if needed.
-- The PDF renderer uses fixed US Letter page coordinates to preserve the reference invoice positioning and proportions. The reference contains a handwritten signature image; this version retains editable signature text until a signature-image upload field is added.
-- Back up `db.sqlite3` periodically. This app intentionally has no authentication and should be run only on a trusted local machine, not exposed to the public internet.
+Rounding policy: unit prices are rounded ROUND_HALF_UP to 2 dp. With the default
+`rupee_down` setting, amounts are truncated to whole rupees, which reproduces the sample:
+100000 x 23 / 31 = 74193.548 becomes 74,193.00. Switch to `paise` to round amounts HALF_UP
+to 2 dp instead. The total is the sum of the line amounts. The PDF prints it with Indian
+grouping (4,09,030.00); rows use Western grouping, as in the sample.
+
+## Numbering
+
+A number is taken only when a new invoice is saved, inside `transaction.atomic()` with
+`select_for_update()` on the profile row. Previews, downloads, edits and the sample command
+never consume a number.
+
+## PDF
+
+The PDF code is in `invoice_app/pdf/`. Every coordinate and font size is in `layout.py`, in
+points measured from the top of the page against the reference PDF. `render.py` draws it with
+ReportLab. Fonts are Trebuchet MS and Arial from `C:\Windows\Fonts`; set `QB_FONT_DIR` to
+override them, otherwise Helvetica is used. Text is never shrunk. Over-long cell text is
+shortened with an ellipsis, and the invoice save shows a warning. More than 9 rows continue
+on extra pages; the total, payment details and signature go on the last page.
+
+No business data is hard-coded in the PDF code; it all comes from the database.

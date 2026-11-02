@@ -1,0 +1,7 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><p class="eyebrow">SETTINGS</p><h1>Business profile</h1><p class="muted">Everything printed on the PDF comes from here. Colours change only colours &ndash; never the layout.</p></div>
+<form method="post" class="panel form-panel" enctype="multipart/form-data">{% csrf_token %}{{ form.non_field_errors }}
+<div class="form-grid">{% for field in form %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}</div>
+{% if profile.signature_image %}<p><small>Current signature:</small><br><img src="{{ profile.signature_image.url }}" alt="signature" style="max-height:70px"></p>{% else %}<p><small>No signature uploaded &ndash; the bundled default signature is used.</small></p>{% endif %}
+<p><small>Next invoice number: <b>{{ profile.next_number }}</b></small></p>
+<div class="form-actions"><button class="button primary" type="submit">Save profile</button></div></form>{% endblock %}

@@ -1,1 +1,8 @@
-{% load static %}<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>QuantBud Invoice Studio</title><link rel="stylesheet" href="{% static 'invoice_app/style.css' %}"></head><body><header class="topbar"><a class="brand" href="{% url 'dashboard' %}">QUANTBUD <span>Invoice Studio</span></a><nav><a href="{% url 'dashboard' %}">Home</a><a href="{% url 'clients' %}">Customers</a><a href="{% url 'profile_edit' %}">Business settings</a><a class="nav-cta" href="{% url 'new_invoice' %}">＋ Create invoice</a></nav></header><main class="container">{% for message in messages %}<div class="message">{{ message }}</div>{% endfor %}{% block content %}{% endblock %}</main><footer>Local invoice generator · Data stored on this computer</footer></body></html>
+{% load static %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}QuantBud Invoice Studio{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'invoice_app/style.css' %}"></head>
+<body><header class="topbar"><a class="brand" href="{% url 'dashboard' %}">QUANTBUD <span>Invoice Studio</span></a>
+<nav><a href="{% url 'dashboard' %}">Home</a><a href="{% url 'invoice_list' %}">Invoices</a><a href="{% url 'clients' %}">Customers</a><a href="{% url 'profile_edit' %}">Business profile</a><a class="nav-cta" href="{% url 'new_invoice' %}">&#43; Create invoice</a></nav></header>
+<main class="container">{% for message in messages %}<div class="message {{ message.tags }}">{{ message }}</div>{% endfor %}{% block content %}{% endblock %}</main>
+<footer>Local invoice generator &middot; data stored on this computer</footer>{% block scripts %}{% endblock %}</body></html>
