@@ -1,11 +1,8 @@
 .venv/
 .git/
-private_media/
 backups/
 test_output/
 __pycache__/
-.secret_key
-media/
 *.pyc
 venv/
 .env
