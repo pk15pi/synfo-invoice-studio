@@ -3,7 +3,6 @@
 private_media/
 backups/
 test_output/
-db.sqlite3*
 __pycache__/
 .secret_key
 media/
