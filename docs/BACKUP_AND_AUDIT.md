@@ -17,6 +17,8 @@
 - Folder: `BACKUP_DIR` (default `E:\QuantBud_Backups`, override with env `QB_BACKUP_DIR`); must be outside the repo.
 - ZIP = `db.sqlite3` (sqlite online backup API) + `private_media/` + `media/` + `manifest.json`
   (app version, applied migrations, sha256 + size per file, record counts per model, integrity_check).
+- ZIP contents are not encrypted by the app. Protect `BACKUP_DIR` with OS/disk encryption and filesystem
+  access controls; encrypt any off-machine copies. Anyone who can read a ZIP can read its database and files.
 - Verify re-hashes every file, checks for missing/extra files and the ZIP hash, and runs `integrity_check` on the
   extracted DB.
 - Commands:

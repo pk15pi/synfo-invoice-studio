@@ -12,6 +12,7 @@ Double-click `run_windows.bat`, or in PowerShell from this folder:
 py -m venv .venv                      # first time only
 .venv\Scripts\python.exe -m pip install -r requirements.txt
 .venv\Scripts\python.exe manage.py migrate
+$env:QB_DEBUG='1'
 .venv\Scripts\python.exe manage.py runserver
 ```
 
@@ -201,7 +202,8 @@ db before migrating.
 
 ## Backups
 Back up `db.sqlite3` and the `private_media` folder together, because documents live in that folder,
-not in the DB. `backup_data` does both. Keep backups off-machine and encrypted; they contain personal data.
+not in the DB. `backup_data` does both. Backup ZIPs are not encrypted by the app; protect them with
+OS/disk encryption and filesystem access controls, and keep off-machine copies encrypted.
 
 # Attendance & Leave
 

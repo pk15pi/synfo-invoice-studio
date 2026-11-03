@@ -1,6 +1,7 @@
 {% load static %}<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}QuantBud Business Management{% endblock %}</title>
+<link rel="icon" href="{% static 'invoice_app/favicon.ico' %}" sizes="any">
 <link rel="stylesheet" href="{% static 'invoice_app/style.css' %}"></head>
 <body><header class="topbar"><a class="brand" href="{% url 'home' %}">QUANTBUD <span>Business Management</span></a>
 <nav class="groups"><a href="{% url 'home' %}">Home</a>
