@@ -1,0 +1,5 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><a class="back" href="{% url 'invoice_detail' invoice.pk %}">&larr; Invoice {{ invoice.invoice_number }}</a><h1>{% if payment %}Edit payment{% else %}Record payment{% endif %}</h1>
+<p class="muted">Invoice date {{ invoice.invoice_date }} &middot; Grand total {{ invoice.grand_total }}</p></div>
+<form method="post" class="panel form-panel">{% csrf_token %}{{ form.as_p }}<div class="form-actions"><button class="button primary" type="submit">Save payment</button></div></form>
+{% endblock %}

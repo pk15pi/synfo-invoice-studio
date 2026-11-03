@@ -1,0 +1,9 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><a class="back" href="{% url 'format_templates' %}">&larr; Invoice formats</a><h1>{{ title }}</h1></div>
+<div class="panel note">Engines print only saved invoice data (number, dates, customer, lines, totals; on Domestic GST also the GST breakup, SAC, GSTINs, place of supply and amount in words; the LUT note on Export under LUT). Column labels left blank use the standard headings. <b>QuantBud Standard</b> reproduces the original invoice exactly, so it ignores the design options and stays US Letter portrait.</div>
+<form method="post" class="panel form-panel" target="_self">{% csrf_token %}{{ form.non_field_errors }}
+<div class="form-grid">{% for field in form %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}</div>
+<div class="form-actions"><button class="button primary" type="submit" name="action" value="save">Save</button>
+<select class="field" name="kind" aria-label="Sample invoice type" style="max-width:240px">{% for k, v in kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+<button class="button secondary" type="submit" name="action" value="preview" formtarget="_blank" title="Sample PDF of the values above. Nothing is saved and no invoice number is used.">Preview sample PDF</button>
+<a class="button secondary" href="{% url 'format_templates' %}">Cancel</a></div></form>{% endblock %}

@@ -1,0 +1,6 @@
+{% extends 'invoice_app/base.html' %}{% load ui_icons %}{% block content %}
+<div class="page-heading"><a class="back" href="{% url 'em:employee_detail' e.pk %}?tab=documents">&larr; Back</a><h1>History: {{ d.get_document_type_display }} - {{ e.full_name }}</h1></div>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Version</th><th>Name</th><th>Uploaded</th><th>Expiry</th><th></th></tr></thead><tbody>
+<tr><td>Current</td><td>{{ d.document_name }}</td><td>{{ d.upload_date|date:"d-m-Y H:i" }}</td><td>{{ d.expiry_date|date:"d-m-Y"|default:"-" }}</td><td><a class="icon-btn" href="{% url 'em:document_view' e.pk d.pk %}" target="_blank" title="View" aria-label="View">{% icon "view" %}</a></td></tr>
+{% for h in history %}<tr><td>Previous</td><td>{{ h.document_name }}</td><td>{{ h.upload_date|date:"d-m-Y H:i" }}</td><td>{{ h.expiry_date|date:"d-m-Y"|default:"-" }}</td><td><a class="icon-btn" href="{% url 'em:document_view' e.pk h.pk %}" target="_blank" title="View" aria-label="View">{% icon "view" %}</a> <a class="icon-btn" href="{% url 'em:document_download' e.pk h.pk %}" title="Download" aria-label="Download">{% icon "download" %}</a></td></tr>{% endfor %}
+</tbody></table></div></div>{% endblock %}

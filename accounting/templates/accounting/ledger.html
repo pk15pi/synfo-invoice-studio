@@ -1,0 +1,11 @@
+{% extends 'accounting/base_acc.html' %}{% block acc_title %}Ledger{% endblock %}{% block acc %}
+<div class="page-heading"><p class="eyebrow">Account ledger</p><h1>{% if acct %}{{ acct }}{% else %}Ledger{% endif %}</h1></div>
+<form class="panel filters" method="get" action="{% url 'acc:ledger_pick' %}"><select class="field" name="account">{% for a in accounts %}<option value="{{ a.pk }}" {% if acct.pk == a.pk %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>{% endfor %}</select>
+{% include 'accounting/_period_filter.html' %}<button class="button secondary">Show</button></form>
+{% if data %}<div class="panel"><p class="muted">{{ f.label }} ({{ f.range_text }}). Balances shown in the account's normal direction ({% if acct.debit_normal %}debit{% else %}credit{% endif %}).</p>
+<table id="ldg"><thead><tr><th>Date</th><th>Entry</th><th>Narration</th><th class="acc-num">Debit</th><th class="acc-num">Credit</th><th class="acc-num">Balance</th></tr></thead><tbody>
+<tr><td colspan="5"><em>Opening balance</em></td><td class="acc-num">{{ data.opening }}</td></tr>
+{% for r in data.rows %}<tr><td>{{ r.entry.date|date:"d-m-Y" }}</td><td><a href="{% url 'acc:journal_detail' r.entry.pk %}">{{ r.entry }}</a></td><td>{{ r.entry.narration }}{% if r.line.description %} - {{ r.line.description }}{% endif %}</td><td class="acc-num">{% if r.line.debit %}{{ r.line.debit }}{% endif %}</td><td class="acc-num">{% if r.line.credit %}{{ r.line.credit }}{% endif %}</td><td class="acc-num">{{ r.balance }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No postings in this period.</td></tr>{% endfor %}
+</tbody><tfoot><tr><th colspan="3">Totals / closing</th><th class="acc-num">{{ data.total_debit }}</th><th class="acc-num">{{ data.total_credit }}</th><th class="acc-num">{{ data.closing }}</th></tr></tfoot></table></div>
+{% elif acct %}<p class="panel">Group accounts have no ledger; choose a ledger account.</p>{% endif %}{% endblock %}

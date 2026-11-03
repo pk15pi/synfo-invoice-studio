@@ -1,0 +1,8 @@
+{% extends 'accounting/base_acc.html' %}{% block acc_title %}Financial periods{% endblock %}{% block acc %}
+<div class="page-heading"><p class="eyebrow">Accounting</p><h1>Financial periods</h1></div>
+<form class="panel filters" method="post">{% csrf_token %}<select class="field" name="start_year">{% for y, l in fy_list %}<option value="{{ y }}">{{ l }}</option>{% endfor %}</select><button class="button secondary">Create / complete financial year</button></form>
+{% for fy in years %}<div class="panel"><h3>{{ fy.name }} ({{ fy.start_date|date:"d M Y" }} - {{ fy.end_date|date:"d M Y" }})</h3><table><thead><tr><th>Period</th><th>Status</th><th>Last change</th><th>Close / reopen (reason required)</th></tr></thead><tbody>
+{% for p in fy.periods.all %}<tr><td>{{ p.label }}</td><td><span class="badge">{{ p.get_status_display }}</span></td>
+<td>{% with ev=p.events.all|first %}{% if ev %}{{ ev.get_action_display }} {{ ev.at|date:"d-m-Y H:i" }}: {{ ev.reason }}{% endif %}{% endwith %}</td>
+<td><form method="post" action="{% url 'acc:period_action' p.pk p.is_open|yesno:'close,reopen' %}">{% csrf_token %}<input class="field" name="reason" required placeholder="Reason"> <button class="button secondary">{{ p.is_open|yesno:"Close,Reopen" }}</button></form></td></tr>{% endfor %}
+</tbody></table></div>{% endfor %}{% endblock %}

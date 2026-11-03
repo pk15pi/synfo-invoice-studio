@@ -66,7 +66,7 @@ def divisor_for(basis, reference_date):
 @dataclass
 class LineCalc:
     quantity: Decimal
-    unit_price: Decimal
+    unit_price: Decimal | None
     amount: Decimal
     divisor: Decimal | None = None
 
@@ -87,11 +87,46 @@ def calculate_line(pricing_type, days, *, monthly_amount=0, daily_rate=0, basis=
     return LineCalc(days, q2(monthly / divisor), round_amount(exact, rounding), divisor)
 
 
+MONTHLY_PRORATED, PER_DAY, MONTHLY_FIXED = 'monthly_prorated', 'per_day', 'monthly_fixed'
+
+
+def calculate_by_billing_type(billing_type, days, *, monthly_amount=0, daily_rate=0, period_end=None,
+                              fallback_date=None, rounding='rupee_down'):
+    """The customer's billing type is the single source of truth.
+
+    1 monthly_prorated: unit = q2(monthly / days in month of period end);
+                        amount = round(monthly x days / days in month)  -> a full month = monthly
+    2 per_day:          unit = daily rate; amount = round(unit x days)
+    3 monthly_fixed:    unit = None (printed blank); amount = monthly, whatever the days
+    """
+    if billing_type == PER_DAY:
+        return calculate_line(VARIABLE, days, daily_rate=daily_rate, rounding=rounding)
+    if billing_type == MONTHLY_FIXED:
+        return LineCalc(q2(days), None, q2(to_decimal(monthly_amount)))
+    return calculate_line('fixed', days, monthly_amount=monthly_amount, basis=CALENDAR,
+                          period_end=period_end, fallback_date=fallback_date, rounding=rounding)
+
+
 def calculate_for_project(project, days, period_end=None, fallback_date=None, rounding='rupee_down'):
-    return calculate_line(
-        project.pricing_type, days, monthly_amount=project.monthly_amount, daily_rate=project.daily_rate,
-        basis=project.proration_basis, full_month=project.fixed_monthly_even_if_partial,
+    return calculate_by_billing_type(
+        project.client.billing_type, days, monthly_amount=project.monthly_amount, daily_rate=project.daily_rate,
         period_end=period_end, fallback_date=fallback_date, rounding=rounding)
+
+
+def days_in_month(d):
+    import calendar
+    return calendar.monthrange(d.year, d.month)[1]
+
+
+def resolve_terms(mode, text, invoice_date):
+    """Return (text printed under Terms, integer days or None).
+    Type 1 (month_days): calendar days of the invoice date's month.
+    Type 2 (custom): the text as typed; days only when it is a whole number."""
+    if mode == 'month_days':
+        n = days_in_month(invoice_date)
+        return str(n), n
+    t = (text or '').strip()
+    return t, (int(t) if t.isdigit() else None)
 
 
 def due_date_for(invoice_date, terms_days):

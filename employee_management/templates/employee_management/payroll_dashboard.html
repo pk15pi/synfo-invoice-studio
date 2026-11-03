@@ -1,0 +1,31 @@
+{% extends 'invoice_app/base.html' %}{% load ui_icons %}{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Payroll</p><h1>Payroll &middot; {{ label }}</h1></div>
+<form method="get" class="filters"><select class="field" name="month">{% for i, n in months %}<option value="{{ i }}" {% if i == m %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+<select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select>
+<select class="field" name="department"><option value="">All departments</option>{% for d in departments %}<option value="{{ d.pk }}" {% if dept == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
+<button class="button secondary">Go</button></form></div>
+{% if period %}<div class="panel"><div class="split"><div>Status: <b>{{ period.get_status_display }}</b> &middot; Divisor: <b>{{ period.get_divisor_display }}</b> ({{ period.divisor_days }} days) &middot; Payment date: <b>{{ period.payment_date|date:"d-m-Y"|default:"not set" }}</b></div>
+<form method="post" action="{% url 'em:period_update' period.pk %}" class="filters">{% csrf_token %}{{ period_form.divisor }}{{ period_form.payment_date }}<button class="button secondary" title="Update month">{% icon "update" %} Update month</button></form></div></div>{% endif %}
+{% if pending %}<form method="post" action="{% url 'em:payroll_generate' %}" class="panel">{% csrf_token %}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}">
+<p>{{ pending|length }} eligible employee(s) without payroll for {{ label }}: {% for e in pending %}{{ e.employee_id }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+{% if not period %}<label>Divisor <select class="field" name="divisor">{% for k, l in divisors %}<option value="{{ k }}" {% if k == default_divisor %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endif %}
+<button class="button primary" type="submit">Generate draft payroll</button></form>{% endif %}
+{% if rows %}<form method="post" action="{% url 'em:payroll_finalize' period.pk %}" onsubmit="return confirm('Finalize the selected payroll? Finalized records cannot be edited (only revised).')">{% csrf_token %}
+<div class="panel"><div class="table-wrap"><table><thead><tr><th></th><th>ID</th><th>Name</th><th>Department</th><th class="num">Payable</th><th class="num">LWP</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Employer</th><th class="num">Net</th><th>Status</th><th class="num">Paid</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{% if r.status == 'draft' %}<input type="checkbox" name="ids" value="{{ r.pk }}" checked>{% endif %}</td><td>{{ r.code }}</td><td>{{ r.snap_name }}</td><td>{{ r.snap_department }}</td><td class="num">{{ r.payable_days }}</td><td class="num">{{ r.lwp_days }}</td><td class="num">{{ r.gross_earnings }}</td><td class="num">{{ r.total_deductions }}</td><td class="num">{{ r.employer_contributions }}</td><td class="num"><b>{{ r.net_salary }}</b></td>
+<td><span class="badge {% if r.status == 'finalized' %}ok{% endif %}">{{ r.get_status_display }}{% if r.revision > 1 %} r{{ r.revision }}{% endif %}</span></td>
+<td class="num">{% if r.status == 'finalized' %}{{ r.salary.paid }} <small class="muted">{{ r.salary.status }}</small>{% endif %}</td>
+<td><a class="icon-btn" href="{% url 'em:payroll_detail' r.pk %}" title="Open" aria-label="Open">{% icon "view" %}</a>{% if r.status == 'draft' %} <a class="icon-btn" href="{% url 'em:payroll_edit' r.pk %}" title="Adjust" aria-label="Adjust">{% icon "adjust" %}</a>{% endif %} <a class="icon-btn" href="{% url 'em:payslip' r.pk %}" target="_blank" title="Payslip" aria-label="Payslip">{% icon "pdf" %}</a></td></tr>{% endfor %}
+<tr><th colspan="6">Totals (current records)</th><th class="num">{{ totals.gross }}</th><th class="num">{{ totals.ded }}</th><th class="num">{{ totals.employer }}</th><th class="num">{{ totals.net }}</th><th colspan="3"></th></tr></tbody></table></div>
+{% if has_draft %}<div class="form-actions"><button class="button primary" type="submit">Finalize selected</button></div>{% endif %}</div></form>
+{% if bulk_pay_form %}<form method="post" action="{% url 'em:salary_pay_all' period.pk %}" class="panel" onsubmit="return confirm('Record a payment for the full unpaid balance of every finalized payslip in this month?')">{% csrf_token %}<h2>Pay all unpaid salaries</h2><p class="muted">Records the outstanding balance of every current finalized payslip as paid from one bank (Dr salary payable, Cr bank).</p>
+<div class="filters">{{ bulk_pay_form.payment_date }} {{ bulk_pay_form.bank_account }} {{ bulk_pay_form.mode }} {{ bulk_pay_form.reference }}<button class="button primary">Pay all unpaid</button></div></form>{% endif %}
+<div class="panel"><div class="panel-head"><h2>Exports</h2></div>
+<a class="button secondary" href="{% url 'em:payslip_zip' period.pk %}{% if dept %}?department={{ dept }}{% endif %}">Download all payslips (ZIP)</a>
+<a class="button secondary" href="{% url 'em:export_register' period.pk %}{% if dept %}?department={{ dept }}{% endif %}">Salary register (Excel)</a> <a class="button secondary" href="{% url 'em:export_register_csv' period.pk %}{% if dept %}?department={{ dept }}{% endif %}">Salary register (CSV)</a>
+<a class="button secondary" href="{% url 'em:export_bank' period.pk 'csv' %}{% if dept %}?department={{ dept }}{% endif %}">Bank transfer CSV (A/c masked)</a>
+<a class="button secondary" href="{% url 'em:export_bank' period.pk 'xlsx' %}?full=1{% if dept %}&amp;department={{ dept }}{% endif %}" title="Full account numbers, for uploading to the bank. Handle as confidential.">Bank upload Excel (full A/c)</a>
+<a class="button secondary" href="{% url 'em:export_bank' period.pk 'xlsx' %}{% if dept %}?department={{ dept }}{% endif %}">Bank transfer Excel (A/c masked)</a>
+<p class="muted">Bank transfer files include full account numbers and only finalized records. Treat them as confidential and delete them after use.</p></div>
+{% elif not pending %}<div class="panel empty">No eligible employees for {{ label }}. Employees need a joining date on or before the month end and a salary structure.</div>{% endif %}
+{% endblock %}

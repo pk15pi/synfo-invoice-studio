@@ -1,0 +1,14 @@
+{% extends 'invoice_app/base.html' %}{% block title %}{{ rec.name }} &middot; Backups{% endblock %}
+{% block content %}<p><a href="{% url 'backup:home' %}">&larr; Backups</a></p><h1>{{ rec.name }}</h1>
+<table class="table"><tr><th>File</th><td><code>{{ rec.path }}</code></td></tr><tr><th>Kind</th><td>{{ rec.get_kind_display }}{% if rec.is_protected %} (protected){% endif %}</td></tr>
+<tr><th>Created</th><td>{{ rec.created_at|date:"d-m-Y H:i:s" }} IST</td></tr><tr><th>App version</th><td>{{ rec.manifest.app_version }}</td></tr>
+<tr><th>ZIP sha256</th><td><code>{{ rec.zip_sha256|default:"not recorded" }}</code></td></tr><tr><th>Files</th><td>{{ rec.manifest.file_count|default:"see manifest" }}</td></tr>
+<tr><th>Migrations</th><td>{{ rec.manifest.migrations|length }}</td></tr><tr><th>Verification</th><td>{% if rec.verify_ok %}OK{% elif rec.verify_ok is False %}<strong style="color:#b3261e">FAILED</strong>{% else %}Not verified{% endif %} {{ rec.verified_at|date:"d-m-Y H:i" }}<pre>{{ rec.verify_notes }}</pre></td></tr></table>
+<form method="post" action="{% url 'backup:verify' rec.pk %}">{% csrf_token %}<button type="submit">Verify now</button></form>
+<h2>Record counts</h2><table class="table">{% for k, v in rec.manifest.record_counts.items %}<tr><td>{{ k }}</td><td>{{ v }}</td></tr>{% endfor %}</table>
+<h2>Restore</h2>
+{% if rec.deleted_at %}<p class="muted">Removed by retention.</p>{% elif not rec.verify_ok %}<p class="muted">Verify this backup first; only verified backups can be restored.</p>{% else %}
+{% if unknown %}<div class="message error">Not compatible: this backup has migrations the code does not know ({{ unknown|join:", " }}).</div>{% elif pending %}<p class="muted">Backup is older than the code; after restoring, migrate these apps one by one: {{ pending|join:", " }}</p>{% endif %}
+<div class="message warning">Restoring replaces the current database. A pre-restore backup is made automatically and every check must pass first. Afterwards you must restart the running server. If the database is locked, stop runserver and use <code>manage.py restore_backup {{ rec.name }} --confirm "{{ rec.confirm_phrase }}"</code>.</div>
+<form method="post">{% csrf_token %}<p>Type <code>{{ rec.confirm_phrase }}</code></p>{{ form.as_p }}<button type="submit">Restore</button></form>{% endif %}
+{% endblock %}

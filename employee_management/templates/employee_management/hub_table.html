@@ -1,0 +1,6 @@
+{% extends 'invoice_app/base.html' %}{% block title %}{{ title }} &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">{{ section }}</p><h1>{{ title }}</h1><p class="muted">{{ intro }}</p></div>
+<div>{% for label, url in actions %}<a class="button secondary" href="{{ url }}">{{ label }}</a> {% endfor %}</div></div>
+<div class="panel"><input class="field" data-filter="#hub-table" placeholder="Type to filter"><div class="table-wrap"><table id="hub-table"><thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead><tbody>
+{% for r in rows %}<tr>{% for c in r %}<td>{% if c.u %}<a href="{{ c.u }}">{{ c.t }}</a>{% else %}{{ c.t }}{% endif %}</td>{% endfor %}</tr>
+{% empty %}<tr><td colspan="{{ headers|length }}" class="empty">Nothing here yet.</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}

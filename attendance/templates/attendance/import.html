@@ -1,0 +1,9 @@
+{% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">Attendance &amp; Leave</p><h1>Import attendance CSV</h1>
+<p class="muted">Columns: employee_id, date (YYYY-MM-DD or DD-MM-YYYY), status (P, A, HD, L, H, WO), leave_type (code, for L or HD-with-leave), in_time, out_time, note. Rows with blank status are skipped. The file is all-or-nothing: any error and nothing is saved. Imported leave does not change leave balances; use Leave applications for that.</p></div>
+{% include "attendance/_nav.html" %}
+<div class="panel"><a class="button secondary" href="{% url 'att:template' %}?year={{ y }}&month={{ m }}">Download template for {{ m }}/{{ y }}</a></div>
+{% if errors %}<div class="panel note"><b>Nothing imported:</b><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" enctype="multipart/form-data" class="panel form-panel">{% csrf_token %}{{ form.non_field_errors }}<div class="form-grid">{% for field in form %}<div class="form-field"><label>{{ field.label }}</label>{{ field }}{% for er in field.errors %}<small class="error">{{ er }}</small>{% endfor %}</div>{% endfor %}</div>
+<div class="form-actions"><button class="button primary">Import</button></div></form>
+{% endblock %}

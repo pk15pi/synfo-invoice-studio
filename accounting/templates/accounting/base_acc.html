@@ -1,0 +1,4 @@
+{% extends 'invoice_app/base.html' %}{% block title %}{% block acc_title %}Accounting{% endblock %} &middot; QuantBud{% endblock %}
+{% block content %}<style>.acc-sub a{margin-right:14px}.acc-num{text-align:right;font-variant-numeric:tabular-nums}.acc-grp{font-weight:600}.acc-off{opacity:.55}</style>
+<p class="acc-sub muted"><a href="{% url 'acc:home' %}">Accounting</a><a href="{% url 'acc:accounts' %}">Chart of accounts</a><a href="{% url 'acc:journal' %}">Journal register</a><a href="{% url 'acc:journal_new' %}">New journal</a><a href="{% url 'acc:ledger_pick' %}">Ledger</a><a href="{% url 'acc:periods' %}">Financial periods</a><a href="{% url 'acc:mappings' %}">Mappings</a></p>
+{% block acc %}{% endblock %}{% endblock %}

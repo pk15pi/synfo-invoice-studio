@@ -1,0 +1,5 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Imports{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">Bank Management</p><h1>Statement imports</h1></div>
+<div class="panel"><table><thead><tr><th>When</th><th>Account</th><th>File</th><th>Status</th><th class="num">Rows</th><th class="num">Imported</th><th class="num">Duplicates</th><th class="num">Errors</th></tr></thead><tbody>
+{% for x in rows %}<tr><td>{{ x.created_at|date:"d-m-Y H:i" }}</td><td>{{ x.bank_account }}</td><td><a href="{% url 'bank:import_batch' x.pk %}">{{ x.file_name }}</a></td><td>{{ x.status }}</td><td class="num">{{ x.total_rows }}</td><td class="num">{{ x.imported }}</td><td class="num">{{ x.duplicates }}</td><td class="num">{{ x.errors }}</td></tr>
+{% empty %}<tr><td colspan="8" class="empty">No imports yet.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

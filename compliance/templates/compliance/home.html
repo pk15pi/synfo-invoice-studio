@@ -1,0 +1,6 @@
+{% extends 'compliance/base_c.html' %}{% block c %}
+<div class="page-heading"><p class="eyebrow">Compliance</p><h1>Compliance overview</h1></div>
+<div class="panel"><p><strong>{{ active_count }}</strong> active rule(s){% if example_count %}, {{ example_count }} example rule(s) (unverified){% endif %}. {% if not active_count %}<span class="st-not_configured">No active rules: every check will say "rule not configured".</span>{% endif %}</p>
+<p class="muted">Example rules can be loaded with <code>manage.py load_example_compliance_rules</code>. They are inactive and unverified until you edit and activate them.</p>
+<p><a class="button primary" href="{% url 'compliance:check' %}">Run compliance check</a> <a class="button secondary" href="{% url 'compliance:rule_new' %}">+ Rule</a></p></div>
+<div class="panel"><h3>Upcoming due dates</h3>{% if due %}<table><thead><tr><th>Due</th><th>Item</th><th>Period</th><th>Status</th></tr></thead><tbody>{% for d in due %}<tr><td>{{ d.date|date:"d-m-Y" }}</td><td>{{ d.entry.name }}</td><td>{{ d.period }}</td><td>{% if d.paid %}Payment recorded{% elif d.overdue %}<span class="st-mismatch">Overdue</span>{% else %}Open{% endif %}</td></tr>{% endfor %}</tbody></table>{% else %}<p class="empty">No active due-date entries configured.</p>{% endif %}</div>{% endblock %}

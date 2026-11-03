@@ -1,0 +1,7 @@
+{% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading"><a class="back" href="{% url 'att:applications' %}">&larr; Back</a><h1>Record leave</h1><p class="muted">Overlapping leave and insufficient balance are blocked (except unpaid types such as LWP). Weekly offs and holidays inside the range are not counted.</p></div>
+<form method="post" class="panel form-panel">{% csrf_token %}{% for e in form.non_field_errors %}<div class="panel note error">{{ e }}</div>{% endfor %}
+<div class="form-grid">{% for field in form %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for er in field.errors %}<small class="error">{{ er }}</small>{% endfor %}</div>{% endfor %}
+<div class="form-field check-field"><label for="approve_now">Approve immediately</label><input type="checkbox" id="approve_now" name="approve_now" value="1" checked></div></div>
+<div class="form-actions"><button class="button primary">Save</button><a class="button secondary" href="{% url 'att:applications' %}">Cancel</a></div></form>
+{% endblock %}

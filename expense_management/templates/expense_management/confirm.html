@@ -1,0 +1,3 @@
+{% extends 'expense_management/xm_base.html' %}{% block xm_title %}{{ title }}{% endblock %}{% block xm %}
+<div class="page-heading"><p class="eyebrow">Expense Management</p><h1>{{ title }}</h1></div>
+<div class="panel"><p>{{ text }}</p><form method="post">{% csrf_token %}<div class="form-actions"><a class="button secondary" href="{{ back_url }}">Go back</a> <button class="button primary" type="submit">{{ button }}</button></div></form></div>{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'expense_management/xm_base.html' %}{% load exp_tags %}{% block xm_title %}Review claims{% endblock %}{% block xm %}
+<div class="page-heading split"><div><p class="eyebrow">Expense Management</p><h1>Review employee claims</h1></div><div><a class="button secondary" href="{% url 'exp:claims' %}">All claims</a></div></div>
+{% include 'expense_management/_claim_filters.html' %}
+<div class="panel"><p class="muted">{{ rows|length }} claim(s). Actions apply immediately; reject, cancel and reimburse ask for confirmation. Open a claim to see attachments, full history and record reimbursements.</p>
+<div class="table-wrap"><table id="review-table"><thead><tr><th>Claim</th><th>Employee</th><th>Expense</th><th class="num">Claimed</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+{% for c in rows %}<tr><td><a href="{% url 'exp:claim_detail' c.pk %}">{{ c.claim_id }}</a><br><small class="muted">{{ c.claim_date|date:"d-m-Y" }}</small></td>
+<td>{{ c.employee.employee_id }} - {{ c.employee.full_name }}<br><small class="muted">{{ c.snap_department }}</small></td>
+<td>{{ c.category.name }}<br><small class="muted">{{ c.description|truncatechars:60 }} &middot; {{ c.expense_date|date:"d-m-Y" }}</small></td>
+<td class="num">{{ c.amount_claimed|money:c.currency }}{% if c.approved_amount is not None %}<br><small class="muted">approved {{ c.approved_amount|money:c.currency }}</small>{% endif %}</td>
+<td><span class="badge st-{{ c.status }}">{{ c.status_label }}</span></td>
+<td>{% include 'expense_management/_claim_actions.html' with next=next_url %}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">Nothing to review.</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}

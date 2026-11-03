@@ -1,0 +1,16 @@
+<script>
+(function(){
+  const subMap={ {% for s in form.fields.subcategory.queryset %}"{{ s.pk }}":"{{ s.category_id }}",{% endfor %} };
+  const projMap={ {% for p in projects %}"{{ p.pk }}":"{{ p.client_id }}",{% endfor %} };
+  function filt(sel,map,parent){ if(!sel||!parent)return; const v=parent.value;
+    [...sel.options].forEach(o=>{ if(!o.value)return; const ok=!v||map[o.value]===v; o.hidden=!ok; o.disabled=!ok; });
+    if(sel.selectedOptions[0]&&sel.selectedOptions[0].disabled) sel.value=''; }
+  const cat=document.getElementById('id_category'), sub=document.getElementById('id_subcategory');
+  const cl=document.getElementById('id_client'), pr=document.getElementById('id_project');
+  if(cat){cat.addEventListener('change',()=>filt(sub,subMap,cat)); filt(sub,subMap,cat);}
+  if(cl){cl.addEventListener('change',()=>filt(pr,projMap,cl)); filt(pr,projMap,cl);}
+  if(pr&&cl){pr.addEventListener('change',()=>{ if(pr.value&&!cl.value){cl.value=projMap[pr.value]; filt(pr,projMap,cl);} });}
+  const cur=document.getElementById('id_currency'), rate=document.getElementById('id_exchange_rate');
+  if(cur&&rate){const f=()=>{ if(cur.value==='INR'){rate.value='1'; rate.readOnly=true;} else rate.readOnly=false; }; cur.addEventListener('change',f); f();}
+})();
+</script>

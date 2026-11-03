@@ -1,0 +1,8 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}{{ kind|title }} book{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">Bank Management</p><h1>{{ kind|title }} book</h1></div>
+<form class="panel filters" method="get"><select class="field" name="account"><option value="">All {{ kind }} accounts</option>{% for a in all_accounts %}<option value="{{ a.pk }}" {% if sel == a.pk|stringformat:"s" %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>{% include 'bank_management/_period_filter.html' %}<button class="button secondary">Show</button></form>
+{% for bk in books %}<div class="panel"><h3>{{ bk.b }} <span class="muted">({{ f.label }})</span></h3><table><thead><tr><th>Date</th><th>Entry</th><th>Narration</th><th class="num">Receipts</th><th class="num">Payments</th><th class="num">Balance</th></tr></thead><tbody>
+<tr><td colspan="5"><em>Opening balance</em></td><td class="num">{{ bk.data.opening }}</td></tr>
+{% for r in bk.data.rows %}<tr><td>{{ r.entry.date|date:"d-m-Y" }}</td><td><a href="{% url 'acc:journal_detail' r.entry.pk %}">{{ r.entry }}</a></td><td>{{ r.entry.narration }}</td><td class="num">{% if r.line.debit %}{{ r.line.debit }}{% endif %}</td><td class="num">{% if r.line.credit %}{{ r.line.credit }}{% endif %}</td><td class="num">{{ r.balance }}</td></tr>{% endfor %}
+</tbody><tfoot><tr><th colspan="3">Totals / closing</th><th class="num">{{ bk.data.total_debit }}</th><th class="num">{{ bk.data.total_credit }}</th><th class="num">{{ bk.data.closing }}</th></tr></tfoot></table></div>
+{% empty %}<p class="panel">No {{ kind }} accounts.</p>{% endfor %}{% endblock %}

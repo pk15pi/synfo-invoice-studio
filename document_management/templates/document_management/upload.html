@@ -1,0 +1,4 @@
+{% extends 'invoice_app/base.html' %}{% block title %}Upload document &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">Documents</p><h1>Upload company document</h1></div>
+<form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}{{ form.non_field_errors }}{% for f in form %}<p><label>{{ f.label }}</label> {{ f }} {{ f.errors }} <span class="muted">{{ f.help_text }}</span></p>{% endfor %}
+<p class="muted">Stored in private storage (company_docs) under a random name; downloadable only from this computer.</p><button class="button primary">Upload</button> <a href="{% url 'docs:list' %}">Cancel</a></form>{% endblock %}

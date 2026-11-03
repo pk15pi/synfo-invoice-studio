@@ -1,13 +1,16 @@
-{% extends 'invoice_app/base.html' %}{% block content %}
+{% extends 'invoice_app/base.html' %}{% load ui_icons %}{% block content %}
 <div class="page-heading split"><div><a class="back" href="{% url 'clients' %}">&larr; Customers</a><h1>{{ client.name }}</h1></div>
-<div><a class="button secondary" href="{% url 'client_edit' client.pk %}">Edit</a> <a class="button primary" href="{% url 'new_invoice' %}?client={{ client.pk }}">&#43; Invoice</a></div></div>
+<div><a class="button secondary" href="{% url 'client_edit' client.pk %}">{% icon "edit" %} Edit</a> <a class="button primary" href="{% url 'new_invoice' %}?client={{ client.pk }}">&#43; Invoice</a></div></div>
 <section class="panel"><div class="form-grid">
 <div><small class="muted">Address</small><br>{{ client.address|linebreaksbr }}</div>
 <div><small class="muted">Country</small><br>{{ client.country|default:"-" }}</div>
 <div><small class="muted">Contact</small><br>{{ client.contact_person|default:"-" }} {{ client.phone }}</div>
 <div><small class="muted">Email</small><br>{{ client.email|default:"-" }}</div>
 <div><small class="muted">Tax information</small><br>{{ client.tax_id|default:"-" }}</div>
-<div><small class="muted">Default terms (days)</small><br>{{ client.default_terms_days|default_if_none:"profile default" }}</div></div></section>
-<section class="panel"><div class="panel-head"><h2>Projects</h2><a href="{% url 'projects' client.pk %}">Manage</a></div>
+<div><small class="muted">Payment term (billing type)</small><br>{{ client.get_billing_type_display }}</div>
+<div><small class="muted">Terms (days until due)</small><br>{% if client.terms_mode == 'month_days' %}Days in invoice month (auto){% else %}{{ client.terms_text|default:'profile default' }}{% endif %}</div>
+<div><small class="muted">Our vendor code</small><br>{{ client.vendor_code|default:"-" }}</div>
+<div><small class="muted">Default invoice format</small><br>{% if client.invoice_format %}<a href="{% url 'format_template_edit' client.invoice_format_id %}">{{ client.invoice_format.name }}</a>{% else %}Default (QuantBud Standard / Tax Invoice){% endif %}</div></div></section>
+<section class="panel"><div class="panel-head"><h2>Projects</h2><a href="{% url 'projects' client.pk %}">Manage</a> &middot; <a href="{% url 'description_templates' %}">Description templates</a></div>
 <table><tbody>{% for p in projects %}<tr><td>{{ p.name }}</td><td>{{ p.method_label }}</td></tr>{% empty %}<tr><td>No projects.</td></tr>{% endfor %}</tbody></table></section>
 <section class="panel"><h2>Invoices</h2><table><tbody>{% for i in invoices %}<tr><td><a href="{% url 'invoice_detail' i.pk %}">{{ i.invoice_number }}</a></td><td>{{ i.invoice_date }}</td><td>{{ i.total }}</td></tr>{% empty %}<tr><td>No invoices.</td></tr>{% endfor %}</tbody></table></section>{% endblock %}

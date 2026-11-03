@@ -1,3 +1,4 @@
+import json
 import re
 import shutil
 import tempfile
@@ -177,10 +178,10 @@ class ViewTests(Fixture):
     def test_customer_crud(self):
         r = self.client.post(reverse('client_add'), {'name': 'Acme', 'address': 'x', 'country': 'India',
                                                      'contact_person': 'A', 'phone': '1', 'email': 'a@b.co',
-                                                     'tax_id': 'T', 'default_terms_days': '15', 'notes': ''})
+                                                     'tax_id': 'T', 'billing_type': 'per_day', 'terms_mode': 'custom', 'terms_text': '15', 'notes': ''})
         c = Client.objects.get(name='Acme')
         self.assertRedirects(r, reverse('client_detail', args=[c.pk]))
-        self.assertEqual((c.country, c.default_terms_days), ('India', 15))
+        self.assertEqual((c.country, c.terms_text), ('India', '15'))
 
     def test_legacy_manual_pdf_url(self):
         self.client.post(reverse('new_invoice'), self.post_data())
@@ -306,3 +307,411 @@ class SampleCommandTests(TestCase):
         self.assertEqual(BusinessProfile.current().next_invoice_number, before)
         self.assertEqual(Invoice.objects.count(), 0)
         shutil.rmtree(out.parent)
+
+
+class BillingTypeTests(TestCase):
+    """The customer's payment term (billing type) drives every line."""
+    def make(self, bt, **proj):
+        c = Client.objects.create(name=f'C {bt}', billing_type=bt, default_terms_days=31)
+        return ProjectTemplate.objects.create(client=c, name='Consultant - P', **proj)
+
+    def test_mode1_monthly_prorated(self):
+        p = self.make(Client.MONTHLY_PRORATED, monthly_amount=100000)
+        c = billing.calculate_for_project(p, 23, period_end=date(2026, 10, 23))
+        self.assertEqual((c.unit_price, c.amount), (D('3225.81'), D('74193.00')))
+        for end, days in ((date(2026, 10, 31), 31), (date(2026, 9, 30), 30), (date(2027, 2, 28), 28)):
+            c = billing.calculate_for_project(p, days, period_end=end)
+            self.assertEqual(c.amount, D('100000.00'))  # a full month always = monthly amount
+        self.assertEqual(billing.calculate_for_project(p, 28, period_end=date(2027, 2, 28)).unit_price, D('3571.43'))
+
+    def test_mode1_ignores_legacy_project_settings(self):
+        p = self.make(Client.MONTHLY_PRORATED, monthly_amount=90000, pricing_type='variable', proration_basis='30',
+                      daily_rate=1)
+        self.assertEqual(billing.calculate_for_project(p, 31, period_end=date(2026, 10, 31)).amount, D('90000.00'))
+
+    def test_mode2_per_day(self):
+        p = self.make(Client.PER_DAY, daily_rate=4000, monthly_amount=999)
+        self.assertEqual(billing.calculate_for_project(p, 23, period_end=date(2026, 10, 23)).amount, D('92000.00'))
+        c = billing.calculate_for_project(p, 31, period_end=date(2026, 10, 31))
+        self.assertEqual((c.unit_price, c.amount), (D('4000.00'), D('124000.00')))
+
+    def test_mode3_blank_unit(self):
+        p = self.make(Client.MONTHLY_FIXED, monthly_amount=150000)
+        c = billing.calculate_for_project(p, 12, period_end=date(2026, 10, 12))
+        self.assertEqual((c.quantity, c.unit_price, c.amount), (D('12.00'), None, D('150000.00')))
+
+    def test_mode3_saved_and_pdf_unit_cell_empty(self):
+        from django.http import QueryDict
+        from reportlab import rl_config
+        p = self.make(Client.MONTHLY_FIXED, monthly_amount=150000)
+        q = QueryDict(mutable=True)
+        q.update({'invoice_date': '2026-11-02', 'terms_days': '31'})
+        for k, v in {'line_project': [p.pk], 'line_name': [''], 'line_desc': [''], 'line_from': ['2026-10-01'],
+                     'line_to': ['2026-10-12'], 'line_days': ['12'], 'line_unit': ['500'], 'line_amount': ['']}.items():
+            q.setlist(k, [str(x) for x in v])
+        data = services.parse_invoice_post(q, p.client, BusinessProfile.current())
+        inv = services.save_invoice(data)
+        line = inv.lines.get()
+        self.assertIsNone(line.unit_price)  # even a typed unit override is ignored in mode 3
+        self.assertEqual((line.quantity_days, line.amount, inv.total), (D('12.00'), D('150000.00'), D('150000.00')))
+        saved = rl_config.pageCompression, rl_config.useA85
+        rl_config.pageCompression, rl_config.useA85 = 0, 0
+        try:
+            pdf = render_invoice_pdf(build_invoice_data(inv, BusinessProfile.current()))
+        finally:
+            rl_config.pageCompression, rl_config.useA85 = saved
+        self.assertNotIn(b'(0.00)', pdf)
+        self.assertNotIn(b'(500.00)', pdf)
+        self.assertIn(b'(12.00)', pdf)
+        r = self.client.get(reverse('invoice_detail', args=[inv.pk]))
+        self.assertNotContains(r, '0.00</td><td class="num">150000')
+
+    def test_customer_form_saves_billing_type(self):
+        r = self.client.post(reverse('client_add'), {'name': 'Mode3 Co', 'billing_type': Client.MONTHLY_FIXED,
+                                                     'terms_mode': 'custom', 'terms_text': '31'})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Client.objects.get(name='Mode3 Co').billing_type, Client.MONTHLY_FIXED)
+        r = self.client.get(reverse('client_add'))
+        self.assertContains(r, 'Payment term (billing type)')
+        self.assertContains(r, 'Terms (days until due)')
+
+    def test_project_form_follows_customer_type(self):
+        p = self.make(Client.PER_DAY)
+        r = self.client.get(reverse('project_add', args=[p.client.pk]))
+        self.assertContains(r, 'name="daily_rate"')
+        self.assertNotContains(r, 'name="monthly_amount"')
+        self.assertNotContains(r, 'name="pricing_type"')
+
+    def test_invoice_form_uses_sample_labels(self):
+        r = self.client.get(reverse('new_invoice'))
+        html = r.content.decode()
+        for label in ('Bill To', 'Invoice Date', 'Terms', 'Due Date', 'Consultant -Project Name', 'Memo/Description',
+                      '<th>Qty</th>', 'Unit Price', 'Amount', 'Total', 'Payment term (billing type)'):
+            self.assertIn(label, html)
+        for generic in ('>Customer<', '>Days<', '>Description<', '>Project<', '>Rate<'):
+            self.assertNotIn(generic, html)
+
+
+class TermsTypeTests(TestCase):
+    """Terms (days until due): type 1 = days in invoice month, type 2 = custom text/number."""
+    def setUp(self):
+        self.profile = BusinessProfile.current()
+        self.c = Client.objects.create(name='T Co', terms_mode='month_days')
+        self.p = ProjectTemplate.objects.create(client=self.c, name='Consultant - P', monthly_amount=1000)
+
+    def post(self, **extra):
+        from django.http import QueryDict
+        q = QueryDict(mutable=True)
+        q.update({'invoice_date': '2026-11-02', **extra})
+        for k, v in {'line_project': [self.p.pk], 'line_name': [''], 'line_desc': [''], 'line_from': ['2026-10-01'],
+                     'line_to': ['2026-10-31'], 'line_days': ['31'], 'line_unit': [''], 'line_amount': ['']}.items():
+            q.setlist(k, [str(x) for x in v])
+        return services.parse_invoice_post(q, self.c, self.profile)
+
+    def test_resolve(self):
+        self.assertEqual(billing.resolve_terms('month_days', 'x', date(2026, 11, 2)), ('30', 30))
+        self.assertEqual(billing.resolve_terms('month_days', '', date(2027, 2, 1)), ('28', 28))
+        self.assertEqual(billing.resolve_terms('month_days', '', date(2028, 2, 1)), ('29', 29))
+        self.assertEqual(billing.resolve_terms('custom', ' 15 ', date(2026, 11, 2)), ('15', 15))
+        self.assertEqual(billing.resolve_terms('custom', 'Net 15', date(2026, 11, 2)), ('Net 15', None))
+
+    def test_type1_from_customer_default(self):
+        d = self.post()
+        self.assertEqual((d.terms_mode, d.terms_days, d.due_date), ('month_days', 30, date(2026, 12, 2)))
+        inv = services.save_invoice(d)
+        inv.refresh_from_db()
+        self.assertEqual(inv.terms_display, '30')
+        d = self.post(invoice_date='2027-02-10')
+        self.assertEqual((d.terms_days, d.due_date), (28, date(2027, 3, 10)))
+
+    def test_type2_number_and_text(self):
+        d = self.post(terms_mode='custom', terms_text='31')
+        self.assertEqual((d.terms_text, d.terms_days, d.due_date), ('31', 31, date(2026, 12, 3)))
+        d = self.post(terms_mode='custom', terms_text='Due on receipt')
+        self.assertEqual((d.terms_days, d.due_date), (None, None))
+        d = self.post(terms_mode='custom', terms_text='Net 15', due_date='2026-11-17')
+        inv = services.save_invoice(d)
+        inv.refresh_from_db()
+        self.assertEqual((inv.terms_display, inv.due_date), ('Net 15', date(2026, 11, 17)))
+        r = self.client.get(reverse('invoice_edit', args=[inv.pk]))
+        self.assertEqual((r.context['initial']['terms_mode'], r.context['initial']['terms_text'],
+                          r.context['initial']['due_date']), ('custom', 'Net 15', date(2026, 11, 17)))
+
+    def _pdf(self, inv):
+        from reportlab import rl_config
+        saved = rl_config.pageCompression, rl_config.useA85
+        rl_config.pageCompression, rl_config.useA85 = 0, 0
+        try:
+            return render_invoice_pdf(build_invoice_data(inv, self.profile))
+        finally:
+            rl_config.pageCompression, rl_config.useA85 = saved
+
+    def test_pdf_terms_cell(self):
+        inv = services.save_invoice(self.post(terms_mode='custom', terms_text='Due on receipt'))
+        pdf = self._pdf(inv)
+        self.assertIn(b'(Due on receipt)', pdf)
+        inv = services.save_invoice(self.post())
+        self.assertIn(b'(30)', self._pdf(inv))
+
+    def test_customer_form_and_invoice_form_offer_both_types(self):
+        r = self.client.get(reverse('client_add'))
+        self.assertContains(r, 'name="terms_mode"')
+        self.assertContains(r, 'name="terms_text"')
+        r = self.client.get(reverse('new_invoice'))
+        self.assertContains(r, 'value="month_days"')
+        self.assertContains(r, 'id="terms_text"')
+
+
+class ActiveFlagAndComboboxTests(TestCase):
+    def setUp(self):
+        self.on = Client.objects.create(name='Live Co', terms_mode='custom', terms_text='31')
+        self.off = Client.objects.create(name='Gone Co', active=False)
+        self.p_on = ProjectTemplate.objects.create(client=self.on, name='Alice - Alpha', monthly_amount=31000)
+        self.p_off = ProjectTemplate.objects.create(client=self.on, name='Bob - Beta', monthly_amount=1, active=False)
+
+    def test_defaults_active(self):
+        c = Client.objects.create(name='New')
+        self.assertTrue(c.active)
+        self.assertTrue(ProjectTemplate.objects.create(client=c, name='X').active)
+
+    def test_invoice_dropdowns_hide_inactive(self):
+        r = self.client.get(reverse('new_invoice'))
+        html = r.content.decode()
+        self.assertIn(f'<option value="{self.on.pk}" data-name="live co">Live Co</option>', html)
+        self.assertNotIn('Gone Co', html)
+        projs = json.loads(r.context['projects_json'])
+        names = [p['name'] for p in projs[str(self.on.pk)]['projects']]
+        self.assertEqual(names, ['Alice - Alpha'])
+
+    def test_searchable_ui_smoke(self):
+        html = self.client.get(reverse('new_invoice')).content.decode()
+        for s in ('<select class="field" name="client" id="client" required>', 'Select customer',
+                  'class="pj-combo"', 'name="line_name"'):
+            self.assertIn(s, html)
+        # one dropdown per row: no datalist picker on the custom-text input, one Remove button
+        self.assertNotIn('datalist', html)
+        self.assertNotIn('list="projlist"', html)
+        self.assertEqual(html.count('class="icon-btn danger del"'), 1)
+        # project name is ONE combobox per row: one text field, one toggle arrow, one list; no separate <select>
+        self.assertEqual(html.count('class="pj-combo"'), 1)
+        self.assertEqual(html.count('class="pj-toggle"'), 1)
+        self.assertNotIn('pj-select', html)
+        self.assertRegex(html, r'<input class="field pj-text" name="line_name"[^>]*role="combobox"')
+        for url in (reverse('clients'), reverse('projects_hub'), reverse('projects', args=[self.on.pk])):
+            r = self.client.get(url)
+            self.assertContains(r, 'data-filter=')
+            self.assertContains(r, 'Inactive')
+
+    def _post(self, names, project_ids):
+        d = {'client': self.on.pk, 'invoice_date': '2026-11-02', 'terms_mode': 'custom', 'terms_text': '31',
+             'due_date': '', 'action': 'save', 'line_project': project_ids, 'line_name': names,
+             'line_desc': ['', ''], 'line_from': ['2026-10-01', '2026-10-01'], 'line_to': ['2026-10-31', '2026-10-31'],
+             'line_days': ['31', '31'], 'line_unit': ['', '500'], 'line_amount': ['', '']}
+        return self.client.post(reverse('new_invoice'), d)
+
+    def test_custom_project_text_saved_on_line(self):
+        r = self._post(['alice - alpha', 'Carol - Custom Work'], ['', ''])
+        self.assertEqual(r.status_code, 302)
+        inv = Invoice.objects.get()
+        a, b = inv.lines.order_by('id')
+        self.assertEqual((a.project_id, a.amount), (self.p_on.pk, D('31000.00')))  # typed text matched saved project
+        self.assertEqual((b.project_id, b.project_name, b.amount), (None, 'Carol - Custom Work', D('15500.00')))
+        r = self.client.get(reverse('invoice_edit', args=[inv.pk]))
+        self.assertEqual(r.context['initial']['lines'][1]['name'], 'Carol - Custom Work')
+
+    def test_typed_inactive_name_is_custom(self):
+        self._post(['Bob - Beta', 'Alice - Alpha'], ['', ''])
+        a = Invoice.objects.get().lines.get(project_name='Bob - Beta')
+        self.assertIsNone(a.project_id)
+
+    def test_toggles_and_forms(self):
+        self.client.post(reverse('client_toggle', args=[self.off.pk]))
+        self.off.refresh_from_db(); self.assertTrue(self.off.active)
+        self.client.post(reverse('project_toggle', args=[self.on.pk, self.p_on.pk]), {'next': '/projects/'})
+        self.p_on.refresh_from_db(); self.assertFalse(self.p_on.active)
+        self.assertContains(self.client.get(reverse('client_add')), 'name="active"')
+        self.assertContains(self.client.get(reverse('project_add', args=[self.on.pk])), 'name="active"')
+
+    def test_editing_invoice_keeps_inactive_customer_and_project(self):
+        r = self._post(['Alice - Alpha', 'Zed'], [str(self.p_on.pk), ''])
+        inv = Invoice.objects.get()
+        Client.objects.filter(pk=self.on.pk).update(active=False)
+        ProjectTemplate.objects.filter(pk=self.p_on.pk).update(active=False)
+        r = self.client.get(reverse('invoice_edit', args=[inv.pk]))
+        self.assertContains(r, 'data-name="live co">Live Co</option>')
+        projs = json.loads(r.context['projects_json'])
+        self.assertIn('Alice - Alpha', [p['name'] for p in projs[str(self.on.pk)]['projects']])
+
+
+class BillingMonthTests(TestCase):
+    def setUp(self):
+        self.c = Client.objects.create(name='Month Co', terms_mode='custom', terms_text='31')
+        self.p = ProjectTemplate.objects.create(client=self.c, name='Alice - Alpha', monthly_amount=31000)
+
+    def _post(self, **extra):
+        d = {'client': self.c.pk, 'invoice_date': '2026-11-02', 'terms_mode': 'custom', 'terms_text': '31',
+             'due_date': '', 'action': 'save', 'line_project': [str(self.p.pk)], 'line_name': ['Alice - Alpha'],
+             'line_desc': [''], 'line_from': ['2026-10-01'], 'line_to': ['2026-10-31'], 'line_days': ['31'],
+             'line_unit': [''], 'line_amount': ['']}
+        d.update(extra)
+        return self.client.post(reverse('new_invoice'), d)
+
+    def test_previous_month_helper(self):
+        self.assertEqual(services.previous_month(date(2026, 1, 15)), date(2025, 12, 1))
+        self.assertEqual(services.previous_month(date(2026, 11, 2)), date(2026, 10, 1))
+        self.assertEqual(services.parse_month('2026-10'), date(2026, 10, 1))
+        with self.assertRaises(ValueError):
+            services.parse_month('Oct')
+
+    def test_new_form_defaults_to_previous_month(self):
+        from unittest import mock
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2026, 11, 2)):
+            r = self.client.get(reverse('new_invoice'))
+        self.assertEqual(r.context['initial']['billing_month'], '2026-10')
+        html = r.content.decode()
+        self.assertEqual((r.context['initial']['billing_year'], r.context['initial']['billing_mon']), ('2026', '10'))
+        self.assertIn('<option value="2026" selected>2026</option>', html)
+        self.assertIn('<option value="10" selected>October</option>', html)
+        self.assertIn('function monthRange', html)  # memo from/to auto-fill script
+
+    def test_saved_reopened_and_shown(self):
+        self.assertEqual(self._post(billing_month='2026-09').status_code, 302)
+        inv = Invoice.objects.get()
+        self.assertEqual(inv.billing_month, date(2026, 9, 1))
+        self.assertEqual(inv.billing_month_label, 'September 2026')
+        r = self.client.get(reverse('invoice_edit', args=[inv.pk]))
+        self.assertEqual(r.context['initial']['billing_month'], '2026-09')
+        self.assertContains(r, '<option value="09" selected>September</option>')
+        self.assertContains(self.client.get(reverse('invoice_detail', args=[inv.pk])), 'Invoice for September 2026')
+        self.assertContains(self.client.get(reverse('invoice_list')), 'September 2026')
+        self.client.post(reverse('invoice_edit', args=[inv.pk]), {**{k: v for k, v in [
+            ('client', self.c.pk), ('invoice_date', '2026-11-02'), ('terms_mode', 'custom'), ('terms_text', '31'),
+            ('action', 'save'), ('line_project', [str(self.p.pk)]), ('line_name', ['Alice - Alpha']),
+            ('line_from', ['2026-08-01']), ('line_to', ['2026-08-31']), ('line_days', ['31'])]}, 'billing_month': '2026-08'})
+        inv.refresh_from_db()
+        self.assertEqual(inv.billing_month, date(2026, 8, 1))
+
+    def test_missing_key_defaults_blank_clears_invalid_errors(self):
+        self._post()
+        self.assertEqual(Invoice.objects.get().billing_month, date(2026, 10, 1))
+        Invoice.objects.all().delete()
+        self._post(billing_month='')
+        self.assertIsNone(Invoice.objects.get().billing_month)
+        r = self._post(billing_month='bogus')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Invoice.objects.count(), 1)
+
+    def test_preview_pdf_still_renders_and_uses_no_number(self):
+        before = BusinessProfile.current().next_invoice_number
+        r = self._post(billing_month='2026-10', action='preview')
+        self.assertEqual(r['Content-Type'], 'application/pdf')
+        self.assertEqual(BusinessProfile.current().next_invoice_number, before)
+
+    def test_old_month_kept_in_options(self):
+        inv = Invoice.objects.create(client=self.c, invoice_number='OLD1', billing_month=date(2019, 3, 1))
+        r = self.client.get(reverse('invoice_edit', args=[inv.pk]))
+        self.assertContains(r, '<option value="2019" selected>2019</option>')
+        self.assertContains(r, '<option value="03" selected>March</option>')
+
+
+class BillingYearMonthFieldTests(TestCase):
+    def setUp(self):
+        self.c = Client.objects.create(name='YM Co', terms_mode='custom', terms_text='31')
+
+    def _post(self, **extra):
+        d = {'client': self.c.pk, 'invoice_date': '2027-01-05', 'terms_mode': 'custom', 'terms_text': '31',
+             'action': 'save', 'line_project': [''], 'line_name': ['Custom'], 'line_from': ['2026-12-01'],
+             'line_to': ['2026-12-31'], 'line_days': ['31'], 'line_unit': ['100'], 'line_amount': ['']}
+        d.update(extra)
+        return self.client.post(reverse('new_invoice'), d)
+
+    def test_january_defaults_to_december_of_previous_year(self):
+        from unittest import mock
+        with mock.patch('django.utils.timezone.localdate', return_value=date(2027, 1, 10)):
+            r = self.client.get(reverse('new_invoice'))
+        i = r.context['initial']
+        self.assertEqual((i['billing_year'], i['billing_mon']), ('2026', '12'))
+        self.assertContains(r, '<option value="2026" selected>2026</option>')
+        self.assertContains(r, '<option value="12" selected>December</option>')
+        self.assertContains(r, '<option value="2027">2027</option>')
+
+    def test_two_fields_saved_as_first_of_month(self):
+        self.assertEqual(self._post(billing_year='2026', billing_mon='12').status_code, 302)
+        inv = Invoice.objects.get()
+        self.assertEqual(inv.billing_month, date(2026, 12, 1))
+        self.assertContains(self.client.get(reverse('invoice_detail', args=[inv.pk])), 'Invoice for December 2026')
+
+    def test_either_blank_means_not_set(self):
+        self._post(billing_year='2026', billing_mon='')
+        self.assertIsNone(Invoice.objects.get().billing_month)
+
+    def test_two_field_ui_present(self):
+        html = self.client.get(reverse('new_invoice')).content.decode()
+        self.assertIn('name="billing_year" id="billing_year"', html)
+        self.assertIn('name="billing_mon" id="billing_mon"', html)
+        self.assertIn('function ym()', html)
+
+
+class BillToDropdownTests(TestCase):
+    def test_bill_to_is_select_of_active_customers_with_filter(self):
+        for i in range(30):
+            Client.objects.create(name=f'Cust {i:02d}', active=i != 7)
+        html = self.client.get(reverse('new_invoice')).content.decode()
+        sel = re.search(r'<select class="field" name="client" id="client" required>(.*?)</select>', html, re.S).group(1)
+        self.assertEqual(sel.count('<option value="'), 30)  # placeholder + 29 active
+        self.assertIn('Select customer', sel)
+        self.assertNotIn('Cust 07', html)
+        self.assertIn('id="client_filter"', html)
+        self.assertNotIn('client_search', html)
+
+    def test_few_customers_still_get_search_and_select_posts_client(self):
+        c = Client.objects.create(name='Only Co', terms_mode='custom', terms_text='31')
+        p = ProjectTemplate.objects.create(client=c, name='A - B', monthly_amount=31000)
+        self.assertIn('id="client_filter"', self.client.get(reverse('new_invoice')).content.decode())
+        r = self.client.post(reverse('new_invoice'), {
+            'client': c.pk, 'invoice_date': '2026-11-02', 'terms_mode': 'custom', 'terms_text': '31', 'action': 'save',
+            'billing_month': '2026-10', 'line_project': [str(p.pk)], 'line_name': ['A - B'],
+            'line_from': ['2026-10-01'], 'line_to': ['2026-10-31'], 'line_days': ['31']})
+        self.assertEqual(r.status_code, 302)
+        inv = Invoice.objects.get()
+        self.assertEqual((inv.client, inv.lines.get().project), (c, p))
+        r = self.client.get(reverse('invoice_edit', args=[inv.pk]))
+        self.assertEqual(r.context['initial']['client'], c.pk)
+
+
+class LastInvoiceTagTests(TestCase):
+    def test_label_and_last_number_per_customer(self):
+        a = Client.objects.create(name='A Co')
+        b = Client.objects.create(name='B Co')
+        Client.objects.create(name='C Co')
+        i1 = Invoice.objects.create(client=a, invoice_number='QB018')
+        i2 = Invoice.objects.create(client=a, invoice_number='QB020', pdf_number_override='X-20')
+        Invoice.objects.create(client=b, invoice_number='QB019')
+        r = self.client.get(reverse('new_invoice'))
+        html = r.content.decode()
+        self.assertIn('>Manual Invoice number for pdf only</label>', html)
+        self.assertNotIn('PDF number override', html)
+        self.assertIn('id="last_invoice"', html)
+        self.assertIn('No previous invoice', html)
+        P = json.loads(r.context['projects_json'])
+        self.assertEqual((P[str(a.pk)]['last'], P[str(a.pk)]['last_pdf']), ('QB020', 'X-20'))
+        self.assertEqual(P[str(b.pk)]['last'], 'QB019')
+        self.assertEqual(P[[k for k, v in P.items() if k not in (str(a.pk), str(b.pk))][0]]['last'], '')
+        # edit page excludes the invoice being edited
+        P = json.loads(self.client.get(reverse('invoice_edit', args=[i2.pk])).context['projects_json'])
+        self.assertEqual(P[str(a.pk)]['last'], 'QB018')
+        P = json.loads(self.client.get(reverse('invoice_edit', args=[i1.pk])).context['projects_json'])
+        self.assertEqual(P[str(a.pk)]['last'], 'QB020')
+
+
+class IconActionTests(TestCase):
+    def test_customer_row_actions_are_accessible_icons(self):
+        c = Client.objects.create(name='Icon Co', default_terms_days=30)
+        html = self.client.get(reverse('clients')).content.decode()
+        for label in ('Deactivate', 'Edit', 'Delete'):
+            self.assertIn(f'title="{label}" aria-label="{label}"', html)
+        self.assertIn('<svg class="ico ico-edit"', html)
+        self.assertIn(reverse('client_edit', args=[c.pk]), html)
+        self.assertNotIn('>Edit</a>', html)
+        self.assertIn("return confirm('Delete this customer", html)
+        self.assertIn('class="icon-btn danger"', html)

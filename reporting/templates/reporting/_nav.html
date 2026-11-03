@@ -1,0 +1,1 @@
+<p class="rp-links"><a href="{% url 'reporting:dashboard' %}">Executive dashboard</a>{% for name, items in sections %}<a href="{% url 'reporting:section' name|slugify %}">{{ name }}</a>{% endfor %}<a href="{% url 'reporting:custom' %}">Custom builder</a><a href="{% url 'reporting:sources' %}">Data sources</a></p>

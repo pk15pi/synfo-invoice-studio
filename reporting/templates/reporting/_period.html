@@ -1,0 +1,6 @@
+<label>Period<select name="period">{% for k,l in period_options %}<option value="{{ k }}"{% if g.period == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Financial year<select name="fy"><option value="">-</option>{% for y,l in fy_choices %}<option value="{{ y }}"{% if g.fy == y|stringformat:"s" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>FY part<select name="fy_part">{% for k,l in fy_parts %}<option value="{{ k }}"{% if g.fy_part == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label>Month<input type="month" name="month" value="{{ g.month|default:'' }}"></label>
+<label>From<input type="date" name="date_from" value="{{ g.date_from|default:'' }}"></label>
+<label>To<input type="date" name="date_to" value="{{ g.date_to|default:'' }}"></label>

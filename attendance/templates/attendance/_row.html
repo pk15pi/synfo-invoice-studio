@@ -1,0 +1,5 @@
+<td><select class="field" name="status_{{ key }}" {% if locked %}disabled{% endif %}><option value="">{% if default %}({{ default }}){% else %}— not marked —{% endif %}</option>{% for c, l in statuses %}<option value="{{ c }}" {% if r.status == c %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></td>
+<td><select class="field" name="leave_{{ key }}" {% if locked %}disabled{% endif %}><option value="">—</option>{% for lt in leave_types %}<option value="{{ lt.pk }}" {% if r.leave_type_id == lt.pk %}selected{% endif %}>{{ lt.code }}</option>{% endfor %}</select></td>
+<td><input class="field" type="time" name="in_{{ key }}" value="{{ r.in_time|time:'H:i' }}" {% if locked %}disabled{% endif %}></td>
+<td><input class="field" type="time" name="out_{{ key }}" value="{{ r.out_time|time:'H:i' }}" {% if locked %}disabled{% endif %}></td>
+<td>{% if r.application_id %}Leave #{{ r.application_id }}{% endif %} {{ r.note }}</td>

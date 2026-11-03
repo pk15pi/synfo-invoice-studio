@@ -1,0 +1,6 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Transfers{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">Bank Management</p><h1>Transfers between own accounts</h1></div>
+<form method="post" class="panel">{% csrf_token %}{{ form.non_field_errors }}{% for f in form %}<label>{{ f.label }}</label> {{ f }} {{ f.errors }} {% endfor %}<button class="button primary">Post transfer</button></form>
+<div class="panel"><table><thead><tr><th>Date</th><th>From</th><th>To</th><th class="num">Amount</th><th>Ref</th><th>Journal</th></tr></thead><tbody>
+{% for t in rows %}<tr><td>{{ t.date|date:"d-m-Y" }}</td><td>{{ t.from_account }}</td><td>{{ t.to_account }}</td><td class="num">{{ t.amount }}</td><td>{{ t.reference }}</td><td><a href="{% url 'acc:journal_detail' t.entry.pk %}">{{ t.entry }}</a></td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No transfers yet.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

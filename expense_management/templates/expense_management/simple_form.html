@@ -1,0 +1,4 @@
+{% extends 'expense_management/xm_base.html' %}{% block xm_title %}{{ title }}{% endblock %}{% block xm %}
+<div class="page-heading"><p class="eyebrow">{{ eyebrow }}</p><h1>{{ title }}</h1></div>
+<form class="panel" method="post">{% csrf_token %}{% include 'expense_management/_form_errors.html' %}<div class="form-grid">{% include 'expense_management/_fields.html' with fields=form %}</div>
+<div class="form-actions"><a class="button secondary" href="{{ back_url }}">Cancel</a> <button class="button primary" type="submit">Save</button></div></form>{% endblock %}

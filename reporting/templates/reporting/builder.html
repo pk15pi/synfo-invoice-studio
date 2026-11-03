@@ -1,0 +1,10 @@
+{% extends 'invoice_app/base.html' %}{% block title %}Custom Report Builder{% endblock %}{% block content %}{% include 'reporting/_style.html' %}
+{% include 'reporting/_nav.html' %}
+<div class="panel-head"><div><p class="eyebrow">Custom</p><h1>Custom Report Builder</h1><p class="rp-basis"><b>Period:</b> {{ rep.period.label }} ({{ rep.period.range_text }}) &middot; <b>Date basis:</b> {{ rep.basis }}</p></div>{% include 'reporting/_exports.html' %}</div>
+<form method="get" class="rp-bar"><label>Dataset<select name="dataset" onchange="this.form.querySelectorAll('[name=cols],[name=group_by]').forEach(e=>e.disabled=true);this.form.submit()">{% for k,l in datasets %}<option value="{{ k }}"{% if ds == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+{% include 'reporting/_period.html' %}
+<label>Group by<select name="group_by"><option value="">No grouping (detail)</option>{% for f in texts %}<option value="{{ f.0 }}"{% if group == f.0 %} selected{% endif %}>{{ f.1 }}</option>{% endfor %}</select></label>
+<fieldset style="border:0;display:flex;flex-wrap:wrap;gap:8px;font-size:12px">Columns:{% for f in fields %}<label style="flex-direction:row;gap:3px"><input type="checkbox" name="cols" value="{{ f.0 }}"{% if f.0 in picked %} checked{% endif %}>{{ f.1 }}</label>{% endfor %}</fieldset>
+<button class="button primary" type="submit">Run</button></form>
+{% include 'reporting/_body.html' %}
+{% endblock %}

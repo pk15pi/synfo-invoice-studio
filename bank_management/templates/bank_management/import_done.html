@@ -1,0 +1,4 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Import{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">{{ batch.bank_account }}</p><h1>Import: {{ batch.file_name }}</h1></div>
+<div class="panel"><p>Imported {{ batch.imported_at|date:"d-m-Y H:i" }}: <strong>{{ batch.total_rows }}</strong> rows, <strong>{{ batch.imported }}</strong> imported, <strong>{{ batch.duplicates }}</strong> duplicates skipped, <strong>{{ batch.errors }}</strong> errors.</p>
+{% if batch.error_notes %}<pre>{{ batch.error_notes }}</pre>{% endif %}<p><a href="{% url 'bank:transactions' batch.bank_account.pk %}">View statement lines</a></p></div>{% endblock %}

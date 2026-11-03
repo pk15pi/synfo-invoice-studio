@@ -1,0 +1,49 @@
+{% extends 'expense_management/xm_base.html' %}{% block xm_title %}{% if exp %}Edit {{ exp.expense_id }}{% else %}Add company expense{% endif %}{% endblock %}{% block xm %}
+<div class="page-heading split"><div><p class="eyebrow">Company expenses</p><h1>{% if exp %}Edit {{ exp.expense_id }}{% else %}Add company expense{% endif %}</h1></div><div><a class="button secondary" href="{% if exp %}{% url 'exp:expense_detail' exp.pk %}{% else %}{% url 'exp:all' %}?type=company{% endif %}">Back</a></div></div>
+<form class="panel" method="post" enctype="multipart/form-data" id="expense-form">{% csrf_token %}{% include 'expense_management/_form_errors.html' %}
+<div class="form-grid">
+<h3 class="xm-section">Bill details</h3>
+{% include 'expense_management/_field.html' with field=form.expense_date %}
+<div class="form-field" id="wrap-vendor"><label for="id_vendor">Vendor</label><div style="display:flex;gap:6px">{{ form.vendor }}<button type="button" class="button secondary" id="qv-open" title="Add a new vendor without leaving this form">+ New</button></div>{% for e in form.vendor.errors %}<small style="color:#b42318">{{ e }}</small>{% endfor %}</div>
+{% include 'expense_management/_field.html' with field=form.category %}{% include 'expense_management/_field.html' with field=form.subcategory %}
+{% include 'expense_management/_field.html' with field=form.description %}{% include 'expense_management/_field.html' with field=form.invoice_number %}
+{% include 'expense_management/_field.html' with field=form.invoice_date %}{% include 'expense_management/_field.html' with field=form.due_date %}
+<h3 class="xm-section">Amounts</h3>
+{% include 'expense_management/_field.html' with field=form.amount_mode %}{% include 'expense_management/_field.html' with field=form.currency %}{% include 'expense_management/_field.html' with field=form.exchange_rate %}
+{% include 'expense_management/_field.html' with field=form.amount_before_tax %}{% include 'expense_management/_field.html' with field=form.gst_amount %}
+{% include 'expense_management/_field.html' with field=form.cgst_amount %}{% include 'expense_management/_field.html' with field=form.sgst_amount %}{% include 'expense_management/_field.html' with field=form.igst_amount %}
+{% include 'expense_management/_field.html' with field=form.other_taxes %}{% include 'expense_management/_field.html' with field=form.discount %}{% include 'expense_management/_field.html' with field=form.total_amount %}
+<h3 class="xm-section">Allocation (optional)</h3>
+{% include 'expense_management/_field.html' with field=form.client %}{% include 'expense_management/_field.html' with field=form.project %}
+{% include 'expense_management/_field.html' with field=form.department %}{% include 'expense_management/_field.html' with field=form.employee %}
+{% include 'expense_management/_field.html' with field=form.remarks %}
+<h3 class="xm-section">Attachments</h3>{% include 'expense_management/_upload.html' %}
+{% if not exp %}<h3 class="xm-section">Payment</h3>
+<div class="form-field"><label><input type="checkbox" name="pay_now" value="1" id="pay-now" {% if form.data.pay_now %}checked{% endif %}> Record a payment now (status is derived from payments)</label></div>
+<div id="pay-fields" class="form-grid" style="grid-column:1/-1;{% if not form.data.pay_now %}display:none{% endif %}">{% include 'expense_management/_fields.html' with fields=pay_form %}</div>{% endif %}
+</div>
+<div class="form-actions"><button class="button primary" type="submit">Save expense</button></div></form>
+
+<div class="xm-modal" id="qv-modal"><div class="panel"><div class="panel-head"><h2>Add vendor</h2></div><div id="qv-err" class="xm-warn" style="display:none"></div>
+<div class="form-grid" id="qv-fields">{% include 'expense_management/_fields.html' with fields=vendor_form %}</div>
+<div class="form-actions"><button type="button" class="button secondary" id="qv-close">Cancel</button> <button type="button" class="button primary" id="qv-save">Save vendor</button></div></div></div>
+{% include 'expense_management/_linkjs.html' %}
+<script>
+(function(){
+  const g=id=>document.getElementById(id), num=id=>parseFloat((g(id)||{}).value)||0;
+  const mode=g('id_amount_mode'), total=g('id_total_amount');
+  function recalc(){ if(!mode||mode.value!=='breakup')return; const split=num('id_cgst_amount')+num('id_sgst_amount')+num('id_igst_amount');
+    const gst=num('id_gst_amount')||split; const t=num('id_amount_before_tax')+gst+num('id_other_taxes')-num('id_discount'); total.value=t>0?t.toFixed(2):''; }
+  function modeUi(){ if(!mode)return; total.readOnly=mode.value==='breakup'; recalc(); }
+  ['id_amount_before_tax','id_gst_amount','id_cgst_amount','id_sgst_amount','id_igst_amount','id_other_taxes','id_discount'].forEach(i=>{const e=g(i); if(e) e.addEventListener('input',recalc);});
+  if(mode){mode.addEventListener('change',modeUi); modeUi();}
+  const pn=g('pay-now'); if(pn){pn.addEventListener('change',()=>{g('pay-fields').style.display=pn.checked?'':'none'; const a=g('id_pay-amount'); if(pn.checked&&a&&!a.value)a.value=total.value;});}
+  const m=g('qv-modal'); g('qv-open').onclick=()=>m.classList.add('open'); g('qv-close').onclick=()=>m.classList.remove('open');
+  g('qv-save').onclick=async()=>{ const fd=new FormData(); fd.append('csrfmiddlewaretoken',document.querySelector('[name=csrfmiddlewaretoken]').value);
+    g('qv-fields').querySelectorAll('input,select,textarea').forEach(e=>fd.append(e.name,e.value));
+    const r=await fetch("{% url 'exp:vendor_quick_add' %}",{method:'POST',body:fd}); const d=await r.json(); const err=g('qv-err');
+    if(!d.ok){err.style.display='';err.textContent=Object.entries(d.errors).map(([k,v])=>k.replace('qv-','')+': '+v).join(' | ');return;}
+    const o=new Option(d.name,d.id,true,true); g('id_vendor').add(o); m.classList.remove('open'); err.style.display='none';
+    g('qv-fields').querySelectorAll('input,textarea').forEach(e=>e.value=''); };
+})();
+</script>{% endblock %}

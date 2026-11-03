@@ -1,0 +1,10 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><h1>Receipts</h1><p class="muted">Customer payments against invoices. TDS / bank charges are written off against the invoice but are not cash received.</p></div>
+<form method="get" class="panel filters"><label>From <input class="field" type="date" name="from" value="{{ f.from }}"></label> <label>To <input class="field" type="date" name="to" value="{{ f.to }}"></label>
+<label>Customer <select class="field" name="client"><option value="">All</option>{% for c in clients %}<option value="{{ c.pk }}"{% if f.client == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></label>
+<label>Mode <select class="field" name="mode"><option value="">All</option>{% for k, v in modes %}<option value="{{ k }}"{% if f.mode == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
+<label>Search <input class="field" name="q" value="{{ f.q }}" placeholder="UTR, invoice, notes"></label> <button class="button primary">Filter</button> <a href="{% url 'receipts' %}">Reset</a></form>
+<section class="panel">{% if rows %}<div class="table-wrap"><table><thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Mode</th><th>Reference / UTR</th><th>Amount</th><th>TDS / charges</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.receipt_date }}</td><td><a href="{% url 'invoice_detail' r.invoice_id %}">{{ r.invoice.invoice_number }}</a></td><td>{{ r.invoice.client.name }}</td><td>{{ r.get_mode_display }}</td><td>{{ r.reference }}</td><td class="num">{{ r.amount }}</td><td class="num">{{ r.deductions }}</td><td><a href="{% url 'payment_edit' r.invoice_id r.pk %}">Edit</a> &middot; <a href="{% url 'payment_delete' r.invoice_id r.pk %}">Delete</a></td></tr>{% endfor %}
+<tr><td colspan="5"><b>Total ({{ rows|length }})</b></td><td class="num"><b>{{ tot_amount }}</b></td><td class="num"><b>{{ tot_ded }}</b></td><td></td></tr></tbody></table></div>{% else %}<div class="empty">No receipts match.</div>{% endif %}</section>
+{% endblock %}

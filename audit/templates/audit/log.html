@@ -1,0 +1,17 @@
+{% extends 'invoice_app/base.html' %}{% block title %}Audit log &middot; QuantBud{% endblock %}
+{% block content %}<style>.a-ch{font-size:12px;max-width:520px;word-break:break-word}.a-ch del{color:#b3261e}.a-ch ins{color:#1b6e2b;text-decoration:none}</style>
+<h1>{% if obj %}History: {{ obj }}{% else %}Audit log{% endif %}</h1>
+<p class="muted">Append-only record of changes to financial and sensitive data. This app has no login, so every event is attributed to <strong>{{ operator }}</strong>. Sensitive numbers are masked (last 4 only); passwords and secrets are never logged. Bulk database updates that bypass the model layer are not captured.</p>
+{% if not obj %}<form method="get" class="filters"><select name="app"><option value="">All apps</option>{% for a in apps %}<option {% if f.app == a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+<input name="model" placeholder="Model" value="{{ f.model }}"><input name="object_id" placeholder="Object id" value="{{ f.object_id }}" size="8">
+<select name="action"><option value="">All actions</option>{% for k,l in actions %}<option value="{{ k }}" {% if f.action == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<select name="source"><option value="">All sources</option>{% for k,l in sources %}<option value="{{ k }}" {% if f.source == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<input type="date" name="date_from" value="{{ f.date_from }}"><input type="date" name="date_to" value="{{ f.date_to }}"><input name="q" placeholder="Search object / reason" value="{{ f.q }}">
+<button type="submit">Filter</button> <a href="{% url 'audit:log' %}">Reset</a> &middot; <a href="{% url 'audit:export' %}?{{ qs }}">Export CSV</a></form>{% else %}<p><a href="{% url 'audit:log' %}">&larr; Full audit log</a></p>{% endif %}
+<table class="table"><thead><tr><th>When (IST)</th><th>Operator</th><th>Source</th><th>Object</th><th>Action</th><th>Changes (old &rarr; new)</th><th>Reason</th><th>Path</th></tr></thead><tbody>
+{% for e in page %}<tr><td>{{ e.timestamp|date:"d-m-Y H:i:s" }}</td><td>{{ operator }}</td><td>{{ e.get_source_display }}</td>
+<td><a href="{% url 'audit:history' e.app_label e.model e.object_id|default:'-' %}">{{ e.app_label }}.{{ e.model }} #{{ e.object_id }}</a><br><span class="muted">{{ e.object_repr }}</span></td>
+<td>{{ e.get_action_display }}</td><td class="a-ch">{% for k, v in e.changes.items %}<div><strong>{{ k }}</strong>: <del>{{ v.0|default_if_none:"—" }}</del> &rarr; <ins>{{ v.1|default_if_none:"—" }}</ins></div>{% endfor %}</td>
+<td>{{ e.reason }}</td><td class="muted">{{ e.request_path }}</td></tr>{% empty %}<tr><td colspan="8" class="muted">No events.</td></tr>{% endfor %}</tbody></table>
+{% if page.has_other_pages %}<p>{% if page.has_previous %}<a href="?{{ qs }}&page={{ page.previous_page_number }}">&larr; Newer</a>{% endif %} Page {{ page.number }} of {{ page.paginator.num_pages }} {% if page.has_next %}<a href="?{{ qs }}&page={{ page.next_page_number }}">Older &rarr;</a>{% endif %}</p>{% endif %}
+{% endblock %}

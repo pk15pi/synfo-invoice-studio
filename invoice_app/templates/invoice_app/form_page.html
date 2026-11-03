@@ -1,10 +1,7 @@
 {% extends 'invoice_app/base.html' %}{% block content %}
 <div class="page-heading"><a class="back" href="{% if back_url %}{{ back_url }}{% else %}{% url back %}{% endif %}">&larr; Back</a><h1>{{ title }}</h1></div>
-{% if project_help %}<div class="panel note"><b>Billing types</b><br>
-A &ndash; Variable: amount = daily rate &times; days.<br>
-B &ndash; Prorated: amount = monthly amount &times; days &divide; divisor (30 days, or the actual number of days in the month of the period end date).<br>
-C &ndash; Full monthly: tick &ldquo;full month&rdquo; and the full monthly amount is billed whatever the days.<br>
-Amounts are rounded per the Business profile rounding setting (default: down to whole rupees, as in the sample invoices).</div>{% endif %}
+{% if project_help %}<div class="panel note"><b>Customer payment term (billing type):</b> {{ project_help }}<br>
+The billing type is set on the customer and applies to every project row. Change it on the customer's Edit page.</div>{% endif %}
 <form method="post" class="panel form-panel" enctype="multipart/form-data">{% csrf_token %}{{ form.non_field_errors }}
 <div class="form-grid">{% for field in form %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}</div>
 <div class="form-actions"><button class="button primary" type="submit">Save</button><a class="button secondary" href="{% if back_url %}{{ back_url }}{% else %}{% url back %}{% endif %}">Cancel</a></div></form>{% endblock %}

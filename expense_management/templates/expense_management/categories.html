@@ -1,0 +1,14 @@
+{% extends 'expense_management/xm_base.html' %}{% load ui_icons %}{% block xm_title %}Expense categories{% endblock %}{% block xm %}
+<div class="page-heading split"><div><p class="eyebrow">Expense Management</p><h1>Expense categories</h1></div><div><a class="button primary" href="{% url 'exp:category_new' %}">+ Add category</a></div></div>
+<div class="panel note">Categories in use by any expense or claim cannot be deleted &mdash; deactivate them instead. Deactivated items disappear from new forms but stay on old records.</div>
+{% for c in rows %}<div class="panel"><div class="panel-head split"><h2>{{ c.name }} <span class="badge">{{ c.get_category_type_display }}</span> <span class="badge {% if c.active %}ok{% else %}off{% endif %}">{% if c.active %}Active{% else %}Inactive{% endif %}</span></h2>
+<div style="white-space:nowrap"><a class="icon-btn" title="Edit" href="{% url 'exp:category_edit' c.pk %}">{% icon 'edit' %}</a>
+<form method="post" action="{% url 'exp:category_toggle' 'category' c.pk %}" style="display:inline">{% csrf_token %}<button class="icon-btn" title="{% if c.active %}Deactivate{% else %}Activate{% endif %}">{% if c.active %}{% icon 'deactivate' %}{% else %}{% icon 'activate' %}{% endif %}</button></form>
+<form method="post" action="{% url 'exp:category_delete' 'category' c.pk %}" style="display:inline" onsubmit="return confirm('Delete category {{ c.name|escapejs }}?')">{% csrf_token %}<button class="icon-btn danger" title="Delete">{% icon 'trash' %}</button></form>
+<a class="button secondary" href="{% url 'exp:subcategory_new' c.pk %}">+ Subcategory</a></div></div>
+{% if c.description %}<p class="muted">{{ c.description }}</p>{% endif %}
+<div class="table-wrap"><table><tbody>{% for s in c.subcategories.all %}<tr><td>{{ s.name }}</td><td><span class="badge {% if s.active %}ok{% else %}off{% endif %}">{% if s.active %}Active{% else %}Inactive{% endif %}</span></td>
+<td style="text-align:right;white-space:nowrap"><a class="icon-btn" title="Edit" href="{% url 'exp:subcategory_edit' c.pk s.pk %}">{% icon 'edit' %}</a>
+<form method="post" action="{% url 'exp:category_toggle' 'sub' s.pk %}" style="display:inline">{% csrf_token %}<button class="icon-btn" title="{% if s.active %}Deactivate{% else %}Activate{% endif %}">{% if s.active %}{% icon 'deactivate' %}{% else %}{% icon 'activate' %}{% endif %}</button></form>
+<form method="post" action="{% url 'exp:category_delete' 'sub' s.pk %}" style="display:inline" onsubmit="return confirm('Delete subcategory {{ s.name|escapejs }}?')">{% csrf_token %}<button class="icon-btn danger" title="Delete">{% icon 'trash' %}</button></form></td></tr>
+{% empty %}<tr><td class="empty">No subcategories.</td></tr>{% endfor %}</tbody></table></div></div>{% empty %}<div class="panel empty">No categories.</div>{% endfor %}{% endblock %}

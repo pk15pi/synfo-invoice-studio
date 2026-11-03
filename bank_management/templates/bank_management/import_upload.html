@@ -1,0 +1,3 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Import statement{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">{{ b }}</p><h1>Import bank statement</h1></div>
+<form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}{{ form.as_p }}<p class="muted">Step 1 of 3: upload. Next you map columns, preview, then confirm. Rows already imported are skipped.</p><button class="button primary">Upload</button></form>{% endblock %}

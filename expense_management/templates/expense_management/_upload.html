@@ -1,0 +1,3 @@
+<div class="form-field"><label>Attachment type</label><select class="field" name="doc_type">{% for k, l in doc_types %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select></div>
+<div class="form-field"><label>Files (PDF, JPG, PNG; several allowed)</label><input class="field" type="file" name="attachments" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"></div>
+<div class="form-field"><label>Attachment remarks</label><input class="field" name="attachment_remarks" maxlength="200"></div>

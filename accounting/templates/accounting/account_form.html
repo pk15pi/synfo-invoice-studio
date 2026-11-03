@@ -1,0 +1,5 @@
+{% extends 'accounting/base_acc.html' %}{% block acc_title %}Account{% endblock %}{% block acc %}
+<div class="page-heading"><p class="eyebrow">Chart of accounts</p><h1>{% if obj %}Edit {{ obj }}{% else %}New account{% endif %}</h1></div>
+<form method="post" class="panel">{% csrf_token %}{{ form.non_field_errors }}{% for f in form %}<p><label>{{ f.label }}</label> {{ f }} {{ f.errors }}<span class="muted">{{ f.help_text }}</span></p>{% endfor %}
+{% if obj.is_system %}<p class="muted">System account: code, type and group are locked; it cannot be deactivated.</p>{% endif %}
+<button class="button primary" type="submit">Save</button> <a href="{% url 'acc:accounts' %}">Cancel</a></form>{% endblock %}

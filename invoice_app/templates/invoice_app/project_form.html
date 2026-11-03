@@ -1,0 +1,15 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><a class="back" href="{{ back_url }}">&larr; Back</a><h1>{{ title }}</h1></div>
+{% if project_help %}<div class="panel note"><b>Customer payment term (billing type):</b> {{ project_help }}<br>
+The billing type is set on the customer and applies to every project row. Change it on the customer's Edit page.</div>{% endif %}
+<form method="post" class="panel form-panel" id="projectform">{% csrf_token %}{{ form.non_field_errors }}
+<div class="form-grid">{% for field in form %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}" id="wrap_{{ field.name }}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.name == 'description_template' %}<small><a href="{% url 'description_templates' %}">Manage description templates</a></small>{% endif %}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}</div>
+<p class="muted"><small>The Memo/Description is filled into new invoice rows for this project and stays editable there. Saved invoices keep the text they were saved with; changing this project affects future invoices only.</small></p>
+<div class="form-actions"><button class="button primary" type="submit">Save</button><a class="button secondary" href="{{ back_url }}">Cancel</a></div></form>{% endblock %}
+{% block scripts %}<script>
+(function(){const t=document.getElementById('id_invoice_description_type');if(!t)return;
+ const w=n=>document.getElementById('wrap_'+n);
+ function sync(){const v=t.value;w('description_template').style.display=v==='template'?'':'none';w('description').style.display=v==='custom'?'':'none';
+   document.getElementById('id_description_template').required=v==='template';document.getElementById('id_description').required=v==='custom';}
+ t.addEventListener('change',sync);sync();})();
+</script>{% endblock %}

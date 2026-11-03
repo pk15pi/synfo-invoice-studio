@@ -1,0 +1,3 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Bank entry{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">{{ b }}</p><h1>Bank entry (charges, interest ...)</h1></div>
+<form method="post" class="panel">{% csrf_token %}{{ form.as_p }}<p class="muted">Posts a journal entry immediately: money out = debit the chosen account / credit the bank; money in = debit the bank / credit the chosen account.</p><button class="button primary">Post</button></form>{% endblock %}

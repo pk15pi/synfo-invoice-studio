@@ -1,0 +1,59 @@
+{% extends 'invoice_app/base.html' %}{% load ui_icons %}{% load em_tags %}{% block content %}
+<div class="page-heading split"><div><a class="back" href="{% url 'em:employees' %}">&larr; Employees</a><p class="eyebrow">{{ e.employee_id }} &middot; {{ e.department }}</p><h1>{{ e.full_name }} <span class="badge {% if e.is_employed %}ok{% else %}off{% endif %}">{{ e.get_status_display }}</span></h1><p class="muted">{{ e.designation }} &middot; {{ e.get_employment_type_display }}</p></div>
+<div>{% if e.photo %}<img src="{% url 'em:employee_photo' e.pk %}" alt="photo" style="height:90px;border-radius:8px">{% endif %} <a class="button primary" href="{% url 'em:employee_edit' e.pk %}">{% icon "edit" %} Edit</a></div></div>
+<nav class="segmented">
+<a class="{% if tab == 'overview' %}on{% endif %}" href="?tab=overview">Overview</a><a class="{% if tab == 'contacts' %}on{% endif %}" href="?tab=contacts">Emergency contacts</a><a class="{% if tab == 'documents' %}on{% endif %}" href="?tab=documents">Documents</a><a class="{% if tab == 'bank' %}on{% endif %}" href="?tab=bank">Bank</a><a class="{% if tab == 'salary' %}on{% endif %}" href="?tab=salary">Salary</a><a class="{% if tab == 'payroll' %}on{% endif %}" href="?tab=payroll">Payroll history</a><a class="{% if tab == 'log' %}on{% endif %}" href="?tab=log">Change log</a></nav>
+
+{% if tab == 'overview' %}
+<div class="panel"><div class="panel-head"><h2>Personal</h2></div><div class="form-grid three">
+<div><span class="muted">Gender</span><br>{{ e.get_gender_display|default:"-" }}</div><div><span class="muted">Date of birth</span><br>{{ e.date_of_birth|date:"d-m-Y"|default:"-" }}</div><div><span class="muted">Blood group</span><br>{{ e.blood_group|default:"-" }}</div>
+<div><span class="muted">Marital status</span><br>{{ e.get_marital_status_display|default:"-" }}</div><div><span class="muted">Mobile</span><br>{{ e.mobile|default:"-" }} {% if e.alternate_mobile %}/ {{ e.alternate_mobile }}{% endif %}</div><div><span class="muted">Personal email</span><br>{{ e.personal_email|default:"-" }}</div>
+<div><span class="muted">Current address</span><br>{{ e.current_address|linebreaksbr|default:"-" }}</div><div><span class="muted">Permanent address</span><br>{{ e.permanent_address|linebreaksbr|default:"-" }}</div><div><span class="muted">City / State / PIN</span><br>{{ e.city }} {{ e.state }} {{ e.pin_code }} {{ e.country }}</div></div></div>
+<div class="panel"><div class="panel-head"><h2>Employment</h2></div><div class="form-grid three">
+<div><span class="muted">Reporting manager</span><br>{{ e.reporting_manager.full_name|default:"-" }}</div><div><span class="muted">Joined</span><br>{{ e.date_of_joining|date:"d-m-Y" }}</div><div><span class="muted">Probation</span><br>{% if e.probation_months %}{{ e.probation_months }} months, ends {{ e.probation_end_date|date:"d-m-Y" }}{% else %}-{% endif %}</div>
+<div><span class="muted">Confirmed</span><br>{{ e.confirmation_date|date:"d-m-Y"|default:"-" }}</div><div><span class="muted">Left</span><br>{{ e.date_of_leaving|date:"d-m-Y"|default:"-" }}</div><div><span class="muted">Work location</span><br>{{ e.work_location|default:"-" }}</div>
+<div><span class="muted">Notice period</span><br>{{ e.notice_period_days|default:"-" }} days</div><div><span class="muted">Work email</span><br>{{ e.work_email|default:"-" }}</div><div><span class="muted">Official mobile</span><br>{{ e.official_mobile|default:"-" }}</div></div></div>
+<div class="panel"><div class="panel-head"><h2>Identity (masked)</h2></div><div class="form-grid three">
+<div><span class="muted">Aadhaar</span><br>{{ e.aadhaar_masked|default:"-" }}</div><div><span class="muted">PAN</span><br>{{ e.pan_masked|default:"-" }}</div><div><span class="muted">UAN / ESIC</span><br>{% if e.uan_number %}on file{% else %}-{% endif %} / {% if e.esic_number %}on file{% else %}-{% endif %}</div></div></div>
+<div class="panel"><div class="panel-head"><h2>Key documents</h2></div><p>{% for label, ok in doc_status %}<span class="badge {% if ok %}ok{% else %}off{% endif %}">{{ label }}: {% if ok %}Available{% else %}Missing{% endif %}</span> {% endfor %}</p></div>
+
+{% elif tab == 'contacts' %}
+<div class="panel"><div class="panel-head split"><h2>Emergency contacts</h2><a class="button secondary" href="{% url 'em:contact_new' e.pk %}">+ Add contact</a></div>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Relationship</th><th>Mobile</th><th>Alternate</th><th>Address</th><th></th></tr></thead><tbody>
+{% for c in contacts %}<tr><td>{{ c.name }}</td><td>{{ c.relationship }}</td><td>{{ c.mobile }}</td><td>{{ c.alternate_number }}</td><td>{{ c.address }}</td><td><a class="icon-btn" href="{% url 'em:contact_edit' e.pk c.pk %}" title="Edit" aria-label="Edit">{% icon "edit" %}</a> <form class="inline" method="post" action="{% url 'em:contact_delete' e.pk c.pk %}" onsubmit="return confirm('Remove this contact?')">{% csrf_token %}<button class="icon-btn danger" title="Remove" aria-label="Remove">{% icon "remove" %}</button></form></td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No emergency contacts.</td></tr>{% endfor %}</tbody></table></div></div>
+
+{% elif tab == 'documents' %}
+<div class="panel"><div class="panel-head split"><h2>Documents</h2><a class="button secondary" href="{% url 'em:document_new' e.pk %}">+ Upload document</a></div>
+<p>{% for label, ok in doc_status %}<span class="badge {% if ok %}ok{% else %}off{% endif %}">{{ label }}: {% if ok %}Available{% else %}Missing{% endif %}</span> {% endfor %}</p>
+<div class="table-wrap"><table><thead><tr><th>Category</th><th>Type</th><th>Name</th><th>Number</th><th>Uploaded</th><th>Expiry</th><th>Size</th><th></th></tr></thead><tbody>
+{% for d in docs %}<tr><td>{{ d.category }}</td><td>{{ d.get_document_type_display }}</td><td>{{ d.document_name }}</td><td>{{ d.number_masked|default:"-" }}</td><td>{{ d.upload_date|date:"d-m-Y" }}</td>
+<td>{{ d.expiry_date|date:"d-m-Y"|default:"-" }}{% with st=doc_states|get_item:d.pk %}{% if st == 'expired' %} <span class="badge off">Expired</span>{% elif st == 'expiring' %} <span class="badge">Expiring</span>{% endif %}{% endwith %}</td>
+<td>{{ d.file_size|filesizeformat }}</td><td><a class="icon-btn" href="{% url 'em:document_view' e.pk d.pk %}" target="_blank" rel="noopener" title="View" aria-label="View">{% icon "view" %}</a> <a class="icon-btn" href="{% url 'em:document_download' e.pk d.pk %}" title="Download" aria-label="Download">{% icon "download" %}</a> <a class="icon-btn" href="{% url 'em:document_replace' e.pk d.pk %}" title="Replace" aria-label="Replace">{% icon "replace" %}</a> {% if d.replaces %}<a class="icon-btn" href="{% url 'em:document_history' e.pk d.pk %}" title="History" aria-label="History">{% icon "history" %}</a>{% endif %} <a class="icon-btn danger" href="{% url 'em:document_delete' e.pk d.pk %}" title="Delete" aria-label="Delete">{% icon "trash" %}</a></td></tr>
+{% empty %}<tr><td colspan="8" class="empty">No documents uploaded.</td></tr>{% endfor %}</tbody></table></div>
+<p class="muted">Files are stored privately on this computer (outside the web folders) and served only through these links.</p></div>
+
+{% elif tab == 'bank' %}
+<div class="panel"><div class="panel-head split"><h2>Bank accounts</h2><a class="button secondary" href="{% url 'em:bank_new' e.pk %}">{% if banks %}Change bank account{% else %}+ Add bank account{% endif %}</a></div>
+<div class="table-wrap"><table><thead><tr><th>Bank</th><th>Holder</th><th>Account</th><th>IFSC</th><th>Branch</th><th>Type</th><th>Added</th><th>Status</th></tr></thead><tbody>
+{% for b in banks %}<tr><td>{{ b.bank_name }}</td><td>{{ b.account_holder_name }}</td><td>{{ b.account_masked }}</td><td>{{ b.ifsc_code }}</td><td>{{ b.branch_name }}</td><td>{{ b.get_account_type_display }}</td><td>{{ b.created_at|date:"d-m-Y" }}</td><td>{% if b.is_current %}<span class="badge ok">Current</span>{% else %}<span class="badge off">Retired {{ b.retired_at|date:"d-m-Y" }}</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="8" class="empty">No bank account on file.</td></tr>{% endfor %}</tbody></table></div><p class="muted">Changing the account adds a new record; older accounts are kept for history and earlier payslips.</p></div>
+
+{% elif tab == 'salary' %}
+<div class="panel"><div class="panel-head split"><h2>Salary structures</h2><a class="button secondary" href="{% url 'em:salary_new' e.pk %}">{% if structures %}New structure (revision){% else %}+ Add salary structure{% endif %}</a></div>
+{% for s in structures %}<div class="panel"><b>{{ s.get_structure_type_display }}</b> &middot; from {{ s.effective_from|date:"d-m-Y" }} to {{ s.effective_to|date:"d-m-Y"|default:"present" }}{% if s.used_in_finalized_payroll %} <span class="badge">Used in finalized payroll</span>{% endif %}
+{% if s.structure_type != 'monthly' %}<br>Rate: {{ s.rate }}{% endif %} &middot; Divisor: {{ s.get_divisor_display }}{% if s.pay_full_month %} &middot; pays full month{% endif %}{% if s.use_statutory_rules %} &middot; statutory rules{% endif %}
+<div class="table-wrap"><table><tbody>{% for c in s.components.all %}<tr><td>{{ c.get_kind_display }}</td><td>{{ c.label }}</td><td class="num">{{ c.amount }}</td></tr>{% endfor %}
+<tr><th colspan="2">Total earnings / deductions / net (monthly)</th><th class="num">{{ s.total_earnings }} / {{ s.total_deductions }} / {{ s.net_salary }}</th></tr></tbody></table></div>
+<a href="{% url 'em:salary_revise' e.pk s.pk %}">Copy into a new structure</a></div>
+{% empty %}<p class="empty">No salary structure.</p>{% endfor %}</div>
+
+{% elif tab == 'payroll' %}
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Rev.</th><th>Status</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Net</th><th></th></tr></thead><tbody>
+{% for p in payrolls %}<tr><td>{{ p.period.label }}</td><td>{{ p.revision }}{% if not p.is_current %} <small class="muted">(superseded/draft)</small>{% endif %}</td><td>{{ p.get_status_display }}</td><td class="num">{{ p.gross_earnings }}</td><td class="num">{{ p.total_deductions }}</td><td class="num">{{ p.net_salary }}</td><td><a class="icon-btn" href="{% url 'em:payroll_detail' p.pk %}" title="Open" aria-label="Open">{% icon "view" %}</a> &middot; <a class="icon-btn" href="{% url 'em:payslip' p.pk %}" target="_blank" title="Payslip" aria-label="Payslip">{% icon "pdf" %}</a></td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No payroll yet.</td></tr>{% endfor %}</tbody></table></div></div>
+
+{% else %}
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>When</th><th>Field</th><th>From</th><th>To</th></tr></thead><tbody>
+{% for l in log %}<tr><td>{{ l.changed_at|date:"d-m-Y H:i" }}</td><td>{{ l.field }}</td><td>{{ l.old_value }}</td><td>{{ l.new_value }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No changes recorded.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endif %}{% endblock %}

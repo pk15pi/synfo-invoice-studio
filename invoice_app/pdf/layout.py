@@ -140,3 +140,27 @@ SIGNATURE = dict(
 
 # ---- Footer -------------------------------------------------------------------
 FOOTER = dict(center=303.14, baseline=413.59, font='Trebuchet-Italic', size=6.96)
+
+# ---- Export under LUT note (export layout; drawn only when a note is set) ----------
+LUT_LINE = dict(x=52.32, baseline=327.00, font='Arial', size=6.48, max_width=370)
+
+# ---- GST Tax Invoice (Domestic GST). Same fonts/colours/columns as the export layout; only the
+# areas below change. Offsets are added to the export coordinates above. ---------------------
+TAX_INVOICE = dict(
+    title='TAX INVOICE',
+    badge_pad=2.27,                     # text inset inside the badge (498.34 - 496.07)
+    number_inset=2.03,                  # 498.10 - 496.07
+    customer_name_max_width=235,        # leaves room for the GSTIN block on the right
+    customer_block=dict(x=295.25, baselines=[158.78, 166.34, 174.26], font='Trebuchet', size=6.96,
+                        label_font='Trebuchet-Bold', max_width=255),
+    rows_per_line=2,                    # line row + 'SAC: xxxx' row under the description
+    sac_font=('Arial', 6.48), sac_fmt='SAC: {sac}',
+    summary=dict(label_x=428.47, amount_right=552.73, first_baseline=327.50, step=8.40,
+                 font=('Trebuchet', 6.96), bold_font=('Trebuchet-Bold', 6.96)),
+    grand=dict(left=426.80, right=554.14, height=9.00, gap=3.30, label='Grand Total',
+               label_font=('Trebuchet-Bold', 7.56), amount_font=('Trebuchet', 6.96),
+               currency_font=('Arial-Bold', 6.96), separator_x=496.19),
+    words=dict(x=52.32, first_baseline=327.00, step=7.20, font='Arial', size=6.48, max_width=370,
+               label='Amount in words: ', max_lines=2),
+    payment_dy=20.0, signature_dy=30.0, border_dy=40.0, footer_dy=40.0,
+)

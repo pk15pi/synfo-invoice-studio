@@ -1,0 +1,6 @@
+{% extends 'accounting/base_acc.html' %}{% block acc %}
+<div class="page-heading"><p class="eyebrow">Accounting</p><h1>Accounting</h1></div>
+<div class="panel"><p>{{ n_accounts }} accounts &middot; {{ n_posted }} posted/reversed entries &middot; {{ n_drafts }} draft(s).</p>
+<p>Current period: <strong>{{ current.label }}</strong> ({{ current.get_status_display }}).</p>
+{% if n_unmapped %}<p class="message error">{{ n_unmapped }} account mapping(s) not set.</p>{% endif %}
+<p class="muted">Posted entries cannot be edited or deleted; correct them with a reversal. This app has no login, so actions are not attributed to a person.</p></div>{% endblock %}

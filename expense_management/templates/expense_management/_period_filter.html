@@ -1,0 +1,6 @@
+<select class="field" name="period" onchange="this.form.querySelector('.xm-custom').style.display=this.value==='custom'?'':'none'">
+{% for k, l in periods %}<option value="{{ k }}" {% if f.period == k %}selected{% endif %}>{{ l }}</option>{% endfor %}
+{% if f.period == 'fy' or f.period == 'month' %}<option value="{{ f.period }}" selected>{{ f.label }}</option>{% endif %}</select>
+<select class="field" name="fy" title="Financial year (used when period is blank)" onchange="const p=this.form.period;if(this.value){p.value='';}"><option value="">FY&hellip;</option>{% for y, l in fy_list %}<option value="{{ y }}" {% if params.fy == y|stringformat:"s" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+<input class="field" type="month" name="month" value="{{ params.month }}" title="Month (YYYY-MM)" onchange="if(this.value){this.form.period.value='';}">
+<span class="xm-custom" {% if f.period != 'custom' %}style="display:none"{% endif %}><input class="field" type="date" name="date_from" value="{{ params.date_from }}"> to <input class="field" type="date" name="date_to" value="{{ params.date_to }}"></span>

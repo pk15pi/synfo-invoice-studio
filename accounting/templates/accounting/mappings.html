@@ -1,0 +1,6 @@
+{% extends 'accounting/base_acc.html' %}{% block acc_title %}Account mappings{% endblock %}{% block acc %}
+<div class="page-heading"><p class="eyebrow">Accounting</p><h1>Account mappings</h1></div>
+<form method="post" class="panel">{% csrf_token %}<p class="muted">Which ledger account each automatic posting uses. Changes affect future postings only.</p>
+<table id="map"><thead><tr><th>Key</th><th>Purpose</th><th>Account</th></tr></thead><tbody>
+{% for m in rows %}<tr><td><code>{{ m.key }}</code></td><td>{{ m.description }}</td><td><select class="field" name="m_{{ m.pk }}"><option value="">- not set -</option>{% for a in accounts %}<option value="{{ a.pk }}" {% if m.account_id == a.pk %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>{% endfor %}{% if m.account and not m.account.active %}<option value="{{ m.account.pk }}" selected>{{ m.account }} (inactive)</option>{% endif %}</select></td></tr>{% endfor %}
+</tbody></table><button class="button primary">Save mappings</button></form>{% endblock %}

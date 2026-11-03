@@ -1,0 +1,5 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Bank account{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">Bank Management</p><h1>{% if obj %}Edit {{ obj.name }}{% else %}New bank / cash account{% endif %}</h1></div>
+<form method="post" class="panel">{% csrf_token %}{{ form.non_field_errors }}{% for f in form %}<p><label>{{ f.label }}</label> {{ f }} {{ f.errors }} <span class="muted">{{ f.help_text }}</span></p>{% endfor %}
+<p class="muted">The opening balance is posted once as a journal against the opening-balance equity mapping. Changing it reverses the old entry and posts a new one.</p>
+<button class="button primary">Save</button> <a href="{% url 'bank:accounts' %}">Cancel</a></form>{% endblock %}

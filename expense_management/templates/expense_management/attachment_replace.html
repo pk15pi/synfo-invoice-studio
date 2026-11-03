@@ -1,0 +1,5 @@
+{% extends 'expense_management/xm_base.html' %}{% block xm_title %}Replace attachment{% endblock %}{% block xm %}
+<div class="page-heading"><p class="eyebrow">Expense Management</p><h1>Replace attachment</h1></div>
+<div class="panel"><p>Current file: <b>{{ att.original_filename }}</b> ({{ att.get_doc_type_display }}, {{ att.file_size|filesizeformat }}). The old file is removed once the new one is saved.</p>
+<form method="post" enctype="multipart/form-data">{% csrf_token %}<div class="form-field"><label>New file (PDF, JPG, PNG)</label><input class="field" type="file" name="file" required accept=".pdf,.jpg,.jpeg,.png"></div>
+<div class="form-actions"><a class="button secondary" href="{{ back_url }}">Cancel</a> <button class="button primary" type="submit" onclick="return confirm('Replace this attachment?')">Replace file</button></div></form></div>{% endblock %}

@@ -1,0 +1,6 @@
+{% extends 'invoice_app/base.html' %}{% block title %}Document check &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">Documents</p><h1>Index sync and integrity check</h1></div>
+<form method="post" class="panel">{% csrf_token %}<p class="muted">Sync reads employee documents and expense attachments and indexes them (files are never moved). Check verifies each file exists and still matches its sha256.</p>
+<button class="button secondary" name="action" value="sync">Sync index</button> <button class="button primary" name="action" value="check">Run check</button></form>
+{% if result %}<div class="panel"><p>OK {{ result.ok }} &middot; missing {{ result.missing }} &middot; changed {{ result.changed }}</p><table><tbody>{% for d, st, note in result.rows %}{% if st != 'ok' %}<tr><td>{{ st|upper }}</td><td>{{ d.title }}</td><td>{{ note }}</td></tr>{% endif %}{% endfor %}</tbody></table></div>{% endif %}
+<div class="panel"><h3>Currently flagged missing</h3><ul>{% for d in missing %}<li>{{ d.title }} - {{ d.check_note }}</li>{% empty %}<li>None.</li>{% endfor %}</ul></div><p><a href="{% url 'docs:list' %}">&laquo; Documents</a></p>{% endblock %}

@@ -1,23 +1,43 @@
 """Local single-user settings for QuantBud Invoice Studio (no auth, no admin by design)."""
 import os
+import sys
 from pathlib import Path
 
+from .secret import load_secret_key
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'local-only-development-key-change-if-exposed'
-DEBUG = os.environ.get('QB_DEBUG', '1') == '1'
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', 'testserver']
+# Key: env QB_SECRET_KEY, else private_media/.secret_key (auto-generated, git-ignored), else per-process.
+SECRET_KEY = load_secret_key(Path(os.environ.get('QB_PRIVATE_ROOT') or (BASE_DIR / 'private_media')) / '.secret_key')
+# DEBUG is off unless QB_DEBUG=1 (run_windows.bat sets it so runserver keeps serving CSS/static files).
+DEBUG = os.environ.get('QB_DEBUG', '0') == '1'
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    ALLOWED_HOSTS.append('testserver')  # Django test client host
 
 INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'invoice_app',
+    'employee_management',
+    'attendance',
+    'expense_management',
+    'reporting',
+    'accounting',
+    'bank_management',
+    'compliance',
+    'document_management',
+    'audit',
+    'backup',
 ]
 MIDDLEWARE = [
+    'config.middleware.LocalOnlyMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'audit.middleware.AuditContextMiddleware',
 ]
 # No sessions app: flash messages are stored in a signed cookie.
 MESSAGE_STORAGE = 'django.contrib.messages.storage.cookie.CookieStorage'
@@ -42,3 +62,14 @@ STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Employee documents/photos: private folder, never served as static/media.
+EMPLOYEE_PRIVATE_ROOT = Path(os.environ.get('QB_PRIVATE_ROOT') or (BASE_DIR / 'private_media'))
+FILE_UPLOAD_PERMISSIONS = 0o600
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+
+# Backups (backup app): folder outside the repo; keep-last-N applies to app-made manual/automatic ZIPs only.
+QB_APP_VERSION = os.environ.get('QB_APP_VERSION', 'stage8')
+BACKUP_DIR = Path(os.environ.get('QB_BACKUP_DIR') or (r'E:\QuantBud_Backups' if os.name == 'nt'
+                                                       else BASE_DIR.parent / 'QuantBud_Backups'))
+BACKUP_KEEP_LAST = int(os.environ.get('QB_BACKUP_KEEP_LAST', '10'))

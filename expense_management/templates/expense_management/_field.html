@@ -1,0 +1,1 @@
+<div class="form-field" id="wrap-{{ field.name }}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{% for e in field.errors %}<small style="color:#b42318">{{ e }}</small>{% endfor %}</div>

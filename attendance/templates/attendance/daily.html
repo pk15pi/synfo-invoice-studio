@@ -1,0 +1,14 @@
+{% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Attendance &amp; Leave</p><h1>Daily attendance &middot; {{ d|date:"D, d M Y" }}</h1>
+<p class="muted">{% if holiday %}Holiday: {{ holiday.name }}.{% elif default == 'WO' %}Weekly off.{% else %}Working day.{% endif %} Unmarked working days count as Present in the monthly summary.</p></div>
+<div><a class="button secondary" href="?date={{ prev }}">&larr; Prev</a> <a class="button secondary" href="?date={{ next }}">Next &rarr;</a></div></div>
+{% include "attendance/_nav.html" %}
+<form method="get" class="panel"><input class="field" type="date" name="date" value="{{ d|date:'Y-m-d' }}"> <button class="button secondary">Go</button></form>
+<form method="post" class="panel">{% csrf_token %}<input type="hidden" name="date" value="{{ d|date:'Y-m-d' }}">
+<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Status</th><th>Leave type</th><th>In</th><th>Out</th><th>Note</th></tr></thead><tbody>
+{% for row in rows %}<tr><td><a href="{% url 'att:month_grid' row.e.pk %}?year={{ d.year }}&month={{ d.month }}">{{ row.e.employee_id }}</a> {{ row.e.full_name }}{% if row.locked %} <small>(locked: payroll finalized)</small>{% endif %}</td>
+{% with r=row.r key=row.e.pk locked=row.locked %}{% include "attendance/_row.html" %}{% endwith %}</tr>
+{% empty %}<tr><td colspan="6" class="empty">No active employees on this date.</td></tr>{% endfor %}</tbody></table></div>
+{% if needs_reason %}<div class="form-field"><label>Correction reason (payroll already generated for this month; required to change any day)</label><input class="field" name="reason" maxlength="240"></div>{% endif %}
+<div class="form-actions"><button class="button primary" type="submit">Save</button> <button class="button secondary" name="action" value="mark_all_present">Mark all unmarked as Present &amp; save</button></div></form>
+{% endblock %}

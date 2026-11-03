@@ -1,0 +1,11 @@
+{% extends "invoice_app/base.html" %}{% block title %}Attendance corrections &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">Attendance &amp; Leave</p><h1>Attendance correction history</h1>
+<p class="muted">Changes to days in months that already have payroll. Months with finalized payroll are locked: start a payroll revision first.</p></div>
+{% include "attendance/_nav.html" %}
+<form method="get" class="panel"><select class="field" name="employee"><option value="">All employees</option>{% for x in employees %}<option value="{{ x.pk }}" {% if emp == x.pk|stringformat:"d" %}selected{% endif %}>{{ x.employee_id }} {{ x.full_name }}</option>{% endfor %}</select>
+<select class="field" name="month"><option value="">Any month</option>{% for i, n in months %}<option value="{{ i }}" {% if m == i|stringformat:"d" %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+<select class="field" name="year"><option value="">Any year</option>{% for yy in years %}<option {% if y == yy|stringformat:"d" %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select> <button class="button secondary">Filter</button></form>
+<div class="table-wrap"><table><thead><tr><th>Changed at</th><th>Employee</th><th>Date</th><th>Old</th><th>New</th><th>Reason</th></tr></thead><tbody>
+{% for c in rows %}<tr><td>{{ c.changed_at|date:"d-m-Y H:i" }}</td><td>{{ c.employee.employee_id }} {{ c.employee.full_name }}</td><td>{{ c.date|date:"d-m-Y" }}</td><td>{{ c.old_value }}</td><td>{{ c.new_value }}</td><td>{{ c.reason }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No corrections recorded.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

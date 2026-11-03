@@ -1,0 +1,4 @@
+{% extends 'invoice_app/base.html' %}{% block title %}{{ name }} reports{% endblock %}{% block content %}{% include 'reporting/_style.html' %}
+{% include 'reporting/_nav.html' %}<h1>{{ name }} reports</h1>
+<ul class="rp-sec">{% for k,t,fn in items %}<li><a href="{% url 'reporting:report' k %}?{{ qs }}">{{ t }}</a></li>{% endfor %}</ul>
+{% endblock %}

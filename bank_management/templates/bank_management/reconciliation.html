@@ -1,0 +1,13 @@
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Reconciliation{% endblock %}{% block bk %}
+<div class="page-heading"><p class="eyebrow">{{ b }}</p><h1>Bank reconciliation as of {{ s.end|date:"d M Y" }}</h1></div>
+<form class="panel filters" method="get">{% include 'bank_management/_period_filter.html' %}<button class="button secondary">Show</button> <span class="muted">Balances are as of the period end ({{ f.label }}).</span></form>
+<div class="panel"><table><tbody>
+<tr><td>Book balance (ledger {{ b.ledger_account.code }})</td><td class="num">{{ s.book_balance }}</td></tr>
+<tr><td>Statement balance ({{ s.statement_basis }})</td><td class="num">{{ s.statement_balance }}</td></tr>
+<tr><th>Difference (statement - book)</th><th class="num">{{ s.difference }}</th></tr>
+<tr><td>+ Unreconciled statement items (net)</td><td class="num">{{ s.unreconciled_bank_total }}</td></tr>
+<tr><td>- Unreconciled book items (net)</td><td class="num">{{ s.unreconciled_book_total }}</td></tr>
+<tr><td>Adjusted book balance</td><td class="num">{{ s.adjusted_book }}</td></tr>
+<tr><th>Unexplained difference</th><th class="num {% if s.unexplained %}bk-warn{% endif %}">{{ s.unexplained }}</th></tr></tbody></table></div>
+<div class="panel"><h3>Unreconciled statement lines ({{ s.unreconciled_bank|length }})</h3><table><tbody>{% for x in s.unreconciled_bank %}<tr><td><a href="{% url 'bank:txn_detail' x.txn.pk %}">{{ x.txn.date|date:"d-m-Y" }}</a></td><td>{{ x.txn.description }}</td><td class="num">{{ x.remaining }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table></div>
+<div class="panel"><h3>Unreconciled book lines ({{ s.unreconciled_book|length }})</h3><table><tbody>{% for x in s.unreconciled_book %}<tr><td>{{ x.line.entry.date|date:"d-m-Y" }}</td><td><a href="{% url 'acc:journal_detail' x.line.entry.pk %}">{{ x.line.entry }}</a> {{ x.line.entry.narration }}</td><td class="num">{{ x.remaining }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

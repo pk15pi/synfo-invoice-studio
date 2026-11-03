@@ -1,0 +1,12 @@
+{% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Attendance &amp; Leave</p><h1>Leave applications</h1><p class="muted">Approving marks attendance as Leave and reduces the balance. Cancelling an approved leave restores both.</p></div><div><a class="button primary" href="{% url 'att:application_new' %}">Record leave</a></div></div>
+{% include "attendance/_nav.html" %}
+<form method="get" class="panel"><select class="field" name="status"><option value="">All statuses</option>{% for c, l in statuses %}<option value="{{ c }}" {% if c == status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select> <button class="button secondary">Filter</button></form>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>#</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Reason</th><th></th></tr></thead><tbody>
+{% for a in rows %}<tr><td>{{ a.pk }}</td><td>{{ a.employee.employee_id }} {{ a.employee.full_name }}</td><td>{{ a.leave_type.code }}</td><td>{{ a.start_date|date:"d-m-Y" }}</td><td>{{ a.end_date|date:"d-m-Y" }}</td><td>{{ a.days }}{% if a.half_day %} (half){% endif %}</td><td>{{ a.get_status_display }}</td><td>{{ a.reason }}</td><td>
+{% if a.status == 'pending' %}
+<form method="post" action="{% url 'att:application_action' a.pk 'approve' %}" style="display:inline">{% csrf_token %}<button class="button primary">Approve</button></form>
+<form method="post" action="{% url 'att:application_action' a.pk 'reject' %}" style="display:inline">{% csrf_token %}<button class="button secondary">Reject</button></form>{% endif %}
+{% if a.status == 'pending' or a.status == 'approved' %}<form method="post" action="{% url 'att:application_action' a.pk 'cancel' %}" style="display:inline" onsubmit="return confirm('Cancel this leave?')">{% csrf_token %}<button class="button secondary">Cancel</button></form>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="9" class="empty">No leave applications.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

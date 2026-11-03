@@ -1,0 +1,14 @@
+{% extends 'accounting/base_acc.html' %}{% block acc_title %}{{ e }}{% endblock %}{% block acc %}
+<div class="page-heading"><p class="eyebrow">Journal entry &middot; {{ e.get_status_display }}</p><h1>{{ e }}</h1></div>
+<div class="panel"><p><strong>Date:</strong> {{ e.date|date:"d-m-Y" }} &middot; <strong>Source:</strong> {{ e.source_type }}{% if e.source_id %} #{{ e.source_id }}{% endif %}{% if e.source_key %} &middot; key <code>{{ e.source_key }}</code>{% endif %}</p>
+<p><strong>Narration:</strong> {{ e.narration }}</p>
+{% if e.reversal_of %}<p>Reverses <a href="{% url 'acc:journal_detail' e.reversal_of.pk %}">{{ e.reversal_of }}</a>.</p>{% endif %}
+{% if reversal %}<p>Reversed by <a href="{% url 'acc:journal_detail' reversal.pk %}">{{ reversal }}</a>: {{ e.reversal_reason }}</p>{% endif %}
+<table><thead><tr><th>Account</th><th>Note</th><th class="acc-num">Debit</th><th class="acc-num">Credit</th></tr></thead><tbody>
+{% for l in lines %}<tr><td><a href="{% url 'acc:ledger' l.account.pk %}">{{ l.account }}</a></td><td>{{ l.description }}</td><td class="acc-num">{% if l.debit %}{{ l.debit }}{% endif %}</td><td class="acc-num">{% if l.credit %}{{ l.credit }}{% endif %}</td></tr>{% endfor %}
+</tbody><tfoot><tr><th colspan="2">Total</th><th class="acc-num">{{ dr }}</th><th class="acc-num">{{ cr }}</th></tr></tfoot></table></div>
+{% if e.status == 'draft' %}<div class="panel"><form method="post" action="{% url 'acc:journal_post' e.pk %}" style="display:inline">{% csrf_token %}<button class="button primary">Post</button></form>
+<form method="post" action="{% url 'acc:journal_delete' e.pk %}" style="display:inline" onsubmit="return confirm('Delete this draft?')">{% csrf_token %}<button class="button secondary">Delete draft</button></form></div>
+{% elif e.status == 'posted' and not e.reversal_of %}<form class="panel" method="post" action="{% url 'acc:journal_reverse' e.pk %}">{% csrf_token %}<h3>Reverse this entry</h3>
+<label>Reversal date</label> <input class="field" type="date" name="date" value="{{ today }}" required> <label>Reason</label> <input class="field" name="reason" required style="min-width:320px"> <button class="button primary">Reverse</button></form>
+{% else %}<p class="muted">This entry is locked.</p>{% endif %}{% endblock %}

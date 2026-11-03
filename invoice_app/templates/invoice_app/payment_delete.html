@@ -1,0 +1,4 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><h1>Delete payment?</h1><p>{{ payment.receipt_date }} &middot; {{ payment.amount }} ({{ payment.get_mode_display }}) on invoice {{ invoice.invoice_number }}. This cannot be undone.</p></div>
+<form method="post" class="panel">{% csrf_token %}<button class="button danger" type="submit">Yes, delete</button> <a class="button secondary" href="{% url 'invoice_detail' invoice.pk %}">Cancel</a></form>
+{% endblock %}

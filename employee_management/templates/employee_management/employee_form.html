@@ -1,0 +1,7 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><a class="back" href="{{ back_url }}">&larr; Back</a><h1>{% if obj %}Edit {{ obj.employee_id }} - {{ obj.full_name }}{% else %}Add employee{% endif %}</h1></div>
+<form method="post" enctype="multipart/form-data" autocomplete="off">{% csrf_token %}{{ form.non_field_errors }}
+{% for title, fields in form.sections %}<div class="panel form-panel"><div class="panel-head"><h2>{{ title }}</h2></div><div class="form-grid">
+{% for field in fields %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}
+</div></div>{% endfor %}
+<div class="form-actions"><button class="button primary" type="submit">Save employee</button><a class="button secondary" href="{{ back_url }}">Cancel</a></div></form>{% endblock %}

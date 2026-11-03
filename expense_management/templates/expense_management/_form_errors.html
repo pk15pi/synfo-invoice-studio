@@ -1,0 +1,2 @@
+{% if form.non_field_errors or upload_errors %}<div class="xm-warn">{% for e in form.non_field_errors %}<div>{{ e }}</div>{% endfor %}{% for e in upload_errors %}<div>{{ e }}</div>{% endfor %}</div>{% endif %}
+{% if form.errors and not form.non_field_errors %}<div class="xm-warn">Please correct the highlighted fields.</div>{% endif %}

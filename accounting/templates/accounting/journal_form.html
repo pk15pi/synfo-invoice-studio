@@ -1,0 +1,10 @@
+{% extends 'accounting/base_acc.html' %}{% block acc_title %}New journal{% endblock %}{% block acc %}
+<div class="page-heading"><p class="eyebrow">Accounting</p><h1>New manual journal</h1></div>
+<form method="post" class="panel">{% csrf_token %}
+<p><label>Date</label> <input class="field" type="date" name="date" value="{{ date }}" required> <label>Narration</label> <input class="field" name="narration" value="{{ narration }}" style="min-width:420px" required></p>
+<table id="jl"><thead><tr><th>Account</th><th class="acc-num">Debit</th><th class="acc-num">Credit</th><th>Line note</th></tr></thead><tbody>
+{% for r in rows %}<tr><td><select class="field" name="account_{{ r.i }}"><option value="">-</option>{% for a in accounts %}<option value="{{ a.pk }}" {% if r.account == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>{% endfor %}</select></td>
+<td><input class="field acc-num dr" name="debit_{{ r.i }}" value="{{ r.debit }}" inputmode="decimal"></td><td><input class="field acc-num cr" name="credit_{{ r.i }}" value="{{ r.credit }}" inputmode="decimal"></td><td><input class="field" name="description_{{ r.i }}" value="{{ r.description }}"></td></tr>{% endfor %}
+</tbody><tfoot><tr><th>Totals</th><th class="acc-num" id="tdr">0.00</th><th class="acc-num" id="tcr">0.00</th><th id="tdiff"></th></tr></tfoot></table>
+<p><button class="button secondary" name="action" value="draft">Save draft</button> <button class="button primary" name="action" value="post">Save and post</button></p></form>
+<script>function t(){let d=0,c=0;document.querySelectorAll('.dr').forEach(i=>d+=parseFloat(i.value)||0);document.querySelectorAll('.cr').forEach(i=>c+=parseFloat(i.value)||0);tdr.textContent=d.toFixed(2);tcr.textContent=c.toFixed(2);tdiff.textContent=Math.abs(d-c)>0.004?'Difference '+(d-c).toFixed(2):'Balanced';}document.querySelectorAll('.dr,.cr').forEach(i=>i.addEventListener('input',t));t();</script>{% endblock %}

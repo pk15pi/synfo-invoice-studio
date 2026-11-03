@@ -1,0 +1,18 @@
+{% extends 'invoice_app/base.html' %}{% block title %}Employees &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Employee Management</p><h1>HR dashboard</h1></div>
+<div><a class="button secondary" href="{% url 'em:payroll' %}">Payroll</a> <a class="button primary" href="{% url 'em:employee_new' %}">+ Add employee</a></div></div>
+<div class="panel note">Local-only module: no login is configured, so keep this app bound to 127.0.0.1 and do not expose it to a network.</div>
+<div class="cards">
+<a class="card" href="{% url 'em:employees' %}"><span class="muted">Employed</span><strong>{{ total_employed }}</strong></a>
+{% for k, n in counts.items %}<a class="card" href="{% url 'em:employees' %}?status={{ k }}"><span class="muted">{{ k|capfirst }}</span><strong>{{ n }}</strong></a>{% endfor %}
+<a class="card" href="{% url 'em:departments' %}"><span class="muted">Active departments</span><strong>{{ departments }}</strong></a>
+<a class="card" href="{% url 'em:payroll' %}?year={{ y }}&month={{ m }}"><span class="muted">Payroll {{ month_label }}</span><strong>{% if period %}{{ period.get_status_display }}{% else %}Not started{% endif %}</strong></a>
+</div>
+<div class="panel"><div class="panel-head"><h2>Document expiry alerts</h2></div>
+{% if expiring %}<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Document</th><th>Expiry</th><th></th></tr></thead><tbody>
+{% for d in expiring %}<tr><td><a href="{% url 'em:employee_detail' d.employee.pk %}?tab=documents">{{ d.employee }}</a></td><td>{{ d.get_document_type_display }}</td><td>{{ d.expiry_date|date:"d-m-Y" }}</td><td>{% if d.expiry_date < today %}<span class="badge off">Expired</span>{% else %}<span class="badge">Expiring soon</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>{% else %}<p class="muted">No documents expiring soon.</p>{% endif %}</div>
+<div class="panel"><div class="panel-head"><h2>Data gaps</h2></div>
+<p>{{ missing_bank }} employed staff without a current bank account.</p>
+{% if missing_salary %}<p>Without a salary structure: {% for e in missing_salary %}<a href="{% url 'em:salary_new' e.pk %}">{{ e.employee_id }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}</div>
+{% endblock %}

@@ -1,0 +1,3 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><a class="back" href="{{ back_url }}">&larr; Back</a><h1>{{ title }}</h1></div>
+<form method="post" class="panel">{% csrf_token %}<p>{{ text }}</p><div class="form-actions"><button class="button primary" type="submit">Yes, delete</button><a class="button secondary" href="{{ back_url }}">Cancel</a></div></form>{% endblock %}

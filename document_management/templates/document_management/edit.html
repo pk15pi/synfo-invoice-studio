@@ -1,0 +1,4 @@
+{% extends 'invoice_app/base.html' %}{% block title %}Edit document &middot; QuantBud{% endblock %}{% block content %}
+<div class="page-heading"><p class="eyebrow">Documents</p><h1>{{ doc.title }}</h1></div>
+<div class="panel"><p>{{ doc.get_category_display }} &middot; {{ doc.original_filename }} &middot; {{ doc.size|filesizeformat }} &middot; sha256 <code>{{ doc.sha256 }}</code></p></div>
+<form method="post" class="panel">{% csrf_token %}{% for f in form %}<p><label>{{ f.label }}</label> {{ f }} {{ f.errors }}</p>{% endfor %}<button class="button primary">Save</button> <a href="{% url 'docs:list' %}">Cancel</a></form>{% endblock %}

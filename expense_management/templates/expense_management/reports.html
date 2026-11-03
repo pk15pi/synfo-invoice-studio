@@ -1,0 +1,10 @@
+{% extends 'expense_management/xm_base.html' %}{% load exp_tags %}{% block xm_title %}{{ rep.title }}{% endblock %}{% block xm %}
+<div class="page-heading split"><div><p class="eyebrow">Expense reports</p><h1>{{ rep.title }}</h1></div>
+<div><a class="button secondary" href="?{{ query }}{% if query %}&{% endif %}format=xlsx">Excel</a> <a class="button secondary" href="?{{ query }}{% if query %}&{% endif %}format=csv">CSV</a> <a class="button secondary" href="?{{ query }}{% if query %}&{% endif %}format=pdf">PDF</a></div></div>
+<div class="xm-tabs">{% for k, t in report_list %}<a href="{% url 'exp:report' k %}?{{ query }}" class="{% if k == key %}on{% endif %}">{{ t }}</a>{% endfor %}</div>
+<form class="panel filters" method="get">{% include 'expense_management/_period_filter.html' %}{% include 'expense_management/_entity_filters.html' %}<button class="button secondary" type="submit">Apply</button><span class="muted">{{ f.label }} ({{ f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span></form>
+{% if rep.note %}<div class="panel note">{{ rep.note }}</div>{% endif %}
+<div class="panel"><div class="table-wrap"><table><thead><tr>{% for h in rep.headers %}<th {% if rep.money_cols|contains:forloop.counter0 %}class="num"{% endif %}>{{ h }}</th>{% endfor %}</tr></thead><tbody>
+{% for r in rep.rows %}<tr>{% for v in r %}<td {% if rep.money_cols|contains:forloop.counter0 %}class="num"{% endif %}>{% if rep.money_cols|contains:forloop.counter0 %}{{ v|cell:True }}{% else %}{{ v|cell|default_if_none:"" }}{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="{{ rep.headers|length }}" class="empty">No data for these filters.</td></tr>{% endfor %}
+{% if rep.rows %}<tr class="total">{% for v in rep.totals %}<td {% if rep.money_cols|contains:forloop.counter0 %}class="num"{% endif %}>{% if rep.money_cols|contains:forloop.counter0 %}{{ v|cell:True }}{% else %}{{ v|default_if_none:"" }}{% endif %}</td>{% endfor %}</tr>{% endif %}
+</tbody></table></div></div>{% endblock %}

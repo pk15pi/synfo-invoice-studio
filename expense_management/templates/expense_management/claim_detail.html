@@ -1,0 +1,29 @@
+{% extends 'expense_management/xm_base.html' %}{% load exp_tags %}{% block xm_title %}{{ claim.claim_id }}{% endblock %}{% block xm %}
+<div class="page-heading split"><div><p class="eyebrow">Employee claim</p><h1>{{ claim.claim_id }} <span class="badge st-{{ claim.status }}">{{ claim.status_label }}</span></h1></div>
+<div>{% if claim.status in 'draft submitted under_review' %}<a class="button secondary" href="{% url 'exp:claim_edit' claim.pk %}">Edit</a>{% endif %} <a class="button secondary" href="{% url 'exp:review' %}">Review list</a></div></div>
+{% if claim.returned_for_correction %}<div class="xm-warn">Returned for correction: {{ claim.review_remarks }}</div>{% endif %}
+{% if claim.status == 'rejected' %}<div class="xm-warn">Rejected: {{ claim.rejection_reason }}</div>{% endif %}
+{% if claim.status == 'cancelled' %}<div class="xm-warn">Cancelled: {{ claim.cancel_reason }}</div>{% endif %}
+<div class="xm-grid2">
+<div class="panel"><div class="panel-head"><h2>Claim</h2></div><dl class="xm-dl">
+<dt>Employee</dt><dd>{{ claim.snap_employee_code }} - {{ claim.snap_name }}</dd><dt>Department / designation</dt><dd>{{ claim.snap_department|default:"-" }} / {{ claim.snap_designation|default:"-" }}</dd>
+<dt>Claim date</dt><dd>{{ claim.claim_date|date:"d-m-Y" }}</dd><dt>Expense date</dt><dd>{{ claim.expense_date|date:"d-m-Y" }}</dd>
+<dt>Category</dt><dd>{{ claim.category.name }}{% if claim.subcategory %} / {{ claim.subcategory.name }}{% endif %}</dd>
+<dt>Description</dt><dd>{{ claim.description }}</dd><dt>Business purpose</dt><dd>{{ claim.business_purpose|default:"-" }}</dd>
+<dt>Client / project</dt><dd>{{ claim.client.name|default:"-" }} / {{ claim.project.name|default:"-" }}</dd>
+{% if claim.travel_from or claim.travel_to %}<dt>Travel</dt><dd>{{ claim.travel_from }} &rarr; {{ claim.travel_to }} ({{ claim.travel_start_date|date:"d-m-Y" }} &ndash; {{ claim.travel_end_date|date:"d-m-Y" }})</dd>{% endif %}
+<dt>Remarks</dt><dd>{{ claim.remarks|default:"-"|linebreaksbr }}</dd></dl></div>
+<div class="panel"><div class="panel-head"><h2>Amounts ({{ claim.currency }})</h2></div><dl class="xm-dl">
+<dt>Claimed</dt><dd><b>{{ claim.amount_claimed|money:claim.currency }}</b>{% if claim.currency != 'INR' %} <span class="muted">@ {{ claim.exchange_rate }}</span>{% endif %}</dd>
+<dt>Approved</dt><dd>{% if claim.approved_amount is not None %}{{ claim.approved_amount|money:claim.currency }}{% else %}-{% endif %}</dd>
+<dt>Reimbursed</dt><dd>{{ claim.reimbursed_amount|money:claim.currency }}</dd><dt>Outstanding</dt><dd><b>{{ claim.outstanding_amount|money:claim.currency }}</b></dd>
+<dt>Employee bank</dt><dd>{% if bank %}{{ bank.bank_name }} {{ bank.account_masked }}{% else %}<span class="muted">No bank account on file</span>{% endif %}</dd></dl>
+{% include 'expense_management/_claim_actions.html' with c=claim next='' %}</div></div>
+{% if claim.status == 'approved' or claim.status == 'partially_approved' %}<div class="panel" id="reimburse"><div class="panel-head"><h2>Record reimbursement</h2></div>
+<form method="post" action="{% url 'exp:claim_reimburse' claim.pk %}" class="form-grid" onsubmit="return confirm('Record this reimbursement for {{ claim.claim_id }}?')">{% csrf_token %}{% include 'expense_management/_fields.html' with fields=reimb_form %}<div class="form-actions"><button class="button primary" type="submit">Mark as reimbursed</button></div></form></div>{% endif %}
+<div class="panel"><div class="panel-head"><h2>Reimbursements</h2></div><div class="table-wrap"><table><thead><tr><th>Date</th><th class="num">Amount</th><th>Method</th><th>Bank account</th><th>Reference</th><th>Remarks</th></tr></thead><tbody>
+{% for r in reimbursements %}<tr><td>{{ r.reimbursement_date|date:"d-m-Y" }}</td><td class="num">{{ r.amount|money:claim.currency }}</td><td>{{ r.get_method_display }}</td><td>{{ r.bank_account }}{% if r.bank %} ({{ r.bank }}){% endif %}</td><td>{{ r.reference }}</td><td>{{ r.remarks }}</td></tr>{% empty %}<tr><td colspan="6" class="empty">None yet.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="panel"><div class="panel-head"><h2>Attachments</h2></div>{% url 'exp:claim_attach' claim.pk as attach_url %}{% include 'expense_management/_attachments.html' with kind='claim' attach_url=attach_url %}</div>
+<div class="panel"><div class="panel-head"><h2>Review history</h2></div><div class="table-wrap"><table><thead><tr><th>When</th><th>Action</th><th>From</th><th>To</th><th class="num">Amount</th><th>Remarks</th></tr></thead><tbody>
+{% for h in reviews %}<tr><td>{{ h.created_at|date:"d-m-Y H:i" }}</td><td>{{ h.get_action_display }}</td><td>{{ h.from_status }}</td><td>{{ h.to_status }}</td><td class="num">{% if h.amount is not None %}{{ h.amount|money:claim.currency }}{% endif %}</td><td>{{ h.remarks }}</td></tr>{% empty %}<tr><td colspan="6" class="empty">No history.</td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

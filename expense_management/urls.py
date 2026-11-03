@@ -1,0 +1,43 @@
+from django.urls import path
+
+from . import views
+
+app_name = 'exp'
+urlpatterns = [
+    path('expenses/', views.dashboard, name='dashboard'),
+    path('expenses/all/', views.all_expenses, name='all'),
+    path('expenses/company/new/', views.expense_form, name='expense_new'),
+    path('expenses/company/<int:pk>/', views.expense_detail, name='expense_detail'),
+    path('expenses/company/<int:pk>/edit/', views.expense_form, name='expense_edit'),
+    path('expenses/company/<int:pk>/payment/', views.expense_payment, name='expense_payment'),
+    path('expenses/company/<int:pk>/cancel/', views.expense_cancel, name='expense_cancel'),
+    path('expenses/company/<int:pk>/attach/', views.expense_attach, name='expense_attach'),
+    path('expenses/files/<str:kind>/<int:pk>/view/', views.attachment_file, {'mode': 'view'}, name='att_view'),
+    path('expenses/files/<str:kind>/<int:pk>/download/', views.attachment_file, {'mode': 'download'},
+         name='att_download'),
+    path('expenses/files/<str:kind>/<int:pk>/replace/', views.attachment_replace, name='att_replace'),
+    path('expenses/files/<str:kind>/<int:pk>/delete/', views.attachment_delete, name='att_delete'),
+    path('expenses/claims/', views.claims, name='claims'),
+    path('expenses/claims/new/', views.claim_form, name='claim_new'),
+    path('expenses/claims/review/', views.review, name='review'),
+    path('expenses/claims/<int:pk>/', views.claim_detail, name='claim_detail'),
+    path('expenses/claims/<int:pk>/edit/', views.claim_form, name='claim_edit'),
+    path('expenses/claims/<int:pk>/action/<str:action>/', views.claim_action, name='claim_action'),
+    path('expenses/claims/<int:pk>/reimburse/', views.claim_reimburse, name='claim_reimburse'),
+    path('expenses/claims/<int:pk>/attach/', views.claim_attach, name='claim_attach'),
+    path('expenses/vendors/', views.vendors, name='vendors'),
+    path('expenses/vendors/new/', views.vendor_form, name='vendor_new'),
+    path('expenses/vendors/quick-add/', views.vendor_quick_add, name='vendor_quick_add'),
+    path('expenses/vendors/<int:pk>/', views.vendor_detail, name='vendor_detail'),
+    path('expenses/vendors/<int:pk>/edit/', views.vendor_form, name='vendor_edit'),
+    path('expenses/vendors/<int:pk>/toggle/', views.vendor_toggle, name='vendor_toggle'),
+    path('expenses/categories/', views.categories, name='categories'),
+    path('expenses/categories/new/', views.category_form, name='category_new'),
+    path('expenses/categories/<int:pk>/edit/', views.category_form, name='category_edit'),
+    path('expenses/categories/<int:cat_pk>/sub/new/', views.subcategory_form, name='subcategory_new'),
+    path('expenses/categories/<int:cat_pk>/sub/<int:pk>/edit/', views.subcategory_form, name='subcategory_edit'),
+    path('expenses/categories/<str:kind>/<int:pk>/toggle/', views.category_toggle, name='category_toggle'),
+    path('expenses/categories/<str:kind>/<int:pk>/delete/', views.category_delete, name='category_delete'),
+    path('expenses/reports/', views.report_view, name='reports'),
+    path('expenses/reports/<str:key>/', views.report_view, name='report'),
+]

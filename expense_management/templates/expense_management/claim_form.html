@@ -1,0 +1,27 @@
+{% extends 'expense_management/xm_base.html' %}{% block xm_title %}{% if claim %}Edit {{ claim.claim_id }}{% else %}New employee claim{% endif %}{% endblock %}{% block xm %}
+<div class="page-heading split"><div><p class="eyebrow">Employee claims</p><h1>{% if claim %}Edit {{ claim.claim_id }}{% else %}New employee expense claim{% endif %}</h1></div><div><a class="button secondary" href="{% if claim %}{% url 'exp:claim_detail' claim.pk %}{% else %}{% url 'exp:claims' %}{% endif %}">Back</a></div></div>
+{% if claim.returned_for_correction %}<div class="xm-warn">This claim was returned for correction: {{ claim.review_remarks }}</div>{% endif %}
+<form class="panel" method="post" enctype="multipart/form-data">{% csrf_token %}{% include 'expense_management/_form_errors.html' %}
+<div class="form-grid"><h3 class="xm-section">Employee</h3>
+{% include 'expense_management/_field.html' with field=form.employee %}
+<div class="form-field"><label>Employee ID</label><input class="field" id="emp-code" readonly></div>
+<div class="form-field"><label>Department</label><input class="field" id="emp-dept" readonly></div>
+<div class="form-field"><label>Designation</label><input class="field" id="emp-desig" readonly></div>
+<h3 class="xm-section">Expense</h3>
+{% include 'expense_management/_field.html' with field=form.claim_date %}{% include 'expense_management/_field.html' with field=form.expense_date %}
+{% include 'expense_management/_field.html' with field=form.category %}{% include 'expense_management/_field.html' with field=form.subcategory %}
+{% include 'expense_management/_field.html' with field=form.description %}{% include 'expense_management/_field.html' with field=form.amount_claimed %}
+{% include 'expense_management/_field.html' with field=form.currency %}{% include 'expense_management/_field.html' with field=form.exchange_rate %}
+{% include 'expense_management/_field.html' with field=form.business_purpose %}{% include 'expense_management/_field.html' with field=form.client %}{% include 'expense_management/_field.html' with field=form.project %}
+<h3 class="xm-section">Travel (optional)</h3>
+{% include 'expense_management/_field.html' with field=form.travel_from %}{% include 'expense_management/_field.html' with field=form.travel_to %}
+{% include 'expense_management/_field.html' with field=form.travel_start_date %}{% include 'expense_management/_field.html' with field=form.travel_end_date %}
+{% include 'expense_management/_field.html' with field=form.remarks %}
+<h3 class="xm-section">Receipts / bills</h3>{% include 'expense_management/_upload.html' %}
+</div>
+<div class="form-actions"><button class="button secondary" type="submit">Save{% if not claim or claim.status == 'draft' %} as draft{% endif %}</button>{% if not claim or claim.status == 'draft' %} <button class="button primary" type="submit" name="submit_now" value="1">Save and submit</button>{% endif %}</div></form>
+<script>
+const EMP={ {% for e in employees %}"{{ e.pk }}":["{{ e.employee_id|escapejs }}","{{ e.department.name|escapejs }}","{{ e.designation|escapejs }}"],{% endfor %} };
+(function(){const s=document.getElementById('id_employee');function f(){const d=EMP[s.value]||['','',''];['emp-code','emp-dept','emp-desig'].forEach((id,i)=>document.getElementById(id).value=d[i]);}s.addEventListener('change',f);f();})();
+</script>
+{% include 'expense_management/_linkjs.html' %}{% endblock %}
