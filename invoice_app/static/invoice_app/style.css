@@ -144,7 +144,7 @@ a:hover{color:#0d3659}
 .topbar nav .nav-cta:hover,.topbar nav .nav-cta:focus-visible{background:#103b62;color:#fff}
 .navgroup{flex:0 0 auto}
 .navmenu{
- top:calc(100% + 5px);
+ top:100%;
  min-width:210px;
  padding:6px;
  border-color:#dbe5ed;
