@@ -8,8 +8,8 @@ from .secret import load_secret_key
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Key: env QB_SECRET_KEY, else private_media/.secret_key (auto-generated, git-ignored), else per-process.
 SECRET_KEY = load_secret_key(Path(os.environ.get('QB_PRIVATE_ROOT') or (BASE_DIR / 'private_media')) / '.secret_key')
-# DEBUG is off unless QB_DEBUG=1 (run_windows.bat sets it so runserver keeps serving CSS/static files).
-DEBUG = os.environ.get('QB_DEBUG', '0') == '1'
+# DEBUG is on by default (solo localhost app; runserver serves CSS/static). Set QB_DEBUG=0 to turn it off.
+DEBUG = os.environ.get('QB_DEBUG', '1') == '1'
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 if len(sys.argv) > 1 and sys.argv[1] == 'test':
     ALLOWED_HOSTS.append('testserver')  # Django test client host
