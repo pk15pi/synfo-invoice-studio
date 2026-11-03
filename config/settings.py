@@ -42,6 +42,10 @@ MIDDLEWARE = [
 # No sessions app: flash messages are stored in a signed cookie.
 MESSAGE_STORAGE = 'django.contrib.messages.storage.cookie.CookieStorage'
 
+# Same-origin referrers keep the browser's Origin header intact for CSRF checks (never 'no-referrer').
+SECURE_REFERRER_POLICY = 'same-origin'
+CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
+
 ROOT_URLCONF = 'config.urls'
 TEMPLATES = [{
     'BACKEND': 'django.template.backends.django.DjangoTemplates',

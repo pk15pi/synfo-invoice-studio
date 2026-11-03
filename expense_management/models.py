@@ -35,6 +35,23 @@ def q2(v):
     return (v or ZERO).quantize(Q2)
 
 
+def prior_period_errors(obj, errors):
+    """Prior-period rule shared by company expenses and claims: the flag needs a related FY, and that FY must be
+    earlier than the FY of the expense date (posting stays on the actual expense date)."""
+    from accounting.models import FinancialYear
+    if obj.is_prior_period and not obj.relates_to_fy_id:
+        errors['relates_to_fy'] = 'Choose the earlier financial year this prior-period expense relates to.'
+    elif obj.relates_to_fy_id and not obj.is_prior_period:
+        errors['is_prior_period'] = 'Tick prior-period expense, or clear the related financial year.'
+    elif obj.relates_to_fy_id and obj.expense_date:
+        d = obj.expense_date
+        cur = d.year if d.month >= 4 else d.year - 1
+        fy = FinancialYear.objects.filter(pk=obj.relates_to_fy_id).first()
+        if fy and fy.start_year >= cur:
+            errors['relates_to_fy'] = (f'{fy.name} is not earlier than the expense date FY '
+                                       f'(FY {cur}-{str(cur + 1)[-2:]}).')
+
+
 class ExpenseSettings(models.Model):
     """Singleton (pk=1): ID prefixes, sequence counters and attachment limit."""
     expense_prefix = models.CharField(max_length=10, default='EXP')
@@ -202,6 +219,11 @@ class CompanyExpense(models.Model):
                                    on_delete=models.SET_NULL, related_name='company_expenses')
     employee = models.ForeignKey('employee_management.Employee', null=True, blank=True, on_delete=models.PROTECT,
                                  related_name='company_expenses')
+    relates_to_fy = models.ForeignKey('accounting.FinancialYear', null=True, blank=True, on_delete=models.PROTECT,
+                                      related_name='+', verbose_name='Relates to financial year',
+                                      help_text='Prior-period item: the earlier FY this cost belongs to.')
+    is_prior_period = models.BooleanField('Prior-period expense', default=False, db_index=True)
+    prior_period_note = models.CharField(max_length=300, blank=True)
     remarks = models.TextField(blank=True)
     cancel_reason = models.CharField(max_length=300, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
@@ -250,6 +272,7 @@ class CompanyExpense(models.Model):
             errors['exchange_rate'] = 'Exchange rate must be positive.'
         if self.currency == 'INR':
             self.exchange_rate = Decimal('1')
+        prior_period_errors(self, errors)
         if self.pk and not errors:
             paid = self.paid_amount
             if q2(self.total_amount) < paid:
@@ -361,6 +384,11 @@ class EmployeeExpenseClaim(models.Model):
     travel_to = models.CharField(max_length=120, blank=True)
     travel_start_date = models.DateField(null=True, blank=True)
     travel_end_date = models.DateField(null=True, blank=True)
+    relates_to_fy = models.ForeignKey('accounting.FinancialYear', null=True, blank=True, on_delete=models.PROTECT,
+                                      related_name='+', verbose_name='Relates to financial year',
+                                      help_text='Prior-period item: the earlier FY this cost belongs to.')
+    is_prior_period = models.BooleanField('Prior-period expense', default=False, db_index=True)
+    prior_period_note = models.CharField(max_length=300, blank=True)
     remarks = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUSES, default=DRAFT, db_index=True)
     approved_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
@@ -385,6 +413,7 @@ class EmployeeExpenseClaim(models.Model):
             errors['amount_claimed'] = 'Amount claimed must be greater than zero.'
         if self.travel_start_date and self.travel_end_date and self.travel_end_date < self.travel_start_date:
             errors['travel_end_date'] = 'Travel end date is before the start date.'
+        prior_period_errors(self, errors)
         if self.subcategory_id and self.category_id and self.subcategory.category_id != self.category_id:
             errors['subcategory'] = 'Subcategory does not belong to the selected category.'
         if self.project_id:

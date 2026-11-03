@@ -50,7 +50,8 @@ class CompanyExpenseForm(StyledForm):
         fields = ['expense_date', 'vendor', 'category', 'subcategory', 'description', 'invoice_number', 'invoice_date',
                   'due_date', 'amount_mode', 'amount_before_tax', 'gst_amount', 'cgst_amount', 'sgst_amount',
                   'igst_amount', 'other_taxes', 'discount', 'total_amount', 'currency', 'exchange_rate', 'client',
-                  'project', 'department', 'employee', 'remarks']
+                  'project', 'department', 'employee', 'remarks', 'is_prior_period', 'relates_to_fy',
+                  'prior_period_note']
         widgets = {'remarks': forms.Textarea(attrs={'rows': 2}), 'expense_date': DATE, 'invoice_date': DATE,
                    'due_date': DATE}
 
@@ -115,7 +116,8 @@ class ClaimForm(StyledForm):
         model = EmployeeExpenseClaim
         fields = ['employee', 'claim_date', 'expense_date', 'category', 'subcategory', 'description', 'amount_claimed',
                   'currency', 'exchange_rate', 'business_purpose', 'client', 'project', 'travel_from', 'travel_to',
-                  'travel_start_date', 'travel_end_date', 'remarks']
+                  'travel_start_date', 'travel_end_date', 'remarks', 'is_prior_period', 'relates_to_fy',
+                  'prior_period_note']
         widgets = {'remarks': forms.Textarea(attrs={'rows': 2}), 'claim_date': DATE, 'expense_date': DATE,
                    'travel_start_date': DATE, 'travel_end_date': DATE}
 

@@ -9,6 +9,7 @@ urlpatterns = [
     path('customers/add/', views.client_edit, name='client_add'),
     path('customers/<int:pk>/', views.client_detail, name='client_detail'),
     path('customers/<int:pk>/edit/', views.client_edit, name='client_edit'),
+    path('customers/documents/<int:pk>/', views.client_document, name='client_document'),
     path('customers/<int:pk>/delete/', views.client_delete, name='client_delete'),
     path('customers/<int:pk>/toggle/', views.client_toggle, name='client_toggle'),
     path('projects/', views.projects_hub, name='projects_hub'),

@@ -4,7 +4,8 @@ ledger account (else the default BankAccount, else the mapping). Postings go thr
 accounting.postings.sync -> accounting.services.post_from_source with unique versioned source keys.
 
 Source keys
-* company_expense:<pk>   bill:        Dr expense account (expense.category.<category pk>, else expense.default)
+* company_expense:<pk>   bill:        Dr expense account (expense.category.<category pk>, else expense.default;
+                                       prior-period items: expense.prior_period, still on the actual expense date)
                                        Cr expense.ap (party vendor) -- full bill amount in INR (GST is not
                                        claimed automatically: gst.input.* is a manual claim, so GST stays in
                                        the expense line).
@@ -53,7 +54,11 @@ def expense_lines(e):
         return []
     total = _inr(e.total_amount, e.exchange_rate)
     desc = f'{e.expense_id} {e.invoice_number} {e.description}'.strip()
-    return [L(mapped_or(f'expense.category.{e.category_id}', 'expense.default'), debit=total, description=desc),
+    acct = mapped_or('expense.prior_period', 'expense.default') if e.is_prior_period else \
+        mapped_or(f'expense.category.{e.category_id}', 'expense.default')
+    if e.is_prior_period and e.relates_to_fy_id:
+        desc = f'{desc} [prior period {e.relates_to_fy.name}]'
+    return [L(acct, debit=total, description=desc),
             L(m('expense.ap'), credit=total, description=desc, party=_vendor(e))]
 
 
@@ -83,7 +88,11 @@ def claim_lines(c):
         return []
     amt = _inr(c.approved_amount, c.exchange_rate)
     desc = f'{c.claim_id} {c.snap_name} {c.description}'.strip()
-    return [L(mapped_or(f'claim.category.{c.category_id}', 'claim.expense_default'), debit=amt, description=desc),
+    acct = mapped_or('expense.prior_period', 'claim.expense_default') if c.is_prior_period else \
+        mapped_or(f'claim.category.{c.category_id}', 'claim.expense_default')
+    if c.is_prior_period and c.relates_to_fy_id:
+        desc = f'{desc} [prior period {c.relates_to_fy.name}]'
+    return [L(acct, debit=amt, description=desc),
             L(m('claim.reimbursement_payable'), credit=amt, description=desc, party=('employee', c.employee_id))]
 
 

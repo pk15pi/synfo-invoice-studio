@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_POST
+from employee_management.security import local_only
 
 from . import billing, descriptions, gst, ledger, services
 from .forms import (BusinessProfileForm, ClientForm, CreditNoteForm, InvoiceDescriptionTemplateForm, InvoiceFormatTemplateForm, PaymentForm, PdfOverrideForm,
@@ -43,20 +44,33 @@ def clients(request):
 def client_detail(request, pk):
     client = get_object_or_404(Client, pk=pk)
     return render(request, 'invoice_app/client_detail.html', {
-        'client': client, 'projects': client.projects.all(),
+        'client': client, 'projects': client.projects.all(), 'documents': client.documents.all(),
         'invoices': Invoice.objects.filter(client=client)})
 
 
 def client_edit(request, pk=None):
     client = get_object_or_404(Client, pk=pk) if pk else None
-    form = ClientForm(request.POST or None, instance=client)
+    form = ClientForm(request.POST or None, request.FILES or None, instance=client)
     if request.method == 'POST' and form.is_valid():
         client = form.save()
+        form.save_documents(client)
         messages.success(request, 'Customer saved.')
         return redirect('client_detail', pk=client.pk)
     return render(request, 'invoice_app/form_page.html', {
         'form': form, 'title': 'Edit customer' if client else 'Add customer',
         'back': 'clients'})
+
+
+
+@local_only
+def client_document(request, pk):
+    """Serve a customer NDA/MCA file from private storage (never via a public URL)."""
+    from employee_management.security import private_file_response
+    from .models import ClientDocument
+    doc = get_object_or_404(ClientDocument, pk=pk)
+    ext = doc.file.name.rsplit('.', 1)[-1]
+    name = get_valid_filename(f'{doc.client.name}-{doc.kind}.{ext}')
+    return private_file_response(doc.file, doc.content_type or 'application/octet-stream', name)
 
 
 @require_POST

@@ -4,3 +4,4 @@
 <label>Month<input type="month" name="month" value="{{ g.month|default:'' }}"></label>
 <label>From<input type="date" name="date_from" value="{{ g.date_from|default:'' }}"></label>
 <label>To<input type="date" name="date_to" value="{{ g.date_to|default:'' }}"></label>
+<label>Prior-period<select name="prior">{% for k,l in prior_modes %}<option value="{{ k }}"{% if g.prior == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>

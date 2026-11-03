@@ -7,8 +7,8 @@
 .rp-kpi .l{font-size:12px;color:#666}.rp-kpi .v{font-size:19px;font-weight:700;margin:3px 0}
 .rp-kpi .c{font-size:11px;color:#666}.rp-kpi .up{color:#19864f}.rp-kpi .down{color:#c0392b}
 .rp-kpi.nt .v{color:#999;font-size:15px}
-.rp-charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:12px}
-.rp-chart{border:1px solid #e1e5ec;border-radius:8px;padding:8px;background:#fff}.rp-chart h3{margin:2px 0 6px;font-size:14px}
+.rp-charts{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(440px,100%),1fr));gap:12px}
+.rp-chart{min-width:0;overflow-x:auto;border:1px solid #e1e5ec;border-radius:8px;padding:8px;background:#fff}.rp-chart h3{margin:2px 0 6px;font-size:14px}
 svg.chart{width:100%;height:auto;font-family:inherit}
 table.rp{border-collapse:collapse;width:100%;font-size:12.5px;margin-bottom:6px}
 table.rp th{background:#1f2a44;color:#fff;text-align:left;padding:5px 6px;position:sticky;top:0}
@@ -21,4 +21,5 @@ table.rp tfoot td{background:#dde3ec;font-weight:700}
 .rp-links a{margin-right:10px}.rp-sec{columns:3 240px}.rp-sec li{margin:3px 0}
 .rp-pager{font-size:13px;margin:4px 0 12px}
 @media print{nav,header,footer,.rp-bar,.rp-actions{display:none!important}}
+@media(max-width:850px){table.rp{display:block;overflow-x:auto}.rp-bar select,.rp-bar input{max-width:100%}}
 </style>

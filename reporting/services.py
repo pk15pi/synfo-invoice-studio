@@ -17,6 +17,8 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.db.models import Count, F, Q, Sum
 
+from . import prior as PR
+
 from employee_management.models import (Employee, EmployeePayroll, EmployeeSalaryStructure, PayrollDeduction,
                                         PayrollEarning)
 from expense_management.models import (CompanyExpense, CompanyExpensePayment, EmployeeExpenseClaim,
@@ -381,12 +383,12 @@ EXP_FIELDS = ('id', 'expense_id', 'expense_date', 'due_date', 'invoice_number', 
               'total_amount', 'exchange_rate', 'currency', 'payment_status', 'vendor_id', 'vendor__name', 'category_id',
               'category__name', 'subcategory__name', 'department_id', 'department__name', 'client_id', 'client__name',
               'project_id', 'project__name', 'employee_id', 'employee__employee_id', 'employee__first_name',
-              'employee__last_name')
+              'employee__last_name', 'is_prior_period', 'relates_to_fy__start_year')
 
 
 def company_expenses(start, end, include_cancelled=False, as_at=None, **f):
     """List of dicts (one per expense) with INR total, INR paid (payments dated <= as_at) and outstanding."""
-    qs = CompanyExpense.objects.filter(expense_date__range=(start, end))
+    qs = PR.apply(CompanyExpense.objects.filter(expense_date__range=(start, end)))
     if not include_cancelled:
         qs = qs.exclude(payment_status=CompanyExpense.CANCELLED)
     for k in ('vendor', 'category', 'department', 'client', 'project', 'employee'):
@@ -417,7 +419,7 @@ def company_expense_total(start, end, **f):
 
 
 def vendor_payments(start, end, **f):
-    qs = CompanyExpensePayment.objects.filter(payment_date__range=(start, end))
+    qs = PR.apply(CompanyExpensePayment.objects.filter(payment_date__range=(start, end)), 'expense__')
     for k in ('vendor', 'category', 'department', 'client', 'project'):
         if f.get(k):
             qs = qs.filter(**{f'expense__{k}_id': f[k]})
@@ -434,11 +436,12 @@ def vendor_payments(start, end, **f):
 CLAIM_FIELDS = ('id', 'claim_id', 'claim_date', 'expense_date', 'status', 'amount_claimed', 'approved_amount',
                 'exchange_rate', 'currency', 'description', 'employee_id', 'snap_employee_code', 'snap_name',
                 'snap_department', 'department_id', 'department__name', 'category_id', 'category__name',
-                'subcategory__name', 'client_id', 'client__name', 'project_id', 'project__name')
+                'subcategory__name', 'client_id', 'client__name', 'project_id', 'project__name', 'is_prior_period',
+                'relates_to_fy__start_year')
 
 
 def claims(start, end, statuses=None, as_at=None, date_field='expense_date', **f):
-    qs = C.objects.filter(**{f'{date_field}__range': (start, end)})
+    qs = PR.apply(C.objects.filter(**{f'{date_field}__range': (start, end)}))
     if statuses:
         qs = qs.filter(status__in=statuses)
     for k in ('employee', 'department', 'category', 'client', 'project'):
@@ -468,7 +471,7 @@ def reimbursement_expense(start, end, **f):
 
 
 def reimbursements(start, end, **f):
-    qs = EmployeeReimbursement.objects.filter(reimbursement_date__range=(start, end))
+    qs = PR.apply(EmployeeReimbursement.objects.filter(reimbursement_date__range=(start, end)), 'claim__')
     for k in ('employee', 'department', 'category', 'client', 'project'):
         if f.get(k):
             qs = qs.filter(**{f'claim__{k}_id': f[k]})
@@ -590,3 +593,12 @@ def employees(**f):
     if f.get('status'):
         qs = qs.filter(status=f['status'])
     return qs.order_by('employee_id')
+
+
+def prior_period_subtotal(start, end):
+    """Prior-period company expenses + approved claims in start..end, within the active Include/Exclude/Only mode
+    (so it is 0 when prior-period items are excluded)."""
+    if PR.current() == PR.EXCLUDE:
+        return ZERO
+    with PR.scope(PR.ONLY):
+        return q2(company_expense_total(start, end) + reimbursement_expense(start, end))

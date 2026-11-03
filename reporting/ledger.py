@@ -77,14 +77,30 @@ def trial_balance(start, end):
 
 
 # ------------------------------------------------------------------ P&L / balance sheet
-def profit_and_loss(start, end):
+def prior_period_account_ids():
+    return set(AccountMapping.objects.filter(key='expense.prior_period', account__isnull=False)
+               .values_list('account_id', flat=True))
+
+
+def profit_and_loss(start, end, prior=None):
+    """prior: include/exclude/only for the prior-period expense account (defaults to the active reporting mode).
+    Balance sheet earnings always use 'include'."""
+    from .prior import current
+    prior = prior or current()
     mv = sums(start, end, account__account_type__in=[I, X])
+    pids = prior_period_account_ids()
+    if prior == 'exclude':
+        mv = {k: v for k, v in mv.items() if k not in pids}
+    elif prior == 'only':
+        mv = {k: v for k, v in mv.items() if k in pids}
     inc, exp = [], []
     for a in Account.objects.filter(pk__in=mv.keys()).order_by('code'):
         d, c = mv[a.pk]
         (inc if a.account_type == I else exp).append(dict(account=a, amount=natural(a, q2(d - c))))
     ti, te = q2(sum((r['amount'] for r in inc), ZERO)), q2(sum((r['amount'] for r in exp), ZERO))
-    return dict(income=inc, expenses=exp, total_income=ti, total_expenses=te, profit=q2(ti - te))
+    pp = q2(sum((r['amount'] for r in exp if r['account'].pk in pids), ZERO))
+    return dict(income=inc, expenses=exp, total_income=ti, total_expenses=te, profit=q2(ti - te),
+                prior_period_total=pp, prior=prior)
 
 
 def balance_sheet(as_of):
@@ -96,8 +112,8 @@ def balance_sheet(as_of):
         v = natural(a, q2(d - c))
         if v:
             sec[a.account_type].append(dict(account=a, amount=v))
-    cye = profit_and_loss(fy0, as_of)['profit']
-    pye = profit_and_loss(None, date.fromordinal(fy0.toordinal() - 1))['profit']
+    cye = profit_and_loss(fy0, as_of, prior='include')['profit']
+    pye = profit_and_loss(None, date.fromordinal(fy0.toordinal() - 1), prior='include')['profit']
     t = {k: q2(sum((r['amount'] for r in v), ZERO)) for k, v in sec.items()}
     total_le = q2(t[L_] + t[E] + cye + pye)
     return dict(as_of=as_of, fy_start=fy0, assets=sec[A], liabilities=sec[L_], equity=sec[E], total_assets=t[A],

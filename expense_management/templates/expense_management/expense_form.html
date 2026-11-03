@@ -17,6 +17,7 @@
 {% include 'expense_management/_field.html' with field=form.client %}{% include 'expense_management/_field.html' with field=form.project %}
 {% include 'expense_management/_field.html' with field=form.department %}{% include 'expense_management/_field.html' with field=form.employee %}
 {% include 'expense_management/_field.html' with field=form.remarks %}
+<h3 class="xm-section">Prior period</h3>{% include 'expense_management/_field.html' with field=form.is_prior_period %}{% include 'expense_management/_field.html' with field=form.relates_to_fy %}{% include 'expense_management/_field.html' with field=form.prior_period_note %}
 <h3 class="xm-section">Attachments</h3>{% include 'expense_management/_upload.html' %}
 {% if not exp %}<h3 class="xm-section">Payment</h3>
 <div class="form-field"><label><input type="checkbox" name="pay_now" value="1" id="pay-now" {% if form.data.pay_now %}checked{% endif %}> Record a payment now (status is derived from payments)</label></div>

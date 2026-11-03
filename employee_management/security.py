@@ -16,7 +16,7 @@ def local_only(view):
         resp = view(request, *a, **kw)
         resp.setdefault('Cache-Control', 'no-store, private')
         resp.setdefault('X-Content-Type-Options', 'nosniff')
-        resp.setdefault('Referrer-Policy', 'no-referrer')
+        resp.setdefault('Referrer-Policy', 'same-origin')  # 'no-referrer' makes browsers send Origin: null on POST -> CSRF failure
         return resp
     return wrapper
 

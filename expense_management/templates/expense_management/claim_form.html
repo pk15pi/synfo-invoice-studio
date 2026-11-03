@@ -17,6 +17,7 @@
 {% include 'expense_management/_field.html' with field=form.travel_from %}{% include 'expense_management/_field.html' with field=form.travel_to %}
 {% include 'expense_management/_field.html' with field=form.travel_start_date %}{% include 'expense_management/_field.html' with field=form.travel_end_date %}
 {% include 'expense_management/_field.html' with field=form.remarks %}
+<h3 class="xm-section">Prior period</h3>{% include 'expense_management/_field.html' with field=form.is_prior_period %}{% include 'expense_management/_field.html' with field=form.relates_to_fy %}{% include 'expense_management/_field.html' with field=form.prior_period_note %}
 <h3 class="xm-section">Receipts / bills</h3>{% include 'expense_management/_upload.html' %}
 </div>
 <div class="form-actions"><button class="button secondary" type="submit">Save{% if not claim or claim.status == 'draft' %} as draft{% endif %}</button>{% if not claim or claim.status == 'draft' %} <button class="button primary" type="submit" name="submit_now" value="1">Save and submit</button>{% endif %}</div></form>

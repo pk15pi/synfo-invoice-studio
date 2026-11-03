@@ -11,6 +11,7 @@ from invoice_app.models import Client, ProjectTemplate
 from . import builder as B
 from . import exports
 from . import periods as P
+from . import prior as PR
 from . import reports as R
 from . import services as S
 from .core import text
@@ -30,7 +31,8 @@ def _ctx(request, **kw):
     g.update(period.params)
     g['period'] = period.key
     c = dict(sections=R.SECTIONS, period_options=P.OPTIONS, fy_parts=P.FY_PARTS, fy_choices=P.fy_choices(),
-             g=g, qs=q.urlencode(), period_label=period.label, period_range=period.range_text)
+             g=g, qs=q.urlencode(), period_label=period.label, period_range=period.range_text,
+             prior_modes=PR.MODES)
     c.update(kw)
     return c
 
@@ -99,7 +101,8 @@ def _choices(key):
 @local_only
 def dashboard(request):
     period = P.resolve(request.GET)
-    ex = executive(period)
+    with PR.scope(PR.mode(request.GET)):
+        ex = executive(period)
     if request.GET.get('format') == 'xlsx':
         r = HttpResponse(exports.fy_workbook(P.fy_start_year(period.start)),
                          content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

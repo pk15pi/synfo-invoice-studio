@@ -132,6 +132,8 @@ def resolve(params, default='current_fy', ref=None):
         key = 'custom' if (dfrom or dto) else 'month' if month else 'fy' if fy else default
     keep = {k: params.get(k) for k in ('period', 'fy', 'fy_part', 'month', 'date_from', 'date_to') if params.get(k)}
     keep['period'] = key
+    if str(params.get('prior') or '').strip().lower() in ('exclude', 'only'):
+        keep['prior'] = str(params.get('prior')).strip().lower()
 
     def P(s, e, label, kind):
         return Period(s, e, label, key, kind, keep)
@@ -188,7 +190,7 @@ def resolve(params, default='current_fy', ref=None):
             s, e = e, s
         return P(s, e, f'{s:%d %b %Y} to {e:%d %b %Y}', 'days')
     y = fy_start_year(t)
-    p = Period(*fy_range(y), fy_label(y), 'current_fy', 'fy', {'period': 'current_fy'})
+    p = Period(*fy_range(y), fy_label(y), 'current_fy', 'fy', {k: v for k, v in keep.items() if k == 'prior'} | {'period': 'current_fy'})
     return p
 
 

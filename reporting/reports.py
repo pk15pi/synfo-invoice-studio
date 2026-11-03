@@ -15,6 +15,7 @@ from invoice_app.models import Client, ProjectTemplate
 from . import hr_reports as HR
 from . import ledger_reports as LR
 from . import periods as P
+from . import prior as PR
 from . import services as S
 from .core import NT, Col, Report, Table, inr
 
@@ -686,6 +687,10 @@ def exp_summary(p, period):
             t.add([k, g[k][0], g[k][1], pct(g[k][1], grand)])
     t.add(['Employee Reimbursements (approved claims)', len(cl), total_cl, pct(total_cl, grand)])
     t.sum_total()
+    pp = [x for x in comp if x['is_prior_period']] + [x for x in cl if x['is_prior_period']]
+    if pp:
+        amt = S.dsum(x.get('total_inr', x.get('approved_inr')) for x in pp)
+        t.add(['of which prior-period expenses', len(pp), amt, pct(amt, grand)], 'subtotal')
     t.note = S.GROUP_RULES_TEXT
     r.tables.append(t)
     return r
@@ -1256,5 +1261,18 @@ FILTERS = {
 NO_PERIOD = {'emp_master', 'fy_compare'}
 
 
+PRIOR_SUBTOTAL_KEYS = {'pnl', 'rev_vs_exp', 'ledger_pnl'}
+
+
 def build(key, params):
-    return REGISTRY[key][2](params, P.resolve(params))
+    m = PR.mode(params)
+    with PR.scope(m):
+        period = P.resolve(params)
+        r = REGISTRY[key][2](params, period)
+        if m != PR.INCLUDE:
+            r.filters.append(('Prior-period expenses', PR.LABELS[m]))
+        if r.section == 'Expenses' or key in PRIOR_SUBTOTAL_KEYS:
+            r.card('Prior-period expenses (subtotal)', S.prior_period_subtotal(period.start, period.end),
+                   note='booked this period, relating to an earlier FY; included in the totals above'
+                   if m == PR.INCLUDE else PR.LABELS[m])
+    return r

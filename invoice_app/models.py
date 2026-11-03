@@ -199,9 +199,24 @@ class Client(models.Model):
     invoice_format = models.ForeignKey(InvoiceFormatTemplate, null=True, blank=True, on_delete=models.PROTECT,
                                        related_name='clients',
                                        help_text='Blank = default output (QuantBud Standard / Tax Invoice).')
+    cin_llpin = models.CharField('CIN / LLPIN', max_length=25, blank=True,
+                                 help_text='Company (CIN) or LLP (LLPIN) identification number from MCA.')
+    nda_signed_date = models.DateField('NDA signed date', null=True, blank=True)
+    nda_expiry_date = models.DateField('NDA expiry date', null=True, blank=True)
 
     class Meta:
         ordering = ['name']
+
+    def current_document(self, kind):
+        return self.documents.filter(kind=kind, is_current=True).order_by('-uploaded_at').first()
+
+    @property
+    def nda_document(self):
+        return self.current_document(ClientDocument.NDA)
+
+    @property
+    def mca_document(self):
+        return self.current_document(ClientDocument.MCA)
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -224,6 +239,38 @@ class Client(models.Model):
 
     def __str__(self):
         return self.name
+
+
+def client_document_upload_to(instance, filename):
+    import uuid
+    ext = getattr(instance, '_validated_ext', None) or 'bin'
+    return f'clients/{instance.client_id}/documents/{uuid.uuid4().hex}.{ext}'
+
+
+def _private_storage():
+    from employee_management.storage import get_private_storage
+    return get_private_storage()
+
+
+class ClientDocument(models.Model):
+    """NDA / MCA files for a customer, kept in private storage. A new upload of the same kind
+    becomes current; older rows stay as history (never deleted)."""
+    NDA, MCA = 'nda', 'mca'
+    KINDS = [(NDA, 'NDA document'), (MCA, 'MCA document')]
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='documents')
+    kind = models.CharField(max_length=10, choices=KINDS, db_index=True)
+    file = models.FileField(storage=_private_storage, upload_to=client_document_upload_to, max_length=255)
+    original_filename = models.CharField(max_length=255, blank=True)
+    content_type = models.CharField(max_length=60, blank=True)
+    file_size = models.PositiveIntegerField(default=0)
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    is_current = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['kind', '-uploaded_at']
+
+    def __str__(self):
+        return f'{self.client} - {self.get_kind_display()}'
 
 
 class InvoiceDescriptionTemplate(models.Model):

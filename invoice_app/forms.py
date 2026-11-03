@@ -43,9 +43,11 @@ class ClientForm(StyledForm):
         model = Client
         fields = ['name', 'address', 'country', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
                   'terms_mode', 'terms_text', 'tax_treatment', 'gstin', 'state_code', 'state_name', 'lut_number',
-                  'vendor_code', 'invoice_format', 'active', 'notes']
+                  'vendor_code', 'invoice_format', 'cin_llpin', 'nda_signed_date', 'nda_expiry_date', 'active', 'notes']
         labels = {'name': 'Bill To (customer name)', 'invoice_format': 'Default invoice format'}
-        widgets = {'billing_type': forms.RadioSelect, 'terms_mode': forms.RadioSelect,'address': forms.Textarea(attrs={'rows': 3}), 'notes': forms.Textarea(attrs={'rows': 2})}
+        widgets = {'nda_signed_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+                   'nda_expiry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+                   'billing_type': forms.RadioSelect, 'terms_mode': forms.RadioSelect,'address': forms.Textarea(attrs={'rows': 3}), 'notes': forms.Textarea(attrs={'rows': 2})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -58,6 +60,66 @@ class ClientForm(StyledForm):
         fmt.queryset = InvoiceFormatTemplate.objects.filter(
             models_Q(is_active=True) | models_Q(pk=current or 0)).order_by('name')
         fmt.empty_label = 'Default (QuantBud Standard / Tax Invoice)'
+        self._add_doc_links()
+
+    nda_file = forms.FileField(label='NDA document', required=False, help_text='PDF, JPG or PNG.')
+    mca_file = forms.FileField(label='MCA document', required=False, help_text='PDF, JPG or PNG (e.g. MCA master data / incorporation certificate).')
+    DOC_FIELDS = [('nda_file', 'nda'), ('mca_file', 'mca')]
+
+    def _add_doc_links(self):
+        from django.urls import reverse
+        from django.utils.html import format_html
+        if not self.instance.pk:
+            return
+        for name, kind in self.DOC_FIELDS:
+            doc = self.instance.current_document(kind)
+            if doc:
+                self.fields[name].help_text = format_html(
+                    'Current: <a href="{}" target="_blank">{}</a> (uploaded {}). Uploading a new file replaces it; the old one is kept in history.',
+                    reverse('client_document', args=[doc.pk]), doc.original_filename or 'file', doc.uploaded_at.date())
+
+    def _clean_doc(self, name):
+        from employee_management.validators import form_doc_limits, sniff_upload
+        f = self.cleaned_data.get(name)
+        if f:
+            self._doc_ext = getattr(self, '_doc_ext', {})
+            self._doc_ext[name] = sniff_upload(f, form_doc_limits()[0] * 1024 * 1024)
+        return f
+
+    def clean_nda_file(self):
+        return self._clean_doc('nda_file')
+
+    def clean_mca_file(self):
+        return self._clean_doc('mca_file')
+
+    def clean(self):
+        data = super().clean()
+        s, e = data.get('nda_signed_date'), data.get('nda_expiry_date')
+        if s and e and e < s:
+            self.add_error('nda_expiry_date', 'Expiry date cannot be before the signed date.')
+        return data
+
+    def save_documents(self, client):
+        import os
+        from django.db import transaction
+        from employee_management.validators import CONTENT_TYPES
+        from .models import ClientDocument
+        made = []
+        with transaction.atomic():
+            for name, kind in self.DOC_FIELDS:
+                f = self.cleaned_data.get(name)
+                if not f:
+                    continue
+                ext = self._doc_ext[name]
+                doc = ClientDocument(client=client, kind=kind, original_filename=os.path.basename(f.name)[:255],
+                                     content_type=CONTENT_TYPES[ext], file_size=f.size)
+                doc._validated_ext = ext
+                doc.file.save('upload', f, save=False)
+                doc.save()
+                ClientDocument.objects.filter(client=client, kind=kind, is_current=True).exclude(pk=doc.pk) \
+                    .update(is_current=False)
+                made.append(doc)
+        return made
 
     def clean_tax_treatment(self):
         return self.cleaned_data.get('tax_treatment') or 'export'

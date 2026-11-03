@@ -64,7 +64,7 @@ class SeedTests(TestCase):
         a.active = False
         a.full_clean()
         a.save()
-        unused = Account.objects.create(code='5990', name='Temp', account_type='expense')
+        unused = Account.objects.create(code='5998', name='Temp', account_type='expense')
         unused.delete()
 
     def test_system_account_locked(self):

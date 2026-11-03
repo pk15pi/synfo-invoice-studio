@@ -10,7 +10,11 @@
 <div><small class="muted">Payment term (billing type)</small><br>{{ client.get_billing_type_display }}</div>
 <div><small class="muted">Terms (days until due)</small><br>{% if client.terms_mode == 'month_days' %}Days in invoice month (auto){% else %}{{ client.terms_text|default:'profile default' }}{% endif %}</div>
 <div><small class="muted">Our vendor code</small><br>{{ client.vendor_code|default:"-" }}</div>
-<div><small class="muted">Default invoice format</small><br>{% if client.invoice_format %}<a href="{% url 'format_template_edit' client.invoice_format_id %}">{{ client.invoice_format.name }}</a>{% else %}Default (QuantBud Standard / Tax Invoice){% endif %}</div></div></section>
+<div><small class="muted">Default invoice format</small><br>{% if client.invoice_format %}<a href="{% url 'format_template_edit' client.invoice_format_id %}">{{ client.invoice_format.name }}</a>{% else %}Default (QuantBud Standard / Tax Invoice){% endif %}</div>
+<div><small class="muted">CIN / LLPIN</small><br>{{ client.cin_llpin|default:"-" }}</div>
+<div><small class="muted">NDA signed / expiry</small><br>{{ client.nda_signed_date|default:"-" }} / {{ client.nda_expiry_date|default:"-" }}</div></div></section>
+<section class="panel"><div class="panel-head"><h2>Documents (NDA / MCA)</h2><a href="{% url 'client_edit' client.pk %}">Upload</a></div>
+<table><tbody>{% for d in documents %}<tr><td>{{ d.get_kind_display }}</td><td><a href="{% url 'client_document' d.pk %}" target="_blank">{{ d.original_filename|default:"file" }}</a></td><td>{{ d.uploaded_at|date:"d M Y H:i" }}</td><td>{% if d.is_current %}Current{% else %}<span class="muted">Replaced</span>{% endif %}</td></tr>{% empty %}<tr><td>No NDA or MCA documents uploaded.</td></tr>{% endfor %}</tbody></table></section>
 <section class="panel"><div class="panel-head"><h2>Projects</h2><a href="{% url 'projects' client.pk %}">Manage</a> &middot; <a href="{% url 'description_templates' %}">Description templates</a></div>
 <table><tbody>{% for p in projects %}<tr><td>{{ p.name }}</td><td>{{ p.method_label }}</td></tr>{% empty %}<tr><td>No projects.</td></tr>{% endfor %}</tbody></table></section>
 <section class="panel"><h2>Invoices</h2><table><tbody>{% for i in invoices %}<tr><td><a href="{% url 'invoice_detail' i.pk %}">{{ i.invoice_number }}</a></td><td>{{ i.invoice_date }}</td><td>{{ i.total }}</td></tr>{% empty %}<tr><td>No invoices.</td></tr>{% endfor %}</tbody></table></section>{% endblock %}

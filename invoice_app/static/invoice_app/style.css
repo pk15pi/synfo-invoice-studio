@@ -53,3 +53,28 @@ td:has(.icon-btn){white-space:nowrap}td form.inline{display:inline}
 .pj-list[hidden]{display:none}.pj-list li{padding:7px 12px;cursor:pointer;white-space:nowrap}
 .pj-list li.active,.pj-list li:hover{background:var(--navy);color:#fff}.pj-list li.sel{font-weight:700}
 .pj-list li.none{color:#7a8794;cursor:default;font-style:italic}.pj-list li.none:hover{background:none;color:#7a8794}
+
+/* ---- Shared consistency & responsive fixes (CSS only) ---- */
+main input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=file]):not([class]),
+main select:not([class]),main textarea:not([class]){border:1px solid #d9e2e9;border-radius:6px;background:#fff;padding:7px 9px;font:inherit;font-size:13px;color:var(--ink);min-height:34px;max-width:100%;box-sizing:border-box}
+main input:not([class]):focus,main select:not([class]):focus,main textarea:not([class]):focus{outline:2px solid #c5dcec;border-color:#6f9fbe}
+main input[type=file]:not([class]){max-width:100%;font-size:13px}
+main button:not([class]),main input[type=submit]:not([class]){border:1px solid #d9e2e9;border-radius:7px;padding:8px 14px;font:inherit;font-size:13px;font-weight:700;background:#fff;color:var(--ink);cursor:pointer}
+main button:not([class]):hover,main input[type=submit]:not([class]):hover{background:#f5f8fa}
+.form-actions,.panel-head{flex-wrap:wrap;gap:8px}
+code,pre{word-break:break-word;overflow-wrap:anywhere;white-space:pre-wrap}
+main img,main svg{max-width:100%}
+@media(max-width:850px){
+ main table:not(.table-wrap table){display:block!important;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+ main nav,.rp-tabs{flex-wrap:wrap}
+}
+@media(max-width:560px){
+ .form-actions{display:flex;flex-wrap:wrap}
+ .form-actions .button{padding:8px 11px}
+ .panel-head{display:flex;flex-wrap:wrap;align-items:flex-start}
+ .field{max-width:100%;min-width:0}
+ main input:not([class]),main select:not([class]){max-width:100%}
+}.field{box-sizing:border-box;max-width:100%}
+.rp-links{display:flex;flex-wrap:wrap;gap:6px 12px}.rp-links a{white-space:normal}
+.xm-grid2>*,.panel{min-width:0}@media(max-width:560px){main .field[style*="min-width"]{min-width:0!important}}
+main h1,main h2,main h3,.page-heading{overflow-wrap:anywhere;min-width:0}

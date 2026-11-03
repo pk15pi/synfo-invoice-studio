@@ -101,6 +101,8 @@ def pnl(p, period):
     for y in x['expenses']:
         t.add([y['account'].code, y['account'].name, y['amount']])
     t.add(['', 'Total expenses', x['total_expenses']], 'subtotal')
+    if x['prior_period_total']:
+        t.add(['', 'of which prior-period expenses', x['prior_period_total']], 'subtotal')
     t.total = ['', 'Net profit / (loss)', x['profit']]
     r.tables.append(t)
     r.card('Income', x['total_income'])

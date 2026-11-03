@@ -34,6 +34,7 @@ ACCOUNTS = [
     ('2430', 'ESI Payable', L, '2400', False),
     ('2440', 'Professional Tax Payable', L, '2400', False),
     ('2450', 'Other Payroll Deductions Payable', L, '2400', False),
+    ('2460', 'Income Tax Payable (Provision)', L, '2400', False),
     ('2600', 'Loans', L, None, True),
     ('2610', 'Loans Payable', L, '2600', False),
     ('3000', 'Equity', Q, None, True),
@@ -55,6 +56,7 @@ ACCOUNTS = [
     ('5800', 'Office Expenses', X, '5000', False),
     ('5900', 'Miscellaneous Expenses', X, '5000', False),
     ('5910', 'Employee Advance Write-off', X, '5000', False),
+    ('5990', 'Prior Period Expenses', X, '5000', False),
 ]
 SYSTEM = {'1000', '1100', '1200', '1300', '1400', '1410', '1420', '1430', '1500', '1700', '2000', '2100', '2200', '2210',
           '2300', '2310', '2320', '2330', '2400', '2410', '2420', '2430', '2440', '2600', '3000', '3900', '4000', '4100',
@@ -93,6 +95,8 @@ MAPPINGS = [
     ('income.other', '4900', 'Other income'),
     ('payroll.advance_writeoff', '5910', 'Employee advance / loan written off'),
     ('payroll.advance_interest', '4900', 'Interest on employee loans'),
+    ('expense.prior_period', '5990', 'Company expense / claim flagged prior-period (posted on the actual date)'),
+    ('tax.income_tax_paid', '2460', 'Income tax paid on company profit (settles the provision; not an operating expense)'),
 ]
 
 

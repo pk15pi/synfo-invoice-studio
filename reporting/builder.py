@@ -6,6 +6,7 @@ from decimal import Decimal
 from expense_management.models import EmployeeExpenseClaim as C
 
 from . import periods as P
+from . import prior as PR
 from . import services as S
 from .core import Col, Report, Table
 
@@ -43,7 +44,8 @@ def _company(p):
                    category=x['category__name'], group=x['group'], department=x.get('department__name') or '',
                    client=x['client__name'] or '', project=x['project__name'] or '', month=f"{x['expense_date']:%Y-%m}",
                    fy=P.fy_label(P.fy_start_year(x['expense_date'])), total=x['total_inr'], paid=x['paid_inr'],
-                   outstanding=x['outstanding_inr'])
+                   outstanding=x['outstanding_inr'], prior='Yes' if x['is_prior_period'] else 'No',
+                   prior_fy=P.fy_label(x['relates_to_fy__start_year']) if x['relates_to_fy__start_year'] else '')
 
 
 def _claims(p):
@@ -52,7 +54,9 @@ def _claims(p):
         yield dict(claim_id=x['claim_id'], date=x['expense_date'], employee=x['snap_name'], department=x['dept'],
                    category=x['category__name'], status=sd.get(x['status'], x['status']),
                    month=f"{x['expense_date']:%Y-%m}", fy=P.fy_label(P.fy_start_year(x['expense_date'])),
-                   claimed=x['claimed_inr'], approved=x['approved_inr'] or S.ZERO, reimbursed=x['reimbursed_inr'])
+                   claimed=x['claimed_inr'], approved=x['approved_inr'] or S.ZERO, reimbursed=x['reimbursed_inr'],
+                   prior='Yes' if x['is_prior_period'] else 'No',
+                   prior_fy=P.fy_label(x['relates_to_fy__start_year']) if x['relates_to_fy__start_year'] else '')
 
 
 DATASETS = OrderedDict([
@@ -72,16 +76,23 @@ DATASETS = OrderedDict([
                           ('group', 'P&L Group', 'text'), ('department', 'Department', 'text'),
                           ('client', 'Client', 'text'), ('project', 'Project', 'text'), ('month', 'Month', 'text'),
                           ('fy', 'FY', 'text'), ('total', 'Total (INR)', 'money'), ('paid', 'Paid (INR)', 'money'),
-                          ('outstanding', 'Outstanding (INR)', 'money')])),
+                          ('outstanding', 'Outstanding (INR)', 'money'), ('prior', 'Prior period', 'text'),
+                          ('prior_fy', 'Relates to FY', 'text')])),
     ('claims', ('Employee claims (Claim Expense Date)', _claims, [('claim_id', 'Claim ID', 'text'),
                 ('date', 'Expense Date', 'date'), ('employee', 'Employee', 'text'), ('department', 'Department', 'text'),
                 ('category', 'Category', 'text'), ('status', 'Status', 'text'), ('month', 'Month', 'text'),
                 ('fy', 'FY', 'text'), ('claimed', 'Claimed (INR)', 'money'), ('approved', 'Approved (INR)', 'money'),
-                ('reimbursed', 'Reimbursed (INR)', 'money')])),
+                ('reimbursed', 'Reimbursed (INR)', 'money'), ('prior', 'Prior period', 'text'),
+                ('prior_fy', 'Relates to FY', 'text')])),
 ])
 
 
 def build(params):
+    with PR.scope(PR.mode(params)):
+        return _build(params)
+
+
+def _build(params):
     ds = params.get('dataset') if params.get('dataset') in DATASETS else 'invoices'
     title, fn, fields = DATASETS[ds]
     period = P.resolve(params)
@@ -113,6 +124,18 @@ def build(params):
         t.cols.insert(0, Col('#'))
         t.rows = [[i + 1] + r for i, r in enumerate(t.rows)]
     t.sum_total(start=1)
+    if ds in ('company_expenses', 'claims') and not group:
+        pp = [r for r in rows if r.get('prior') == 'Yes']
+        if pp:
+            off = 1 if t.cols[0].label == '#' else 0
+            sub = [''] * len(t.cols)
+            sub[0] = f'of which prior-period ({len(pp)})'
+            for i, f in enumerate(picked):
+                if f[2] == 'money':
+                    sub[i + off] = S.dsum(r[f[0]] or S.ZERO for r in pp)
+            t.add(sub, 'subtotal')
+    if PR.current() != PR.INCLUDE:
+        rep.filters.append(('Prior-period expenses', PR.LABELS[PR.current()]))
     rep.tables.append(t)
     rep.filters.append(('Dataset', title))
     return rep, ds, fields, [f[0] for f in picked], group, texts
