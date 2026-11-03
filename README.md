@@ -18,6 +18,17 @@ py -m venv .venv                      # first time only
 Open http://127.0.0.1:8000. `run_windows.bat` copies `db.sqlite3` to a timestamped
 `db.sqlite3.bak-*` file before migrating. The database is never deleted.
 
+## Static files
+
+Static assets are collected into `staticfiles\` (ignored by Git). To prepare them:
+
+```powershell
+.venv\Scripts\python.exe manage.py collectstatic
+```
+
+Use `--noinput` for automated runs. `collectstatic` prepares assets for a static-file
+server; local `runserver` serves app assets directly while `QB_DEBUG=1`.
+
 Tests: `.venv\Scripts\python.exe manage.py test`
 
 Sample PDF (QB020 reference data; does **not** consume an invoice number):

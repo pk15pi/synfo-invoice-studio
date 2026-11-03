@@ -2,6 +2,7 @@
 .git/
 backups/
 test_output/
+staticfiles/
 __pycache__/
 *.pyc
 venv/
