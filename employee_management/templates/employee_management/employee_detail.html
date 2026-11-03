@@ -6,7 +6,7 @@
 
 {% if tab == 'overview' %}
 <div class="panel"><div class="panel-head"><h2>Personal</h2></div><div class="form-grid three">
-<div><span class="muted">Gender</span><br>{{ e.get_gender_display|default:"-" }}</div><div><span class="muted">Date of birth</span><br>{{ e.date_of_birth|date:"d-m-Y"|default:"-" }}</div><div><span class="muted">Blood group</span><br>{{ e.blood_group|default:"-" }}</div>
+<div><span class="muted">Alias</span><br>{{ e.alias|default:"-" }}</div><div><span class="muted">Gender</span><br>{{ e.get_gender_display|default:"-" }}</div><div><span class="muted">Date of birth</span><br>{{ e.date_of_birth|date:"d-m-Y"|default:"-" }}</div><div><span class="muted">Blood group</span><br>{{ e.blood_group|default:"-" }}</div>
 <div><span class="muted">Marital status</span><br>{{ e.get_marital_status_display|default:"-" }}</div><div><span class="muted">Mobile</span><br>{{ e.mobile|default:"-" }} {% if e.alternate_mobile %}/ {{ e.alternate_mobile }}{% endif %}</div><div><span class="muted">Personal email</span><br>{{ e.personal_email|default:"-" }}</div>
 <div><span class="muted">Current address</span><br>{{ e.current_address|linebreaksbr|default:"-" }}</div><div><span class="muted">Permanent address</span><br>{{ e.permanent_address|linebreaksbr|default:"-" }}</div><div><span class="muted">City / State / PIN</span><br>{{ e.city }} {{ e.state }} {{ e.pin_code }} {{ e.country }}</div></div></div>
 <div class="panel"><div class="panel-head"><h2>Employment</h2></div><div class="form-grid three">
@@ -15,6 +15,7 @@
 <div><span class="muted">Notice period</span><br>{{ e.notice_period_days|default:"-" }} days</div><div><span class="muted">Work email</span><br>{{ e.work_email|default:"-" }}</div><div><span class="muted">Official mobile</span><br>{{ e.official_mobile|default:"-" }}</div></div></div>
 <div class="panel"><div class="panel-head"><h2>Identity (masked)</h2></div><div class="form-grid three">
 <div><span class="muted">Aadhaar</span><br>{{ e.aadhaar_masked|default:"-" }}</div><div><span class="muted">PAN</span><br>{{ e.pan_masked|default:"-" }}</div><div><span class="muted">UAN / ESIC</span><br>{% if e.uan_number %}on file{% else %}-{% endif %} / {% if e.esic_number %}on file{% else %}-{% endif %}</div></div></div>
+<div class="panel" id="optional-docs"><div class="panel-head"><h2>Documents (optional)</h2></div><div class="table-wrap"><table><tbody>{% for label, d in form_docs %}<tr><td>{{ label }}</td><td>{% if d %}<span class="badge ok">Uploaded on {{ d.upload_date|date:"d-m-Y" }}</span>{% else %}<span class="badge off">Not uploaded</span>{% endif %}</td><td>{% if d %}<a href="{% url 'em:document_download' e.pk d.pk %}">Download</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div><p class="muted">Upload or replace these from Edit; replaced files stay in document history.</p></div>
 <div class="panel"><div class="panel-head"><h2>Key documents</h2></div><p>{% for label, ok in doc_status %}<span class="badge {% if ok %}ok{% else %}off{% endif %}">{{ label }}: {% if ok %}Available{% else %}Missing{% endif %}</span> {% endfor %}</p></div>
 
 {% elif tab == 'contacts' %}

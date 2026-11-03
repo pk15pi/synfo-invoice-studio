@@ -647,3 +647,167 @@ class NavSmokeTests(TestCase):
     def test_legacy_invoice_urls_still_resolve(self):
         for url in ('/invoices/', '/customers/', '/projects/', '/business/', '/invoice/new/', '/invoicing/'):
             self.assertEqual(self.client.get(url).status_code, 200, url)
+
+
+class AliasTests(Base):
+    def test_default_on_create(self):
+        self.assertEqual(self.emp.alias, 'Asha')
+        e = self.make_emp(first_name='  Ravi Kumar ', last_name='S')
+        self.assertEqual(Employee.objects.get(pk=e.pk).alias, 'Ravi')
+
+    def test_explicit_alias_preserved(self):
+        e = self.make_emp(first_name='Priya', alias='PJ')
+        e.designation = 'Lead'
+        e.save()
+        self.assertEqual(Employee.objects.get(pk=e.pk).alias, 'PJ')
+
+    def test_blank_alias_refilled(self):
+        self.emp.alias = 'Ash'
+        self.emp.save()
+        self.emp.alias = '  '
+        self.emp.save()
+        self.assertEqual(Employee.objects.get(pk=self.emp.pk).alias, 'Asha')
+
+    def test_backfill_migration(self):
+        import importlib
+        from django.apps import apps
+        mig = importlib.import_module('employee_management.migrations.0005_employee_alias')
+        Employee.objects.filter(pk=self.emp.pk).update(alias='')
+        other = self.make_emp(first_name='Meera', alias='Mee')
+        mig.backfill(apps, None)
+        self.assertEqual(Employee.objects.get(pk=self.emp.pk).alias, 'Asha')
+        self.assertEqual(Employee.objects.get(pk=other.pk).alias, 'Mee')
+
+    def test_form_list_detail_search(self):
+        from .forms import EmployeeForm
+        f = EmployeeForm().fields['alias']
+        self.assertFalse(f.required)
+        self.assertEqual(f.help_text, 'Defaults to first name')
+        self.make_emp(first_name='Zed', alias='Zorro')
+        r = self.client.get(reverse('em:employees'), {'q': 'zorro'})
+        self.assertContains(r, '<th>Alias</th>', html=False)
+        self.assertContains(r, 'Zorro')
+        self.assertNotContains(r, 'Asha')
+        r = self.client.get(reverse('em:employee_detail', args=[self.emp.pk]))
+        self.assertContains(r, '<span class="muted">Alias</span><br>Asha', html=False)
+
+
+def _zip_bytes(encrypted=False, corrupt=False):
+    import zipfile as zf
+    buf = io.BytesIO()
+    with zf.ZipFile(buf, 'w', zf.ZIP_DEFLATED) as z:
+        zi = zf.ZipInfo('degree.txt')
+        zi.compress_type = zf.ZIP_DEFLATED
+        z.writestr(zi, b'B.Tech certificate ' * 200)
+    data = bytearray(buf.getvalue())
+    if encrypted:  # set the 'encrypted' flag bit in the local and central headers
+        data[6] |= 0x1
+        data[data.rfind(b'PK\x01\x02') + 8] |= 0x1
+    if corrupt:
+        for i in range(45, 60):
+            data[i] ^= 0xFF
+    return bytes(data)
+
+
+FORM_PDF = b'%PDF-1.4\n%test\n'
+
+
+class EmployeeFormDocumentTests(Base):
+    def post(self, files=None, emp=None, **extra):
+        data = {'first_name': 'Asha', 'department': self.dept.pk, 'designation': 'Engineer',
+                'employment_type': 'full_time', 'date_of_joining': '2025-01-01', 'status': 'confirmed',
+                'country': 'India'}
+        data.update(files or {})
+        data.update(extra)
+        url = reverse('em:employee_edit', args=[emp.pk]) if emp else reverse('em:employee_new')
+        return self.client.post(url, data)
+
+    def current(self, dtype, emp=None):
+        return EmployeeDocument.objects.filter(employee=emp or self.emp, document_type=dtype, is_current=True)
+
+    def test_form_saves_with_no_documents(self):
+        r = self.post(first_name='Nodoc')
+        self.assertEqual(r.status_code, 302)
+        e = Employee.objects.get(first_name='Nodoc')
+        self.assertFalse(e.documents.exists())
+        r = self.client.get(reverse('em:employee_detail', args=[e.pk]))
+        self.assertContains(r, 'Documents (optional)')
+        self.assertContains(r, 'Not uploaded', count=4)
+
+    def test_each_upload_works(self):
+        r = self.post({'doc_aadhaar': SimpleUploadedFile('aadhaar.pdf', FORM_PDF),
+                       'doc_pan': SimpleUploadedFile('pan.png', PNG),
+                       'doc_experience': SimpleUploadedFile('exp.jpg', b'\xff\xd8\xff\xe0' + b'0' * 20),
+                       'doc_skills_zip': SimpleUploadedFile('skills.zip', _zip_bytes())}, emp=self.emp)
+        self.assertEqual(r.status_code, 302)
+        for t, ct, ext in [('aadhaar', 'application/pdf', '.pdf'), ('pan', 'image/png', '.png'),
+                           ('experience_certificate', 'image/jpeg', '.jpg'),
+                           ('skills_education_zip', 'application/zip', '.zip')]:
+            d = self.current(t).get()
+            self.assertEqual(d.content_type, ct)
+            stem, e = os.path.splitext(os.path.basename(d.file.name))
+            self.assertEqual(e, ext)
+            self.assertRegex(stem, r'^[0-9a-f]{32}$')
+            self.assertTrue(os.path.abspath(d.file.path).startswith(os.path.abspath(TMP)))
+            dl = self.client.get(reverse('em:document_download', args=[self.emp.pk, d.pk]))
+            self.assertEqual(dl.status_code, 200)
+            self.assertIn('attachment', dl['Content-Disposition'])
+        r = self.client.get(reverse('em:employee_detail', args=[self.emp.pk]))
+        self.assertContains(r, 'Uploaded on', count=4)
+        self.assertNotContains(r, 'Not uploaded')
+        from document_management.models import Document
+        self.assertEqual(Document.objects.filter(source_type='employee_document').count(), 4)
+
+    def test_wrong_types_rejected(self):
+        cases = [{'doc_aadhaar': SimpleUploadedFile('a.zip', _zip_bytes())},
+                 {'doc_pan': SimpleUploadedFile('p.pdf', b'not a pdf')},
+                 {'doc_experience': SimpleUploadedFile('x.docx', b'PK\x03\x04')},
+                 {'doc_skills_zip': SimpleUploadedFile('s.pdf', FORM_PDF)}]
+        for files in cases:
+            r = self.post(files, emp=self.emp)
+            self.assertEqual(r.status_code, 200, files)
+        self.assertFalse(self.emp.documents.exists())
+
+    def test_non_zip_corrupt_and_encrypted_zip_rejected(self):
+        for blob, msg in [(b'just text', 'not a valid ZIP'), (_zip_bytes(corrupt=True), 'corrupt'),
+                          (_zip_bytes(encrypted=True), 'encrypted')]:
+            r = self.post({'doc_skills_zip': SimpleUploadedFile('s.zip', blob)}, emp=self.emp)
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, msg)
+        self.assertFalse(self.emp.documents.exists())
+
+    @override_settings(EMPLOYEE_DOC_MAX_MB=1, EMPLOYEE_ZIP_MAX_MB=1)
+    def test_size_limits_configurable(self):
+        big = FORM_PDF + b'0' * (1024 * 1024 + 10)
+        r = self.post({'doc_pan': SimpleUploadedFile('p.pdf', big)}, emp=self.emp)
+        self.assertContains(r, 'too large')
+
+    def test_replace_keeps_history(self):
+        self.post({'doc_pan': SimpleUploadedFile('pan1.pdf', FORM_PDF)}, emp=self.emp)
+        first = self.current('pan').get()
+        self.post({'doc_pan': SimpleUploadedFile('pan2.pdf', FORM_PDF + b'v2')}, emp=self.emp)
+        cur = self.current('pan').get()
+        self.assertNotEqual(cur.pk, first.pk)
+        self.assertEqual(cur.replaces_id, first.pk)
+        first.refresh_from_db()
+        self.assertFalse(first.is_current)
+        self.assertTrue(os.path.exists(first.file.path))
+        self.assertEqual(EmployeeDocument.objects.filter(employee=self.emp, document_type='pan').count(), 2)
+
+    def test_private_serving_local_only_and_no_public_url(self):
+        self.post({'doc_aadhaar': SimpleUploadedFile('a.pdf', FORM_PDF)}, emp=self.emp)
+        d = self.current('aadhaar').get()
+        url = reverse('em:document_download', args=[self.emp.pk, d.pk])
+        self.assertEqual(self.client.get(url, REMOTE_ADDR='192.168.1.20').status_code, 403)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        from django.conf import settings
+        self.assertEqual(self.client.get(settings.MEDIA_URL + d.file.name).status_code, 404)
+        self.assertEqual(self.client.get('/private_media/' + d.file.name).status_code, 404)
+        self.assertFalse(os.path.abspath(d.file.path).startswith(os.path.abspath(settings.MEDIA_ROOT)))
+
+    def test_identity_numbers_stay_masked(self):
+        self.emp.aadhaar_number, self.emp.pan_number = '123412341234', 'ABCDE1234F'
+        self.emp.save()
+        r = self.client.get(reverse('em:employee_detail', args=[self.emp.pk]))
+        self.assertNotContains(r, '123412341234')
+        self.assertNotContains(r, 'ABCDE1234F')

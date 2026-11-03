@@ -27,9 +27,10 @@ def _lines(p):
 
 
 def _payroll(p):
-    for r in S.payrolls(p.start, p.end).select_related('employee__department', 'period'):
-        yield dict(employee=f'{r.employee.employee_id} {r.employee.full_name}',
-                   department=r.employee.department.name if r.employee.department else '',
+    # Use the values frozen on the payroll row, so later employee edits never rewrite history.
+    for r in S.payrolls(p.start, p.end).select_related('employee', 'period'):
+        yield dict(employee=f'{r.code} {r.snap_name or r.employee.full_name}',
+                   department=r.snap_department,
                    month=f'{r.period.year}-{r.period.month:02d}',
                    fy=P.fy_label(P.fy_start_year(P.date(r.period.year, r.period.month, 1))),
                    gross=S.q2(r.gross_earnings), deductions=S.q2(r.total_deductions), net=S.q2(r.net_salary),

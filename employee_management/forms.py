@@ -59,7 +59,7 @@ class EmployeeForm(StyledForm, forms.ModelForm):
                         ('current_address', 'permanent_address', 'notes')})
 
     SECTIONS = [
-        ('Personal details', ['employee_id', 'first_name', 'middle_name', 'last_name', 'photo_upload', 'gender',
+        ('Personal details', ['employee_id', 'first_name', 'middle_name', 'last_name', 'alias', 'photo_upload', 'gender',
                               'date_of_birth', 'blood_group', 'marital_status', 'mobile', 'alternate_mobile',
                               'personal_email', 'current_address', 'permanent_address', 'city', 'state', 'pin_code',
                               'country']),
@@ -69,7 +69,13 @@ class EmployeeForm(StyledForm, forms.ModelForm):
                                 'official_mobile']),
         ('Identity & statutory (confidential)', list(SENSITIVE)),
         ('Notes', ['notes']),
+        ('Documents (optional)', ['doc_aadhaar', 'doc_pan', 'doc_experience', 'doc_skills_zip']),
     ]
+    doc_aadhaar = forms.FileField(label='Aadhaar document', required=False, help_text='PDF, JPG or PNG')
+    doc_pan = forms.FileField(label='PAN document', required=False, help_text='PDF, JPG or PNG')
+    doc_experience = forms.FileField(label='Experience certificate', required=False, help_text='PDF, JPG or PNG')
+    doc_skills_zip = forms.FileField(label='Skills & education documents (ZIP)', required=False,
+                                     help_text='One .zip with all skill / education documents')
 
     def __init__(self, *a, **kw):
         super().__init__(*a, **kw)
@@ -96,6 +102,55 @@ class EmployeeForm(StyledForm, forms.ModelForm):
 
     def sections(self):
         return [(title, [self[f] for f in names]) for title, names in self.SECTIONS]
+
+    def _clean_doc(self, name, kind):
+        from .validators import form_doc_limits, sniff_upload, sniff_zip
+        f = self.cleaned_data.get(name)
+        if not f:
+            return None
+        per_file, zip_mb = form_doc_limits()
+        self._doc_ext = getattr(self, '_doc_ext', {})
+        self._doc_ext[name] = sniff_zip(f, zip_mb * 1024 * 1024) if kind == 'zip' else sniff_upload(f, per_file * 1024 * 1024)
+        return f
+
+    def clean_doc_aadhaar(self):
+        return self._clean_doc('doc_aadhaar', 'file')
+
+    def clean_doc_pan(self):
+        return self._clean_doc('doc_pan', 'file')
+
+    def clean_doc_experience(self):
+        return self._clean_doc('doc_experience', 'file')
+
+    def clean_doc_skills_zip(self):
+        return self._clean_doc('doc_skills_zip', 'zip')
+
+    def save_documents(self, employee):
+        """Store each uploaded optional document in the private repository; a new upload replaces the
+        current one of that type (the old row stays, marked not current). Returns the new documents."""
+        import os
+        from django.db import transaction
+        from .models import DOCUMENT_TYPE_LABELS, FORM_DOCUMENTS
+        made = []
+        with transaction.atomic():
+            for name, dtype, _ in FORM_DOCUMENTS:
+                f = self.cleaned_data.get(name)
+                if not f:
+                    continue
+                ext = self._doc_ext[name]
+                old = (EmployeeDocument.objects.select_for_update()
+                       .filter(employee=employee, document_type=dtype, is_current=True).order_by('-upload_date').first())
+                doc = EmployeeDocument(employee=employee, document_type=dtype, document_name=DOCUMENT_TYPE_LABELS[dtype],
+                                       original_filename=os.path.basename(f.name)[:255], content_type=CONTENT_TYPES[ext],
+                                       file_size=f.size, replaces=old)
+                doc._validated_ext = ext
+                doc.file.save('upload', f, save=False)
+                doc.save()
+                if old is not None:
+                    EmployeeDocument.objects.filter(employee=employee, document_type=dtype, is_current=True) \
+                        .exclude(pk=doc.pk).update(is_current=False)
+                made.append(doc)
+        return made
 
     def clean_employee_id(self):
         v = (self.cleaned_data.get('employee_id') or '').strip().upper()

@@ -13,7 +13,7 @@ ESIC_RE = re.compile(r'^\d{10,17}$')
 # magic bytes -> canonical extension
 SIGNATURES = [(b'%PDF-', 'pdf'), (b'\x89PNG\r\n\x1a\n', 'png'), (b'\xff\xd8\xff', 'jpg')]
 EXT_ALIASES = {'pdf': 'pdf', 'png': 'png', 'jpg': 'jpg', 'jpeg': 'jpg'}
-CONTENT_TYPES = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg'}
+CONTENT_TYPES = {'pdf': 'application/pdf', 'png': 'image/png', 'jpg': 'image/jpeg', 'zip': 'application/zip'}
 
 
 def digits(value):
@@ -72,6 +72,52 @@ def sniff_upload(f, max_bytes, allowed=('pdf', 'png', 'jpg')):
     if real is None or real != ext:
         raise ValidationError('The file content does not match its extension (or is not a real PDF/JPG/PNG).')
     return ext
+
+
+def form_doc_limits():
+    """(per-file MB, ZIP MB) for the employee-form uploads. Override with settings or env."""
+    import os
+    from django.conf import settings
+    f = int(getattr(settings, 'EMPLOYEE_DOC_MAX_MB', None) or os.environ.get('QB_EMPLOYEE_DOC_MAX_MB') or 10)
+    z = int(getattr(settings, 'EMPLOYEE_ZIP_MAX_MB', None) or os.environ.get('QB_EMPLOYEE_ZIP_MAX_MB') or 25)
+    return f, z
+
+
+ZIP_MAX_UNCOMPRESSED = 500 * 1024 * 1024
+ZIP_MAX_ENTRIES = 2000
+
+
+def sniff_zip(f, max_bytes):
+    """Accept only a real, unencrypted, intact .zip. Returns 'zip'."""
+    import zipfile
+    if f.size > max_bytes:
+        raise ValidationError(f'ZIP is too large ({f.size // 1024} KB). Limit is {max_bytes // (1024 * 1024)} MB.')
+    if not (f.name or '').lower().endswith('.zip'):
+        raise ValidationError('Only .zip files are allowed for skills & education documents.')
+    f.seek(0)
+    try:
+        if not zipfile.is_zipfile(f):
+            raise ValidationError('This is not a valid ZIP archive.')
+        f.seek(0)
+        with zipfile.ZipFile(f) as z:
+            infos = z.infolist()
+            if not infos:
+                raise ValidationError('The ZIP archive is empty.')
+            if len(infos) > ZIP_MAX_ENTRIES:
+                raise ValidationError(f'The ZIP has too many files (limit {ZIP_MAX_ENTRIES}).')
+            if any(i.flag_bits & 0x1 for i in infos):
+                raise ValidationError('Password-protected (encrypted) ZIP files are not allowed.')
+            if sum(i.file_size for i in infos) > ZIP_MAX_UNCOMPRESSED:
+                raise ValidationError('The ZIP expands to more than 500 MB.')
+            if z.testzip() is not None:
+                raise ValidationError('The ZIP archive is corrupt.')
+    except ValidationError:
+        raise
+    except Exception:
+        raise ValidationError('The ZIP archive is corrupt or unreadable.')
+    finally:
+        f.seek(0)
+    return 'zip'
 
 
 def mask(value, keep=4, char='X'):

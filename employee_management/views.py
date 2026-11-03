@@ -20,7 +20,7 @@ from .exports import (bank_csv, bank_xlsx, generic_xlsx, salary_register_csv, sa
 from .forms import (BankAccountForm, DepartmentForm, DocumentForm, EmergencyContactForm, EmployeeForm,
                     PayrollInputForm, PayrollSettingsForm, PeriodForm, RevisionForm, SalaryStructureForm,
                     StatutoryRuleForm)
-from .models import (DOCUMENT_TYPE_LABELS, DOCUMENT_TYPES, KEY_DOCUMENTS, ZERO, Department, EmergencyContact,
+from .models import (DOCUMENT_TYPE_LABELS, DOCUMENT_TYPES, FORM_DOCUMENTS, KEY_DOCUMENTS, ZERO, Department, EmergencyContact,
                      Employee, EmployeeBankAccount, EmployeeDocument, EmployeePayroll, EmployeeSalaryStructure,
                      FinalizedRecordError, PayrollPeriod, PayrollSettings, StatutoryRule)
 from .pdf.payslip import payslip_filename, payslip_for
@@ -104,7 +104,7 @@ def employee_list(request):
     status = request.GET.get('status', 'employed')
     dept = request.GET.get('department', '')
     if q:
-        qs = qs.filter(Q(employee_id__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q) |
+        qs = qs.filter(Q(employee_id__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(alias__icontains=q) |
                        Q(designation__icontains=q) | Q(mobile__icontains=q) | Q(work_email__icontains=q))
     if status == 'employed':
         qs = qs.filter(status__in=Employee.EMPLOYED)
@@ -124,8 +124,16 @@ def employee_form(request, pk=None):
         return redirect('em:department_new')
     form = EmployeeForm(request.POST or None, request.FILES or None, instance=obj)
     if request.method == 'POST' and form.is_valid():
-        emp = form.save()
-        messages.success(request, f'Employee {emp.employee_id} saved.')
+        with transaction.atomic():
+            emp = form.save()
+            new_docs = form.save_documents(emp)
+        if new_docs:
+            try:  # keep the document_management index in step; never block the save
+                from document_management.services import sync_index
+                sync_index()
+            except Exception:
+                messages.warning(request, 'Documents saved; run "manage.py sync_documents" to refresh the index.')
+        messages.success(request, f'Employee {emp.employee_id} saved.' + (f' {len(new_docs)} document(s) uploaded.' if new_docs else ''))
         return redirect('em:employee_detail', emp.pk)
     back = reverse('em:employee_detail', args=[obj.pk]) if obj else reverse('em:employees')
     return render(request, T + 'employee_form.html', {'form': form, 'obj': obj, 'back_url': back})
@@ -140,6 +148,8 @@ def employee_detail(request, pk):
     return render(request, T + 'employee_detail.html', {
         'e': e, 'tab': tab, 'docs': docs, 'alert_days': s.expiry_alert_days,
         'doc_status': [(DOCUMENT_TYPE_LABELS[k], k in have) for k in KEY_DOCUMENTS],
+        'form_docs': [(DOCUMENT_TYPE_LABELS[t], next((d for d in docs if d.document_type == t), None))
+                      for _, t, _ in FORM_DOCUMENTS],
         'doc_states': {d.pk: d.expiry_state(s.expiry_alert_days) for d in docs},
         'banks': e.bank_accounts.all(), 'structures': e.salary_structures.prefetch_related('components'),
         'payrolls': e.payrolls.select_related('period').order_by('-period__year', '-period__month', '-revision'),
@@ -318,7 +328,7 @@ def payroll_dashboard(request):
         qs = period.payrolls.select_related('employee', 'employee__department').filter(
             Q(is_current=True) | Q(status=EmployeePayroll.DRAFT))
         if dept:
-            qs = qs.filter(employee__department_id=dept)
+            qs = qs.filter(snap_department__in=Department.objects.filter(pk=dept).values('name'))
         rows = list(qs.order_by('employee__employee_id', 'revision'))
         from . import salary_payments as sal
         for r in rows:
@@ -577,7 +587,7 @@ def _period_rows(period, request, finalized_only=False):
         qs = qs.filter(status='finalized')
     d = request.GET.get('department')
     if d:
-        qs = qs.filter(employee__department_id=d)
+        qs = qs.filter(snap_department__in=Department.objects.filter(pk=d).values('name'))
     return list(qs.prefetch_related('earnings', 'deductions'))
 
 

@@ -151,6 +151,7 @@ class Employee(models.Model):
     first_name = models.CharField(max_length=80)
     middle_name = models.CharField(max_length=80, blank=True)
     last_name = models.CharField(max_length=80, blank=True)
+    alias = models.CharField('Alias', max_length=100, blank=True, help_text='Defaults to first name')
     photo = models.FileField('Profile photograph', storage=private_storage, upload_to=photo_upload_to, blank=True)
     gender = models.CharField(max_length=12, choices=GENDERS, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
@@ -240,7 +241,13 @@ class Employee(models.Model):
         if errors:
             raise ValidationError(errors)
 
+    def default_alias(self):
+        return ((self.first_name or '').split() or [''])[0][:100]
+
     def save(self, *args, **kwargs):
+        self.alias = (self.alias or '').strip()
+        if not self.alias:
+            self.alias = self.default_alias()
         self.pan_number = (self.pan_number or '').upper()
         self.aadhaar_number = (self.aadhaar_number or '').replace(' ', '').replace('-', '')
         if self.probation_months and self.date_of_joining and not self.probation_end_date:
@@ -332,16 +339,21 @@ DOCUMENT_TYPES = [
                               ('appointment_letter', 'Appointment Letter'),
                               ('employment_agreement', 'Employment Agreement'), ('joining_form', 'Joining Form'),
                               ('confirmation_letter', 'Confirmation Letter'),
-                              ('experience_letter', 'Experience Letter'), ('relieving_letter', 'Relieving Letter')]),
+                              ('experience_letter', 'Experience Letter'),
+                              ('experience_certificate', 'Experience Certificate'), ('relieving_letter', 'Relieving Letter')]),
     ('Educational Documents', [('cert_10', '10th Certificate'), ('cert_12', '12th Certificate'),
                                ('graduation', 'Graduation Certificate'),
                                ('post_graduation', 'Post Graduation Certificate'),
-                               ('other_certificate', 'Other Certificates')]),
+                               ('other_certificate', 'Other Certificates'),
+                               ('skills_education_zip', 'Skills & Education (ZIP)')]),
     ('Other Documents', [('photograph', 'Photograph'), ('medical_certificate', 'Medical Certificate'),
                          ('address_proof', 'Address Proof'), ('other', 'Other Supporting Documents')]),
 ]
 DOCUMENT_TYPE_LABELS = {k: v for _, group in DOCUMENT_TYPES for k, v in group}
 DOCUMENT_CATEGORY = {k: cat for cat, group in DOCUMENT_TYPES for k, _ in group}
+# Optional uploads offered directly on the employee add/edit form: (form field, document type, kind).
+FORM_DOCUMENTS = [('doc_aadhaar', 'aadhaar', 'file'), ('doc_pan', 'pan', 'file'),
+                  ('doc_experience', 'experience_certificate', 'file'), ('doc_skills_zip', 'skills_education_zip', 'zip')]
 KEY_DOCUMENTS = ['aadhaar', 'pan', 'driving_licence', 'bank_passbook', 'photograph', 'resume', 'offer_letter']
 
 
@@ -528,6 +540,30 @@ class EmployeeSalaryStructure(models.Model):
         if self.effective_to and self.effective_to < self.effective_from:
             raise ValidationError({'effective_to': 'Effective To cannot be before Effective From.'})
 
+    # Once finalized payroll used a structure it is history: only closing it (effective_to, not before the
+    # last finalized month) or editing notes is allowed. Salary changes must be a new effective-dated version.
+    VERSION_MUTABLE = ('effective_to', 'notes')
+
+    def last_finalized_end(self):
+        p = (self.payrolls.filter(status=EmployeePayroll.FINALIZED).select_related('period')
+             .order_by('-period__year', '-period__month').first())
+        return p.period.end if p else None
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old = EmployeeSalaryStructure.objects.filter(pk=self.pk).first()
+            if old is not None and old.used_in_finalized_payroll:
+                changed = [f.attname for f in self._meta.concrete_fields
+                           if getattr(old, f.attname) != getattr(self, f.attname)]
+                if [f for f in changed if f not in self.VERSION_MUTABLE]:
+                    raise FinalizedRecordError('This salary structure is used by finalized payroll. '
+                                               'Add a new effective-dated structure instead of editing it.')
+                end = old.last_finalized_end()
+                if 'effective_to' in changed and self.effective_to is not None and self.effective_to < end:
+                    raise FinalizedRecordError('Effective To cannot be moved before finalized payroll '
+                                               f'that used this structure (last month ends {end}).')
+        super().save(*args, **kwargs)
+
 
 class SalaryComponent(models.Model):
     EARNING, DEDUCTION = 'earning', 'deduction'
@@ -542,6 +578,24 @@ class SalaryComponent(models.Model):
     @property
     def label(self):
         return (EARNING_LABELS if self.kind == self.EARNING else DEDUCTION_LABELS).get(self.code, self.code)
+
+    def _guard(self, structure_id):
+        if structure_id and EmployeePayroll.objects.filter(structure_id=structure_id,
+                                                           status=EmployeePayroll.FINALIZED).exists():
+            raise FinalizedRecordError('Components of a salary structure used by finalized payroll cannot change. '
+                                       'Add a new effective-dated structure instead.')
+
+    def save(self, *args, **kwargs):
+        self._guard(self.structure_id)
+        if self.pk:
+            old = SalaryComponent.objects.filter(pk=self.pk).values_list('structure_id', flat=True).first()
+            if old != self.structure_id:
+                self._guard(old)
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        self._guard(self.structure_id)
+        return super().delete(*args, **kwargs)
 
 
 # --------------------------------------------------------------------------- payroll

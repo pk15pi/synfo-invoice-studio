@@ -2,7 +2,8 @@
 import re
 
 LAST4_FIELDS = {'aadhaar_number', 'aadhaar', 'pan', 'pan_number', 'snap_pan_masked', 'account_number',
-                'bank_account_number', 'snap_account_number', 'snap_aadhaar_masked'}
+                'bank_account_number', 'snap_account_number', 'snap_aadhaar_masked',
+                'passport_number', 'driving_licence_number', 'uan_number', 'esic_number'}
 NEVER_LOG = ('password', 'secret', 'token', 'api_key', 'apikey', 'private_key', 'otp', 'pin_code_hash')
 
 _LONG_DIGITS = re.compile(r'\d[\d \-]{6,}\d')

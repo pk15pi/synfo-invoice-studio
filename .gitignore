@@ -6,3 +6,7 @@ test_output/
 db.sqlite3*
 __pycache__/
 .secret_key
+media/
+*.pyc
+venv/
+.env

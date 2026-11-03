@@ -9,6 +9,8 @@ AUDITED_MODELS = [
     'employee_management.PayrollPeriod', 'employee_management.EmployeePayroll',
     'employee_management.SalaryPayment', 'employee_management.EmployeeAdvance',
     'employee_management.EmployeeBankAccount', 'employee_management.StatutoryRule',
+    'employee_management.Employee', 'employee_management.Department',
+    'employee_management.EmployeeSalaryStructure', 'employee_management.SalaryComponent',
     'accounting.JournalEntry', 'accounting.Account', 'accounting.AccountMapping', 'accounting.FinancialPeriod',
     'bank_management.BankAccount', 'bank_management.BankTransaction', 'bank_management.ImportBatch',
     'compliance.StatutoryRule', 'compliance.StatutoryPayment', 'compliance.GstInputClaim',
