@@ -459,6 +459,18 @@ class PayrollLifecycleTests(Base):
         self.assertContains(r, 'EMP001')
         self.assertContains(r, 'Refresh drafts')
 
+    def test_payroll_period_payment_date_can_be_updated(self):
+        period = self.period()
+        response = self.client.post(
+            reverse('em:period_update', args=[period.pk]),
+            {'divisor': period.divisor, 'payment_date': '2026-11-30'},
+        )
+
+        self.assertRedirects(
+            response, f'{reverse("em:payroll")}?year={period.year}&month={period.month}')
+        period.refresh_from_db()
+        self.assertEqual(period.payment_date, date(2026, 11, 30))
+
     def test_refresh_drafts_uses_current_employee_details_and_preserves_finalized(self):
         period = self.period()
         other = self.make_emp(first_name='B')

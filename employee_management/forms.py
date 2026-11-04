@@ -410,10 +410,8 @@ class PeriodForm(StyledForm, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Stage 4: actual payments are SalaryPayment rows; the old planned date stays visible but read-only.
-        self.fields['payment_date'].disabled = True
         self.fields['payment_date'].required = False
-        self.fields['payment_date'].help_text = 'Read-only (legacy). Record actual salary payments per payslip.'
+        self.fields['payment_date'].help_text = 'Planned payment date for this payroll period.'
 
 
 class SalaryPaymentForm(StyledForm, forms.Form):
