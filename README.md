@@ -206,6 +206,18 @@ Back up `db.sqlite3` and the `private_media` folder together, because documents 
 not in the DB. `backup_data` does both. Backup ZIPs are not encrypted by the app; protect them with
 OS/disk encryption and filesystem access controls, and keep off-machine copies encrypted.
 
+# Asset Management (Phase 1)
+
+The `asset_management` app provides the foundation for individually tracked assets, hierarchical
+locations, lease history, employee assignments, acknowledgements, maintenance, and append-only
+movement events. It reuses `employee_management.Employee` and the `document_management.Document`
+index; it does not create duplicate employee or document records.
+
+The Asset Management navigation menu opens `/assets/`. The dashboard and searchable register are
+available at `/assets/` and `/assets/register/`. Registration, assignment, lease, and maintenance
+workflow pages are placeholders for later phases. The app follows the existing localhost-only
+access boundary; there is no login or Django Admin in this project.
+
 # Attendance & Leave
 
 Find it in the nav under **Attendance & Leave**, or on its home-page card. It is localhost-only like the rest of the app.

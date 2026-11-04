@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'document_management',
     'audit',
     'backup',
+    'asset_management',
 ]
 MIDDLEWARE = [
     'config.middleware.LocalOnlyMiddleware',

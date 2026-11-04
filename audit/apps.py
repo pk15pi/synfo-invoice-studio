@@ -15,6 +15,9 @@ AUDITED_MODELS = [
     'bank_management.BankAccount', 'bank_management.BankTransaction', 'bank_management.ImportBatch',
     'compliance.StatutoryRule', 'compliance.StatutoryPayment', 'compliance.GstInputClaim',
     'document_management.Document',
+    'asset_management.AssetCategory', 'asset_management.AssetLocation', 'asset_management.Asset',
+    'asset_management.AssetLease', 'asset_management.AssetAssignment', 'asset_management.AssetAcknowledgement',
+    'asset_management.AssetEvent', 'asset_management.AssetMaintenance', 'asset_management.AssetSettings',
 ]
 
 

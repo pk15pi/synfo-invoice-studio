@@ -1,0 +1,7 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}{{ title }} &middot; QuantBud{% endblock %}
+{% block content %}
+<p><a class="page-heading back" href="{% url 'assets:home' %}">&larr; Asset Management</a></p>
+<div class="page-heading"><h1>{{ title }}</h1></div>
+<section class="panel"><p class="muted">This workflow is planned for a later phase. No asset data is changed on this page.</p></section>
+{% endblock %}

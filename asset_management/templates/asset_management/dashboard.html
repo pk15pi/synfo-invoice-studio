@@ -1,0 +1,14 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}Asset Management &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><h1>Asset Management</h1><p class="muted">Track company equipment and its current status.</p></div>
+<a class="button primary" href="{% url 'assets:register' %}">Asset register</a></div>
+<div class="cards">
+<a class="card" href="{% url 'assets:register' %}"><span class="card-icon">&#9638;</span><h3>Registered assets</h3><p>Browse individually tracked assets.</p><b>{{ asset_count }} total</b></a>
+<a class="card" href="{% url 'assets:register' %}?status=available"><span class="card-icon">&#10003;</span><h3>Available</h3><p>Assets currently available for use.</p><b>{{ available_count }}</b></a>
+<a class="card" href="{% url 'assets:assignments' %}"><span class="card-icon">&#8644;</span><h3>Assignments</h3><p>Employee handovers and returns.</p><b>{{ assigned_count }} active</b></a>
+</div>
+<div class="panel"><div class="panel-head"><h2>Phase 1 foundation</h2></div>
+<p class="muted">Asset register, categories, locations, lease history, assignments, acknowledgements, maintenance, and movement-event models are ready. Workflow screens will be added in a later phase.</p>
+<p class="note">Active categories: {{ category_count }} &middot; Open maintenance items: {{ maintenance_count }}</p></div>
+{% endblock %}
