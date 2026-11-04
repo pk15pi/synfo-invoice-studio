@@ -77,6 +77,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # Backups (backup app): folder outside the repo; keep-last-N applies to app-made manual/automatic ZIPs only.
 QB_APP_VERSION = os.environ.get('QB_APP_VERSION', 'stage8')
+QB_INSTANCE_NAME = os.environ.get('QB_INSTANCE_NAME', 'Invoice Studio')
 BACKUP_DIR = Path(os.environ.get('QB_BACKUP_DIR') or (r'E:\QuantBud_Backups' if os.name == 'nt'
                                                        else BASE_DIR.parent / 'QuantBud_Backups'))
 BACKUP_KEEP_LAST = int(os.environ.get('QB_BACKUP_KEEP_LAST', '10'))

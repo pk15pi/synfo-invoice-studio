@@ -1,0 +1,60 @@
+{% extends 'invoice_app/base.html' %}{% block title %}Import preview &middot; Backups{% endblock %}
+{% block content %}
+<p><a href="{% url 'backup:home' %}">&larr; Backups</a></p>
+<h1>Import preview</h1>
+<table class="table">
+<tr><th>Source instance</th><td>{{ package.source_instance_name }} (<code>{{ package.source_instance_id }}</code>)</td></tr>
+<tr><th>Export ID</th><td><code>{{ package.export_id }}</code></td></tr>
+<tr><th>Exported</th><td>{{ package.manifest.exported_at }}</td></tr>
+<tr><th>Package / app version</th><td>{{ package.manifest.format_version }} / {{ package.manifest.app_version }}</td></tr>
+<tr><th>Total records</th><td>{{ package.preview.total_records }}</td></tr>
+<tr><th>New records</th><td>{{ package.preview.new_records }}</td></tr>
+<tr><th>Already imported</th><td>{{ package.preview.existing_records }}</td></tr>
+<tr><th>Changed source records retained as-is</th><td>{{ package.preview.changed_source_records }}</td></tr>
+<tr><th>Records skipped</th><td>{{ package.preview.will_skip }}</td></tr>
+<tr><th>Attachments</th><td>{{ package.preview.attachment_count }}</td></tr>
+<tr><th>Package status</th><td>{{ package.get_status_display }}</td></tr>
+</table>
+<p><a href="{% url 'backup:download_import_package' package.pk %}">Download the retained original package</a></p>
+
+<h2>Records by entity</h2>
+<table class="table"><thead><tr><th>Entity</th><th>Count</th></tr></thead><tbody>
+{% for model, count in package.preview.entity_counts.items %}<tr><td>{{ model }}</td><td>{{ count }}</td></tr>{% endfor %}
+</tbody></table>
+
+{% if package.preview.validation_errors %}
+<h2>Validation errors</h2><div class="message error"><ul>
+{% for error in package.preview.validation_errors %}<li>{{ error }}</li>{% endfor %}
+</ul></div>{% endif %}
+{% if package.preview.unique_conflicts %}
+<h2>Conflicts that block the merge</h2><table class="table"><thead><tr><th>Entity</th><th>Source record</th><th>Unique fields</th><th>Existing values</th></tr></thead><tbody>
+{% for item in package.preview.unique_conflicts %}<tr><td>{{ item.model }}</td><td>{{ item.record_id }}</td><td>{{ item.fields|join:", " }}</td><td>{{ item.values }}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
+{% if package.preview.source_conflicts %}
+<h2>Changed records requiring a decision</h2>
+<p class="muted">No automatic last-write-wins behavior is used. Compare the source and destination change summaries.
+The source package is retained in full; selecting “keep destination” skips those changed rows while allowing unrelated new rows to be added.</p>
+<table class="table"><thead><tr><th>Entity / source ID</th><th>Destination ID</th><th>Original version</th><th>Incoming version</th><th>Destination version</th><th>Source changed fields</th><th>Destination changed fields</th><th>Modified</th></tr></thead><tbody>
+{% for item in package.preview.source_conflicts %}<tr>
+<td>{{ item.model }} / {{ item.record_id }}</td><td>{{ item.destination_pk }}</td>
+<td><code>{{ item.original_hash|slice:":12" }}</code></td><td><code>{{ item.source_hash|slice:":12" }}</code></td>
+<td><code>{{ item.destination_hash|slice:":12" }}</code></td>
+<td>{{ item.source_changed_fields|join:", " }}</td><td>{{ item.destination_changed_fields|join:", " }}</td>
+<td>Source: {{ item.source_modified|default:"unknown" }}<br>Destination: {{ item.destination_modified|default:"unknown" }}</td>
+</tr>{% endfor %}
+</tbody></table>
+<p class="muted">The application has no user accounts, so modifying-user attribution is unavailable.</p>{% endif %}
+{% if package.preview.potential_duplicates %}
+<h2>Potential duplicates (manual review)</h2><table class="table"><thead><tr><th>Entity</th><th>Field</th><th>Value</th><th>Destination record</th></tr></thead><tbody>
+{% for item in package.preview.potential_duplicates %}<tr><td>{{ item.model }}</td><td>{{ item.field }}</td><td>{{ item.value }}</td><td>{{ item.destination_pk }}</td></tr>{% endfor %}
+</tbody></table>{% endif %}
+{% if package.preview.warnings %}<h2>Warnings</h2><div class="message warning"><ul>
+{% for warning in package.preview.warnings %}<li>{{ warning }}</li>{% endfor %}
+</ul></div>{% endif %}
+{% if package.status == 'merged' %}<div class="message">Merge completed. The retained package remains available for audit and review.</div>
+{% elif package.preview.blocked %}<p class="muted">No records were imported. Resolve the listed conflicts before preparing a corrected package.</p>
+{% else %}
+<div class="message warning">Confirming adds eligible records only. Existing records, posted financial entries, payments, credits, and audit history are not updated or deleted. Keep a full backup before proceeding.</div>
+<form method="post" action="{% url 'backup:confirm_merge' package.pk %}">{% csrf_token %}{{ form.as_p }}<button type="submit">Confirm additive merge</button></form>
+{% endif %}
+{% endblock %}

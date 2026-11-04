@@ -1,13 +1,17 @@
+from pathlib import Path
+
 from django.conf import settings
 from django.contrib import messages
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from employee_management.security import local_only
 
 from . import services as S
-from .forms import CreateForm, RestoreForm
-from .models import BackupRecord
+from . import consolidation as C
+from .forms import CreateForm, ImportPackageForm, MergeConfirmForm, RestoreForm
+from .models import BackupRecord, InstanceIdentity, MergePackage
 
 
 @local_only
@@ -20,7 +24,76 @@ def home(request):
         folder, err = None, str(e)
     return render(request, 'backup/home.html', {
         'records': BackupRecord.objects.all()[:200], 'folder': folder, 'err': err, 'form': CreateForm(),
-        'keep': getattr(settings, 'BACKUP_KEEP_LAST', 10)})
+        'keep': getattr(settings, 'BACKUP_KEEP_LAST', 10), 'identity': InstanceIdentity.current(),
+        'import_form': ImportPackageForm(), 'packages': MergePackage.objects.all()[:20]})
+
+
+@local_only
+@require_POST
+def export_package(request):
+    try:
+        path, filename = C.export_package()
+        return FileResponse(open(path, 'rb'), as_attachment=True, filename=filename,
+                            content_type='application/zip')
+    except S.BackupError as exc:
+        messages.error(request, str(exc))
+        return redirect('backup:home')
+
+
+@local_only
+@require_POST
+def import_package(request):
+    form = ImportPackageForm(request.POST, request.FILES)
+    if not form.is_valid():
+        messages.error(request, '; '.join(form.errors.get('package', ['Select a valid ZIP package.'])))
+        return redirect('backup:home')
+    try:
+        package = C.create_import_preview(form.cleaned_data['package'])
+    except S.BackupError as exc:
+        messages.error(request, str(exc))
+        return redirect('backup:home')
+    messages.info(request, 'Package validated. Review the preview before confirming any merge.')
+    return redirect('backup:merge_preview', package_id=package.pk)
+
+
+@local_only
+def merge_preview(request, package_id):
+    package = get_object_or_404(MergePackage, pk=package_id)
+    return render(request, 'backup/merge_preview.html', {
+        'package': package, 'form': MergeConfirmForm(),
+    })
+
+
+@local_only
+def download_import_package(request, package_id):
+    package = get_object_or_404(MergePackage, pk=package_id)
+    path = Path(package.path)
+    if path.parent.resolve() != (C.backup_services.backup_dir() / 'imports').resolve() or not path.is_file():
+        messages.error(request, 'The retained import package is unavailable.')
+        return redirect('backup:merge_preview', package_id=package.pk)
+    return FileResponse(open(path, 'rb'), as_attachment=True, filename=package.uploaded_name,
+                        content_type='application/zip')
+
+
+@local_only
+@require_POST
+def confirm_merge(request, package_id):
+    package = get_object_or_404(MergePackage, pk=package_id)
+    form = MergeConfirmForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Confirm the reviewed preview before merging.')
+        return redirect('backup:merge_preview', package_id=package.pk)
+    if package.preview.get('changed_source_records') and not form.cleaned_data['keep_destination']:
+        messages.error(request, 'Choose how to handle changed source records. Their incoming version remains in the package.')
+        return redirect('backup:merge_preview', package_id=package.pk)
+    try:
+        C.merge_package(package, keep_destination=form.cleaned_data['keep_destination'])
+    except S.BackupError as exc:
+        messages.error(request, f'Merge refused; no database records were imported. {exc}')
+        return redirect('backup:merge_preview', package_id=package.pk)
+    messages.success(request, f'Imported {package.preview.get("merged_records", 0)} new records from '
+                              f'{package.source_instance_name}. Existing records were preserved.')
+    return redirect('backup:merge_preview', package_id=package.pk)
 
 
 @local_only
