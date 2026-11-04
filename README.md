@@ -1,6 +1,6 @@
 # QuantBud Invoice Studio
 
-A local-only Django monolith (no login, no admin, no payment gateway) for keeping business,
+A local-only Django monolith (no login for its business workflows, no payment gateway) for keeping business,
 customer and project details and generating invoice PDFs that reproduce the QuantBud sample
 invoice on US Letter.
 
@@ -32,6 +32,23 @@ the favicon) on the local server with either value of `QB_DEBUG`; `collectstatic
 prepares assets for deployments that serve collected files.
 
 Tests: `.venv\Scripts\python.exe manage.py test`
+
+## Django Admin
+
+The Django Admin is available at http://127.0.0.1:8000/admin/ and is restricted by the existing
+localhost-only middleware. It currently manages the Asset Management models. After backing up
+`db.sqlite3`, apply only the required Django auth/admin/session migrations and create an administrator.
+These targeted commands avoid applying unrelated pending app migrations:
+
+```powershell
+.venv\Scripts\python.exe manage.py migrate auth
+.venv\Scripts\python.exe manage.py migrate admin
+.venv\Scripts\python.exe manage.py migrate sessions
+.venv\Scripts\python.exe manage.py createsuperuser
+```
+
+Asset events are view-only in Admin to preserve the movement history. Asset Settings permits
+editing its singleton row but not creating duplicates or deleting it.
 
 Sample PDF (QB020 reference data; does **not** consume an invoice number):
 `.venv\Scripts\python.exe manage.py make_sample_invoice`, which writes `test_output\QB020_test.pdf`.

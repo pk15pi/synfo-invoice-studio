@@ -1,9 +1,11 @@
 from datetime import date
 from decimal import Decimal
 
+from django.contrib import admin
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
 from django.utils import timezone
 
@@ -150,3 +152,31 @@ class AssetManagementTests(TestCase):
             self.client.get(reverse('assets:home'), REMOTE_ADDR='10.1.1.1').status_code,
             403,
         )
+
+    def test_all_asset_models_are_available_in_admin(self):
+        models = (
+            AssetCategory, AssetLocation, Asset, AssetLease, AssetAssignment,
+            AssetAcknowledgement, AssetEvent, AssetMaintenance, AssetSettings,
+        )
+        user = get_user_model().objects.create_superuser(
+            username='asset-admin', email='asset-admin@example.com', password='test-password',
+        )
+        self.client.force_login(user)
+
+        for model in models:
+            with self.subTest(model=model.__name__):
+                response = self.client.get(reverse(f'admin:asset_management_{model._meta.model_name}_changelist'))
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(admin.site.is_registered(model))
+
+        event_admin = admin.site._registry[AssetEvent]
+        request = RequestFactory().get('/admin/')
+        self.assertFalse(event_admin.has_add_permission(request))
+        self.assertFalse(event_admin.has_change_permission(request))
+        self.assertFalse(event_admin.has_delete_permission(request))
+        event = AssetEvent.objects.create(asset=self.asset, event_type='created')
+        response = self.client.get(reverse(
+            'admin:asset_management_assetevent_change', args=(event.pk,),
+        ))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.client.get('/admin/', REMOTE_ADDR='10.1.1.1').status_code, 403)

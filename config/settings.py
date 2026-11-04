@@ -1,4 +1,4 @@
-"""Local single-user settings for QuantBud Invoice Studio (no auth, no admin by design)."""
+"""Local single-user settings for QuantBud Invoice Studio."""
 import os
 import sys
 from pathlib import Path
@@ -15,8 +15,11 @@ if len(sys.argv) > 1 and sys.argv[1] == 'test':
     ALLOWED_HOSTS.append('testserver')  # Django test client host
 
 INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.messages',
+    'django.contrib.sessions',
     'django.contrib.staticfiles',
     'invoice_app',
     'employee_management',
@@ -35,8 +38,10 @@ MIDDLEWARE = [
     'config.middleware.LocalOnlyMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'audit.middleware.AuditContextMiddleware',
@@ -53,6 +58,7 @@ TEMPLATES = [{
     'BACKEND': 'django.template.backends.django.DjangoTemplates',
     'DIRS': [], 'APP_DIRS': True,
     'OPTIONS': {'context_processors': [
+        'django.contrib.auth.context_processors.auth',
         'django.template.context_processors.request',
         'django.contrib.messages.context_processors.messages',
     ]},
