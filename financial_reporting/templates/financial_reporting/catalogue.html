@@ -1,0 +1,52 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Report Catalogue{% endblock %}
+{% block content %}
+<h1>Report Catalogue</h1>
+<p>Period: <strong>{{ period.label }}</strong> ({{ period.range_text }})</p>
+<form method="get" class="filter-form">
+  <label>Search <input name="q" value="{{ query }}" maxlength="100"></label>
+  <label>Category
+    <select name="category">
+      <option value="">All categories</option>
+      {% for category in categories %}
+        <option value="{{ category.code }}" {% if category.code == selected_category %}selected{% endif %}>{{ category.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Period {{ period_form.period }}</label>
+  <label>Financial year start {{ period_form.financial_year }}</label>
+  <label>FY quarter / half {{ period_form.financial_year_part }}</label>
+  <label>Month {{ period_form.month }}</label>
+  <label>From {{ period_form.date_from }}</label>
+  <label>To {{ period_form.date_to }}</label>
+  <button type="submit">Filter</button>
+</form>
+{% if page.object_list %}
+<div class="table-wrap">
+  <table>
+    <thead><tr><th>Report</th><th>Category</th><th>Source</th><th>Formats</th><th>Availability</th><th></th></tr></thead>
+    <tbody>
+    {% for report in page.object_list %}
+      <tr>
+        <td><strong>{{ report.report_name }}</strong><br><small>{{ report.report_code }}</small><br>{{ report.description }}</td>
+        <td>{{ report.category.name }}</td>
+        <td>{{ report.source_application }}</td>
+        <td>{{ report.supported_formats|join:", " }}</td>
+        <td>{% if report.existing_report_url %}Available{% else %}Not implemented{% endif %}</td>
+        <td>{% if report.existing_report_url %}<a href="{{ report.existing_report_url }}">Open report</a>{% else %}<span>Planned</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p>No reports match these filters.</p>
+{% endif %}
+{% if page.has_other_pages %}
+<nav aria-label="Report catalogue pages">
+  {% if page.has_previous %}<a href="?{{ page_query }}&amp;page={{ page.previous_page_number }}">Previous</a>{% endif %}
+  <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a href="?{{ page_query }}&amp;page={{ page.next_page_number }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

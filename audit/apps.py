@@ -18,6 +18,13 @@ AUDITED_MODELS = [
     'asset_management.AssetCategory', 'asset_management.AssetLocation', 'asset_management.Asset',
     'asset_management.AssetLease', 'asset_management.AssetAssignment', 'asset_management.AssetAcknowledgement',
     'asset_management.AssetEvent', 'asset_management.AssetMaintenance', 'asset_management.AssetSettings',
+    'financial_reporting.FinancialPeriod', 'financial_reporting.ReportCategory',
+    'financial_reporting.ReportDefinition', 'financial_reporting.ReportRun',
+    'financial_reporting.ExportPackage', 'financial_reporting.ExportPackageItem',
+    'financial_reporting.ReconciliationRun', 'financial_reporting.ReconciliationIssue',
+    'financial_reporting.AuditChecklist', 'financial_reporting.AuditChecklistResult',
+    'financial_reporting.ComplianceTemplate', 'financial_reporting.ComplianceSubmission',
+    'financial_reporting.ExportManifest',
 ]
 
 

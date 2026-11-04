@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'audit',
     'backup',
     'asset_management',
+    'financial_reporting',
 ]
 MIDDLEWARE = [
     'config.middleware.LocalOnlyMiddleware',
@@ -46,7 +47,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'audit.middleware.AuditContextMiddleware',
 ]
-# No sessions app: flash messages are stored in a signed cookie.
+# Flash messages use signed cookies; Django sessions remain enabled for Admin authentication.
 MESSAGE_STORAGE = 'django.contrib.messages.storage.cookie.CookieStorage'
 
 # Same-origin referrers keep the browser's Origin header intact for CSRF checks (never 'no-referrer').

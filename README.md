@@ -235,6 +235,23 @@ available at `/assets/` and `/assets/register/`. Registration, assignment, lease
 workflow pages are placeholders for later phases. The app follows the existing localhost-only
 access boundary; there is no login or Django Admin in this project.
 
+# Financial Reports & Audit Centre (Phase 1)
+
+The `financial_reporting` app provides a reporting dashboard at `/financial-reports/` and a searchable,
+period-filtered catalogue at `/financial-reports/catalogue/`. The catalogue links to existing Reports
+& Analytics implementations; planned reports are marked as not implemented. Financial statement
+reports continue to use the established ledger/reporting services rather than duplicating source
+transactions.
+
+Phase 1 provides period, catalogue, report-run, export-package, reconciliation, audit-checklist, and
+compliance-template/submission foundations. It does not generate packages, perform reconciliations,
+file compliance returns, or provide certified electronic signatures.
+
+The app's migrations have not been applied to the configured database. Before applying them, back up
+`db.sqlite3` and `private_media`, validate the migrations against a disposable database copy, and review
+the targeted migration plan. Run the focused tests with
+`.venv\Scripts\python.exe manage.py test financial_reporting`.
+
 # Attendance & Leave
 
 Find it in the nav under **Attendance & Leave**, or on its home-page card. It is localhost-only like the rest of the app.

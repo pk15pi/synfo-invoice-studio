@@ -1,0 +1,83 @@
+from django.contrib import messages
+from django.core.paginator import Paginator
+from django.shortcuts import render
+from django.urls import reverse
+from django.utils.http import urlencode
+
+from employee_management.security import local_only
+from reporting import periods
+
+from .forms import ReportingPeriodForm
+from .models import (
+    AuditChecklistResult,
+    ExportPackage,
+    ReportCategory,
+    ReportDefinition,
+    ReportRun,
+)
+from .services.report_registry import active_reports
+
+
+@local_only
+def dashboard(request):
+    form = ReportingPeriodForm(request.GET or None)
+    if request.GET and not form.is_valid():
+        messages.error(request, 'The reporting period is invalid. Review the selected dates and try again.')
+        form = ReportingPeriodForm(initial={'period': 'current_fy'})
+    if form.is_bound and form.is_valid():
+        period = periods.resolve(form.period_params())
+    else:
+        period = periods.resolve({}, default='current_fy')
+
+    return render(request, 'financial_reporting/dashboard.html', {
+        'period_form': form,
+        'period': period,
+        'active_categories': ReportCategory.objects.filter(active_status=True),
+        'report_count': ReportDefinition.objects.filter(active_status=True).count(),
+        'recent_runs': ReportRun.objects.select_related('report_definition')[:5],
+        'recent_packages': ExportPackage.objects.select_related('financial_period')[:5],
+        'pending_checks': AuditChecklistResult.objects.filter(
+            status__in=[AuditChecklistResult.PENDING, AuditChecklistResult.WARNING, AuditChecklistResult.FAILED],
+        ).count(),
+    })
+
+
+@local_only
+def catalogue(request):
+    period_form = ReportingPeriodForm(request.GET or None)
+    if request.GET and not period_form.is_valid():
+        messages.error(request, 'The reporting period is invalid. Review the selected dates and try again.')
+        period_form = ReportingPeriodForm(initial={'period': 'current_fy'})
+    period = periods.resolve(period_form.period_params()) if period_form.is_bound and period_form.is_valid() \
+        else periods.resolve({}, default='current_fy')
+    period_type = {
+        'month': 'month', 'quarter': 'quarter', 'half': 'half_year',
+        'fy': 'financial_year', 'year': 'annual',
+    }.get(period.kind, 'custom')
+
+    q = request.GET.get('q', '').strip()[:100]
+    category = request.GET.get('category', '').strip()[:40]
+    report_rows = active_reports(query=q, category=category, period_type=period_type)
+    page = Paginator(report_rows, 30).get_page(request.GET.get('page'))
+    page_query = request.GET.copy()
+    page_query.pop('page', None)
+
+    for report in page.object_list:
+        if report.applicability_rules.get('legacy_report_key') == report.report_code:
+            query = urlencode(period.params)
+            report.existing_report_url = (
+                f'{reverse("reporting:report", args=[report.report_code])}?{query}'
+            )
+        else:
+            report.existing_report_url = ''
+
+    return render(request, 'financial_reporting/catalogue.html', {
+        'period_form': period_form,
+        'period': period,
+        'page': page,
+        'categories': ReportCategory.objects.filter(active_status=True),
+        'query': q,
+        'selected_category': category,
+        'selected_period_type': period_type,
+        'page_query': page_query.urlencode(),
+    })
