@@ -367,6 +367,9 @@ class CalculationTests(Base):
         self.assertEqual(engine.calculate(e3, p).gross, D('50000.00'))
 
     def test_extras_and_deductions(self):
+        settings = PayrollSettings.current()
+        settings.rounding = PayrollSettings.ROUND_2DP
+        settings.save()
         self.structure(basic='30000', hra='0', other=[('deduction', 'professional_tax', '200'),
                                                       ('deduction', 'loan', '1000')])
         c = engine.calculate(self.emp, self.period(2026, 11), {
@@ -400,6 +403,20 @@ class CalculationTests(Base):
         c = engine.calculate(self.emp, self.period(2026, 11), {'lwp_days': 2})
         self.assertEqual(c.net, D('37333.00'))
         self.assertEqual(c.rounding_adjustment, D('-0.33'))
+
+    def test_rounding_to_rupee_is_default_with_half_up_boundaries(self):
+        self.assertEqual(PayrollSettings.current().rounding, PayrollSettings.ROUND_RUPEE)
+        p = self.period(2026, 11)
+        for amount, expected in (('10.49', '10.00'), ('10.50', '11.00'), ('10.51', '11.00')):
+            with self.subTest(amount=amount):
+                employee = self.make_emp(first_name=amount)
+                self.structure(emp=employee, basic=amount, hra='0')
+                self.assertEqual(engine.calculate(employee, p).net, D(expected))
+
+        settings = PayrollSettings.current()
+        settings.rounding = PayrollSettings.ROUND_2DP
+        settings.save()
+        self.assertEqual(engine.calculate(employee, p).net, D('10.51'))
 
     def test_invalid_inputs(self):
         self.structure()
@@ -440,6 +457,44 @@ class PayrollLifecycleTests(Base):
         self.assertEqual(p.divisor, 'fixed30')
         r = self.client.get(reverse('em:payroll') + '?year=2026&month=11')
         self.assertContains(r, 'EMP001')
+        self.assertContains(r, 'Refresh drafts')
+
+    def test_refresh_drafts_uses_current_employee_details_and_preserves_finalized(self):
+        period = self.period()
+        other = self.make_emp(first_name='B')
+        self.structure(emp=other)
+        drafts, _ = engine.generate(period)
+        draft = next(record for record in drafts if record.employee_id == self.emp.pk)
+        finalized = next(record for record in drafts if record.employee_id == other.pk)
+        engine.finalize([finalized])
+
+        draft.lwp_days = D('1')
+        draft.payable_days = D('29')
+        draft.save()
+        self.st.components.filter(code='basic').update(amount=D('31000'))
+        self.emp.designation = 'Director'
+        self.emp.save()
+
+        response = self.client.post(reverse('em:payroll_refresh_drafts', args=[period.pk]))
+        self.assertRedirects(response, f'{reverse("em:payroll")}?year={period.year}&month={period.month}')
+        draft.refresh_from_db()
+        finalized.refresh_from_db()
+        self.assertEqual(draft.gross_earnings, D('41566.67'))
+        self.assertEqual(draft.lwp_days, D('1.00'))
+        self.assertEqual(draft.snap_designation, 'Director')
+        self.assertEqual(finalized.status, EmployeePayroll.FINALIZED)
+        self.assertEqual(finalized.snap_designation, 'Engineer')
+
+    def test_refresh_drafts_reports_invalid_recalculations(self):
+        period = self.period()
+        draft = engine.generate(period)[0][0]
+        draft.payable_days = D('31')
+        draft.save()
+
+        response = self.client.post(reverse('em:payroll_refresh_drafts', args=[period.pk]), follow=True)
+        self.assertContains(response, 'Payable days (31.00) cannot exceed the divisor')
+        draft.refresh_from_db()
+        self.assertEqual(draft.payable_days, D('31.00'))
 
     def test_finalize_freezes_and_snapshots(self):
         p = self.period()
@@ -578,7 +633,7 @@ class MiscTests(Base):
         call_command('make_sample_employee', out=out_dir, stdout=buf)
         call_command('make_sample_employee', out=out_dir, stdout=io.StringIO())
         self.assertEqual(Employee.objects.filter(notes__startswith='[sample]').count(), 1)
-        self.assertIn('net 46466.67', buf.getvalue())  # sample now uses attendance: payable 28/30
+        self.assertIn('net 46467.00', buf.getvalue())  # sample now uses attendance: payable 28/30
         self.assertEqual(EmployeePayroll.objects.count(), 0)
         shutil.rmtree(out_dir)
 

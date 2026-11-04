@@ -1,10 +1,11 @@
 {% extends 'invoice_app/base.html' %}{% load ui_icons %}{% block content %}
-<div class="page-heading split"><div><p class="eyebrow">Payroll</p><h1>Payroll &middot; {{ label }}</h1></div>
-<form method="get" class="filters"><select class="field" name="month">{% for i, n in months %}<option value="{{ i }}" {% if i == m %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+<div class="page-heading split payroll-heading"><div><p class="eyebrow">Payroll</p><h1>Payroll &middot; {{ label }}</h1></div>
+<div class="payroll-toolbar"><form method="get" class="filters"><select class="field" name="month">{% for i, n in months %}<option value="{{ i }}" {% if i == m %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
 <select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select>
 <select class="field" name="department"><option value="">All departments</option>{% for d in departments %}<option value="{{ d.pk }}" {% if dept == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select>
-<button class="button secondary">Go</button></form></div>
-{% if period %}<div class="panel"><div class="split"><div>Status: <b>{{ period.get_status_display }}</b> &middot; Divisor: <b>{{ period.get_divisor_display }}</b> ({{ period.divisor_days }} days) &middot; Payment date: <b>{{ period.payment_date|date:"d-m-Y"|default:"not set" }}</b></div>
+<button class="button secondary">Go</button></form>
+{% if period and has_draft %}<form method="post" action="{% url 'em:payroll_refresh_drafts' period.pk %}" class="payroll-refresh-form">{% csrf_token %}<button class="button secondary" type="submit" title="Recalculate drafts using current employee and salary details">Refresh drafts</button></form>{% endif %}</div></div>
+{% if period %}<div class="panel payroll-period-panel"><div class="split"><div>Status: <b>{{ period.get_status_display }}</b> &middot; Divisor: <b>{{ period.get_divisor_display }}</b> ({{ period.divisor_days }} days) &middot; Payment date: <b>{{ period.payment_date|date:"d-m-Y"|default:"not set" }}</b></div>
 <form method="post" action="{% url 'em:period_update' period.pk %}" class="filters">{% csrf_token %}{{ period_form.divisor }}{{ period_form.payment_date }}<button class="button secondary" title="Update month">{% icon "update" %} Update month</button></form></div></div>{% endif %}
 {% if pending %}<form method="post" action="{% url 'em:payroll_generate' %}" class="panel">{% csrf_token %}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}">
 <p>{{ pending|length }} eligible employee(s) without payroll for {{ label }}: {% for e in pending %}{{ e.employee_id }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>

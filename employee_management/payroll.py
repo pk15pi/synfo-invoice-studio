@@ -1,6 +1,7 @@
 """Salary calculation and payroll lifecycle.
 
-Every amount is a Decimal rounded with ROUND_HALF_UP to 2 decimals at component level.
+Every amount is a Decimal rounded with ROUND_HALF_UP to 2 decimals at component level. Net salary
+is then rounded to the nearest rupee by default (the payroll setting can retain 2 decimal places).
 Formulas (monthly fixed):
     earned component = monthly component x payable days / divisor days
     pay_full_month   : earned component = monthly - monthly / divisor x (LWP + unpaid leave)

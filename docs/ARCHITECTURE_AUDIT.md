@@ -71,7 +71,7 @@ There are five separate rounding helpers:
 | Where | Behaviour |
 |---|---|
 | invoice billing | rupee_down / paise |
-| `employee_management/payroll.q2` | ROUND_HALF_UP, with an optional rule rounding net pay to the nearest rupee |
+| `employee_management/payroll.q2` | ROUND_HALF_UP, with net pay rounded to the nearest rupee by default (configurable to 2 decimals) |
 | `expense_management/models.Q2` | quantize with the default context, i.e. **ROUND_HALF_EVEN** |
 | `reporting.q2` | HALF_UP |
 | payslip | its own quantize |
@@ -114,7 +114,7 @@ Expense totals at .xx5 can differ by 1 paisa from the report figures. The fix is
 - There are 101 indexes today, which is fine.
 
 ## 10. Security
-- SECRET_KEY is hardcoded and DEBUG defaults to 1. MEDIA is served via `static()` while DEBUG is on.
+- `SECRET_KEY` is environment/private-file based; `DEBUG` is opt-in. WhiteNoise serves static assets, while MEDIA is served only during debug.
 - There is no authentication.
   - `local_only` is a guard based on REMOTE_ADDR, applied to the employee, attendance and expense URLs (expense views use the decorator).
   - invoice_app views have no guard.

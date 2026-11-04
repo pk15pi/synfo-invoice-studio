@@ -32,8 +32,8 @@ class PayrollSettings(models.Model):
     DIVISORS = [(DIV_ACTUAL, 'Actual calendar days in the month (28-31)'), (DIV_FIXED30, 'Fixed 30-day divisor')]
     ROUND_2DP = 'half_up_2dp'
     ROUND_RUPEE = 'net_nearest_rupee'
-    ROUNDING = [(ROUND_2DP, 'Every amount to 2 decimals (ROUND_HALF_UP)'),
-                (ROUND_RUPEE, '2 decimals, then Net Salary to nearest rupee (adjustment shown)')]
+    ROUNDING = [(ROUND_RUPEE, '2 decimals, then Net Salary to nearest rupee (0.50 rounds up; adjustment shown)'),
+                (ROUND_2DP, 'Every amount to 2 decimals (ROUND_HALF_UP)')]
 
     employee_id_prefix = models.CharField('Employee ID prefix', max_length=10, default='EMP')
     next_employee_sequence = models.PositiveIntegerField('Next employee sequence', default=1)
@@ -44,7 +44,7 @@ class PayrollSettings(models.Model):
     standard_working_days = models.PositiveSmallIntegerField('Standard working days per month', default=26)
     standard_working_hours = models.DecimalField('Standard working hours per day', max_digits=5, decimal_places=2,
                                                  default=Decimal('8.00'))
-    rounding = models.CharField('Salary rounding rule', max_length=20, choices=ROUNDING, default=ROUND_2DP)
+    rounding = models.CharField('Salary rounding rule', max_length=20, choices=ROUNDING, default=ROUND_RUPEE)
     payslip_footer = models.CharField(max_length=240, blank=True,
                                       default='This is a computer-generated payslip.')
     default_payroll_month = models.DateField('Default payroll month', null=True, blank=True,

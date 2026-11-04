@@ -27,8 +27,9 @@ Static assets are collected into `staticfiles\` (ignored by Git). To prepare the
 .venv\Scripts\python.exe manage.py collectstatic
 ```
 
-Use `--noinput` for automated runs. `collectstatic` prepares assets for a static-file
-server; local `runserver` serves app assets directly while `QB_DEBUG=1`.
+Use `--noinput` for automated runs. WhiteNoise serves static assets (including CSS and
+the favicon) on the local server with either value of `QB_DEBUG`; `collectstatic`
+prepares assets for deployments that serve collected files.
 
 Tests: `.venv\Scripts\python.exe manage.py test`
 

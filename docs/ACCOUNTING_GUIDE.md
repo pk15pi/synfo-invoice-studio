@@ -100,7 +100,7 @@ Run a backup first, run the dry-run, read the output, then `--apply`. Re-running
 - Pinned PDF SHA-256 tests depend on the installed fonts and fail on machines with different fonts.
 
 ## 9. Security settings (Stage 9)
-- `DEBUG` is on by default so runserver serves CSS/static files (`run_windows.bat` also sets `QB_DEBUG=1`). Set `QB_DEBUG=0` to turn it off; static files then 404 under runserver.
+- `DEBUG` is opt-in (`run_windows.bat` sets `QB_DEBUG=1`). WhiteNoise serves CSS/static files with either value; `collectstatic` prepares assets for deployments.
 - `SECRET_KEY` comes from env `QB_SECRET_KEY`, else from `private_media/.secret_key`, which is auto-generated and git-ignored. If that file can't be read or written, a per-process key is used; the only effect is that flash cookies reset on restart.
 - `ALLOWED_HOSTS = 127.0.0.1, localhost` (`testserver` is added only under `manage.py test`).
 - `config.middleware.LocalOnlyMiddleware` returns 403 for any non-loopback client, on every page.

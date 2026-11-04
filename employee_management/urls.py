@@ -43,6 +43,7 @@ urlpatterns = [
     p('employees/<int:pk>/salary/<int:from_id>/revise/', v.salary_new, 'salary_revise'),
     p('payroll/', v.payroll_dashboard, 'payroll'),
     p('payroll/generate/', v.payroll_generate, 'payroll_generate'),
+    p('payroll/period/<int:pid>/refresh-drafts/', v.payroll_refresh_drafts, 'payroll_refresh_drafts'),
     p('payroll/period/<int:pid>/update/', v.period_update, 'period_update'),
     p('payroll/period/<int:pid>/finalize/', v.payroll_finalize, 'payroll_finalize'),
     p('payroll/period/<int:pid>/payslips.zip', v.payslip_zip, 'payslip_zip'),

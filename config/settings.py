@@ -8,7 +8,7 @@ from .secret import load_secret_key
 BASE_DIR = Path(__file__).resolve().parent.parent
 # Key: env QB_SECRET_KEY, else private_media/.secret_key (auto-generated, git-ignored), else per-process.
 SECRET_KEY = load_secret_key(Path(os.environ.get('QB_PRIVATE_ROOT') or (BASE_DIR / 'private_media')) / '.secret_key')
-# Debug is opt-in; local launch scripts set QB_DEBUG=1 so runserver serves CSS/static.
+# Debug is opt-in; WhiteNoise serves static assets independently of DEBUG.
 DEBUG = os.environ.get('QB_DEBUG', '0') == '1'
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 if len(sys.argv) > 1 and sys.argv[1] == 'test':
@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'config.middleware.LocalOnlyMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -64,6 +65,7 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+WHITENOISE_USE_FINDERS = True
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

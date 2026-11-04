@@ -374,6 +374,30 @@ def payroll_generate(request):
 
 
 @require_POST
+def payroll_refresh_drafts(request, pid):
+    period = get_object_or_404(PayrollPeriod, pk=pid)
+    drafts = period.payrolls.filter(status=EmployeePayroll.DRAFT).select_related(
+        'employee', 'period').order_by('employee__employee_id')
+    refreshed = 0
+    errors = []
+    for payroll in drafts:
+        inputs = {field: getattr(payroll, field) for field in EmployeePayroll.INPUT_FIELDS}
+        saved, calc = engine.recalculate(payroll, inputs)
+        if saved is None:
+            errors.append(f'{payroll.code}: {"; ".join(calc.errors)}')
+        else:
+            refreshed += 1
+
+    if refreshed:
+        messages.success(request, f'{refreshed} draft payroll record(s) refreshed for {period.label}.')
+    elif not errors:
+        messages.info(request, f'There are no draft payroll records to refresh for {period.label}.')
+    for error in errors:
+        messages.error(request, error)
+    return redirect(f"{reverse('em:payroll')}?year={period.year}&month={period.month}")
+
+
+@require_POST
 def period_update(request, pid):
     period = get_object_or_404(PayrollPeriod, pk=pid)
     form = PeriodForm(request.POST, instance=period)
