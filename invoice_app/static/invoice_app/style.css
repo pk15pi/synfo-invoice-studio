@@ -222,7 +222,15 @@ a.card:hover{
 .panel-head{padding-bottom:13px;border-bottom:1px solid #edf1f4;margin-bottom:12px}
 .panel-head h2,.section-title h2{color:#243b4e;font-size:17px;letter-spacing:-.015em}
 
-.page-heading{margin:5px 0 22px}
+.page-heading:not(.back){
+ margin:5px 0 22px;
+ padding:24px 28px;
+ border:1px solid #d8e6f0;
+ border-radius:18px;
+ background:linear-gradient(112deg,#fff 0%,#f3f8fc 62%,#e8f2f9 100%);
+ box-shadow:var(--shadow-sm);
+}
+.page-heading.back{margin:5px 0 22px}
 .page-heading .back{color:#276b9a}
 .section-title{margin:4px 0 18px}
 .section-title>span{background:#eaf3f9;color:#226392}
@@ -383,9 +391,9 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  align-items:start;
  gap:28px;
  padding:23px 24px;
- border:1px solid #e0e7ed;
- border-radius:14px;
- background:linear-gradient(135deg,#fff 0%,#f8fbfd 100%);
+ border:1px solid #d8e6f0;
+ border-radius:18px;
+ background:linear-gradient(112deg,#fff 0%,#f3f8fc 62%,#e8f2f9 100%);
  box-shadow:var(--shadow-sm);
 }
 .page-heading.split:has(>div:first-child)>div:first-child{min-width:0}
@@ -467,7 +475,7 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  .page-heading.split:has(>div:first-child)>div:last-child>.muted{text-align:left}
 }
 @media(max-width:560px){
- .page-heading.split:has(>div:first-child){padding:18px 16px}
+ .page-heading:not(.back){padding:18px 16px}
  .page-heading.split:has(>div:first-child)>div:last-child>.button{flex:1 1 calc(50% - 8px)}
  .page-heading.split:has(>div:first-child) #otherfmt{flex-wrap:wrap}
  .page-heading.split:has(>div:first-child) #otherfmt .field,
