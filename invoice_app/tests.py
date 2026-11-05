@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal as D
 from io import BytesIO, StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
@@ -150,12 +151,44 @@ class NumberingTests(Fixture):
         self.client.post(reverse('invoice_detail', args=[inv.pk]), {'pdf_number_override': 'QB020'})
         inv.refresh_from_db()
         self.client_obj.refresh_from_db()
-        self.assertEqual(inv.display_number, 'QB020')
+        self.assertEqual(inv.display_number, inv.invoice_number)
         self.assertEqual(self.client_obj.last_pdf_ref_no, 'QB020')
         self.assertNotEqual(inv.invoice_number, 'QB020')
         self.assertEqual(BusinessProfile.current().next_invoice_number, n)
+        self.assertEqual(build_invoice_data(inv, BusinessProfile.current()).number, inv.invoice_number)
         r = self.client.get(reverse('invoice_pdf', args=[inv.pk]))
-        self.assertIn('QB020.pdf', r['Content-Disposition'])
+        self.assertIn(f'{inv.invoice_number}.pdf', r['Content-Disposition'])
+
+    def test_create_page_has_explicit_manual_number_preview_button(self):
+        response = self.client.get(reverse('new_invoice'))
+        self.assertContains(response, 'Preview PDF With Manual Invoice number')
+        self.assertContains(response, 'name="action" value="preview_manual"')
+
+    def test_manual_number_is_used_only_by_explicit_preview_action(self):
+        data = self.post_data(pdf_number_override='MANUAL-REF-7')
+        with patch('invoice_app.views.render_for_invoice', return_value=b'%PDF-preview') as render:
+            response = self.client.post(reverse('new_invoice'), {**data, 'action': 'preview'})
+            self.assertEqual(response['Content-Type'], 'application/pdf')
+            self.assertIn('QB021-preview.pdf', response['Content-Disposition'])
+            self.assertIsNone(render.call_args.kwargs['number'])
+
+            response = self.client.post(
+                reverse('new_invoice'), {**data, 'action': 'preview_manual'},
+            )
+            self.assertEqual(response['Content-Type'], 'application/pdf')
+            self.assertIn('MANUAL-REF-7-preview.pdf', response['Content-Disposition'])
+            self.assertEqual(render.call_args.kwargs['number'], 'MANUAL-REF-7')
+
+        self.assertEqual(Invoice.objects.count(), 0)
+
+    def test_manual_preview_requires_a_manual_number(self):
+        response = self.client.post(
+            reverse('new_invoice'),
+            self.post_data(action='preview_manual'),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Enter a manual PDF number to preview with that number.')
+        self.assertEqual(Invoice.objects.count(), 0)
 
     def test_manual_pdf_reference_is_saved_on_customer_and_shown_in_invoice_form(self):
         response = self.client.post(
@@ -210,6 +243,7 @@ class ViewTests(Fixture):
         inv = Invoice.objects.get()
         r = self.client.get(reverse('invoice_pdf_manual', args=[inv.pk, 'QB999']) + '?download=1')
         self.assertIn('attachment', r['Content-Disposition'])
+        self.assertIn(f'{inv.invoice_number}.pdf', r['Content-Disposition'])
         inv.refresh_from_db()
         self.assertEqual(inv.pdf_number_override, '')
 
@@ -305,9 +339,13 @@ class PdfTests(TestCase):
         for s in ('QUANTBUD', 'QuantBud LLP', 'IDFC', '10217638591', 'American Chase', 'pk15pi', '06AABFQ2999K1ZQ'):
             self.assertNotIn(s, src)
 
-    def test_pdf_override_number_used(self):
+    def test_manual_pdf_number_requires_explicit_preview_override(self):
         inv, lines = _sample_invoice(pdf_number_override='X-1')
-        self.assertEqual(build_invoice_data(inv, BusinessProfile(), lines=lines).number, 'X-1')
+        self.assertEqual(build_invoice_data(inv, BusinessProfile(), lines=lines).number, inv.invoice_number)
+        self.assertEqual(
+            build_invoice_data(inv, BusinessProfile(), lines=lines, number=inv.pdf_number_override).number,
+            'X-1',
+        )
 
     def test_long_text_truncated_not_shrunk(self):
         from reportlab.pdfgen import canvas as rl

@@ -56,7 +56,7 @@ def build_invoice_data(invoice, profile, lines=None, number=None):
     if lines is None:
         lines = list(invoice.lines.all())
     return InvoiceData(**gst_extras(invoice, profile, lines),
-        number=number or invoice.display_number,
+        number=number or invoice.invoice_number,
         invoice_date=invoice.invoice_date, terms_days=invoice.terms_display, due_date=invoice.due_date,
         currency=invoice.currency or 'INR', total=invoice.total,
         business_name=profile.name, business_address_lines=(profile.address or '').splitlines(),

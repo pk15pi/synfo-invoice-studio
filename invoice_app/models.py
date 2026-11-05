@@ -552,7 +552,7 @@ class Invoice(models.Model):
 
     @property
     def display_number(self):
-        return self.pdf_number_override or self.invoice_number
+        return self.invoice_number
 
     def __str__(self):
         return self.invoice_number

@@ -219,13 +219,18 @@ def invoice_edit(request, pk=None):
             data = services.parse_invoice_post(request.POST, client, profile)
             for e in data.errors:
                 messages.error(request, e)
-            if not data.errors:
-                action = request.POST.get('action', 'save')
-                if action in ('preview', 'download'):
+            action = request.POST.get('action', 'save')
+            missing_manual_number = action == 'preview_manual' and not data.pdf_number_override
+            if missing_manual_number:
+                messages.error(request, 'Enter a manual PDF number to preview with that number.')
+            if not data.errors and not missing_manual_number:
+                if action in ('preview', 'preview_manual', 'download'):
                     number = invoice.invoice_number if invoice else profile.next_number()
                     inv, lines = services.unsaved_invoice(data, number)
-                    pdf = render_for_invoice(inv, profile, lines=lines)
-                    return _pdf_response(pdf, f'{inv.display_number}-preview.pdf', action == 'download')
+                    manual_number = data.pdf_number_override if action == 'preview_manual' else None
+                    pdf = render_for_invoice(inv, profile, lines=lines, number=manual_number)
+                    display_number = manual_number or inv.invoice_number
+                    return _pdf_response(pdf, f'{display_number}-preview.pdf', action == 'download')
                 try:
                     invoice = services.save_invoice(data, invoice)
                 except ValidationError as e:
@@ -445,15 +450,16 @@ def receipts(request):
 
 def invoice_pdf(request, pk, manual_number=None):
     invoice = get_object_or_404(Invoice.objects.select_related('client'), pk=pk)
-    number = manual_number.strip() if manual_number else None
     template, suffix = None, ''
     if request.GET.get('format'):
         # Ad-hoc "download in another format": uses the template's current settings; nothing is saved.
         template = get_object_or_404(InvoiceFormatTemplate, pk=request.GET['format'] if
                                      request.GET['format'].isdigit() else 0, is_active=True)
         suffix = f'-{template.code}'
-    pdf = render_for_invoice(invoice, BusinessProfile.current(), number=number, template=template)
-    return _pdf_response(pdf, f'{number or invoice.display_number}{suffix}.pdf', request.GET.get('download') == '1')
+    pdf = render_for_invoice(invoice, BusinessProfile.current(), template=template)
+    return _pdf_response(
+        pdf, f'{invoice.invoice_number}{suffix}.pdf', request.GET.get('download') == '1',
+    )
 
 
 # --- Invoice Format Template Master ---
