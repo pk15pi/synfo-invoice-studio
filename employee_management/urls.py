@@ -47,6 +47,7 @@ urlpatterns = [
     p('payroll/period/<int:pid>/update/', v.period_update, 'period_update'),
     p('payroll/period/<int:pid>/finalize/', v.payroll_finalize, 'payroll_finalize'),
     p('payroll/period/<int:pid>/payslips.zip', v.payslip_zip, 'payslip_zip'),
+    p('payroll/payslips/financial-year/<int:fy_start>.zip', v.payslip_year_zip, 'payslip_year_zip'),
     p('payroll/period/<int:pid>/register.xlsx', v.export_register, 'export_register'),
     p('payroll/period/<int:pid>/bank.<str:fmt>', v.export_bank, 'export_bank'),
     p('payroll/record/<int:rid>/', v.payroll_detail, 'payroll_detail'),

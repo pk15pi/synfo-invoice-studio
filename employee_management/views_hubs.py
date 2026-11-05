@@ -1,10 +1,12 @@
 """Section hub pages for the grouped navigation (read-only overviews across employees)."""
 import os
+import calendar
 
 from django.conf import settings
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import (Employee, EmployeeBankAccount, EmployeeDocument, EmployeePayroll, EmployeeSalaryStructure,
                      PayrollPeriod)
@@ -64,15 +66,54 @@ def salary_structures(request):
 
 
 def payslips(request):
-    qs = (EmployeePayroll.objects.filter(status=EmployeePayroll.FINALIZED).select_related('period', 'employee')
+    today = timezone.localdate()
+    current_fy = today.year if today.month >= 4 else today.year - 1
+    fy_choices = {current_fy}
+    for year, month in PayrollPeriod.objects.filter(
+            payrolls__status=EmployeePayroll.FINALIZED, payrolls__is_current=True
+    ).values_list('year', 'month').distinct():
+        fy_choices.add(year if month >= 4 else year - 1)
+    try:
+        fy_start = int(request.GET.get('fy', current_fy))
+    except (TypeError, ValueError):
+        fy_start = current_fy
+    if fy_start not in fy_choices:
+        fy_start = current_fy
+    fy_end = fy_start + 1
+    fy_label = f'FY {fy_start}-{str(fy_end)[-2:]}'
+
+    fy_periods = Q(period__year=fy_start, period__month__gte=4) | Q(period__year=fy_end, period__month__lte=3)
+    qs = (EmployeePayroll.objects.filter(fy_periods, status=EmployeePayroll.FINALIZED)
+          .select_related('period', 'employee')
           .order_by('-period__year', '-period__month', 'snap_employee_code', '-revision'))
     rows = [[_c(p.code, reverse('em:employee_detail', args=[p.employee_id])), _c(p.snap_name), _c(p.period.label),
              _c(p.revision), _c('Current' if p.is_current else 'Superseded'), _c(f'{p.net_salary:.2f}'),
              _c('PDF', reverse('em:payslip', args=[p.pk]))] for p in qs]
-    acts = [(f'{per.label} (ZIP)', reverse('em:payslip_zip', args=[per.pk]))
-            for per in PayrollPeriod.objects.filter(payrolls__status='finalized').distinct()[:6]]
-    return _hub(request, 'Payroll Management', 'Payslips', 'Individual payslip PDFs for finalized payroll, newest month first.',
-                ['ID', 'Name', 'Month', 'Revision', 'State', 'Net', ''], rows, acts)
+
+    periods = { (p.year, p.month): p for p in PayrollPeriod.objects.filter(
+        (Q(year=fy_start, month__gte=4) | Q(year=fy_end, month__lte=3)),
+        payrolls__status=EmployeePayroll.FINALIZED, payrolls__is_current=True
+    ).distinct() }
+    month_exports = []
+    last_month = today.month if fy_start == current_fy else 3
+    last_year = today.year if fy_start == current_fy else fy_end
+    for offset in range(12):
+        year = fy_start + (3 + offset) // 12
+        month = (3 + offset) % 12 + 1
+        if (year, month) > (last_year, last_month):
+            break
+        period = periods.get((year, month))
+        month_exports.append({'label': f'{calendar.month_name[month]} {year}',
+                              'url': reverse('em:payslip_zip', args=[period.pk]) + '?finalized=1' if period else None})
+
+    context = {'section': 'Payroll Management', 'title': 'Payslips',
+               'intro': 'Download finalized payslips by month or for the full financial year.',
+               'headers': ['ID', 'Name', 'Month', 'Revision', 'State', 'Net', ''], 'rows': rows,
+               'actions': [], 'fy_start': fy_start, 'fy_label': fy_label,
+               'fy_choices': [(year, f'FY {year}-{str(year + 1)[-2:]}')
+                              for year in sorted(fy_choices, reverse=True)], 'month_exports': month_exports,
+               'year_zip_url': reverse('em:payslip_year_zip', args=[fy_start])}
+    return render(request, HUB, context)
 
 
 def storage(request):

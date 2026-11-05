@@ -617,10 +617,10 @@ def _period_rows(period, request, finalized_only=False):
 
 def payslip_zip(request, pid):
     period = get_object_or_404(PayrollPeriod, pk=pid)
-    rows = _period_rows(period, request)
+    rows = _period_rows(period, request, finalized_only=request.GET.get('finalized') == '1')
     if not rows:
         messages.error(request, 'No payroll records to export.')
-        return redirect(f"{reverse('em:payroll')}?year={period.year}&month={period.month}")
+        return redirect(f"{reverse('em:payslips')}?fy={period.year if period.month >= 4 else period.year - 1}")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
         for p in rows:
@@ -629,6 +629,28 @@ def payslip_zip(request, pid):
     m, y = period.label.split(' ')
     resp = HttpResponse(buf.getvalue(), content_type='application/zip')
     resp['Content-Disposition'] = f'attachment; filename="Payslips_{m}_{y}.zip"'
+    return resp
+
+
+def payslip_year_zip(request, fy_start):
+    """Download current finalized payslips for April–March financial year."""
+    rows = list(EmployeePayroll.objects.filter(
+        (Q(period__year=fy_start, period__month__gte=4) |
+         Q(period__year=fy_start + 1, period__month__lte=3)),
+        status=EmployeePayroll.FINALIZED, is_current=True,
+    ).select_related('period', 'employee').prefetch_related('earnings', 'deductions')
+        .order_by('period__year', 'period__month', 'snap_employee_code'))
+    if not rows:
+        messages.error(request, 'No finalized payslips are available for that financial year.')
+        return redirect(f"{reverse('em:payslips')}?fy={fy_start}")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        for payroll in rows:
+            pdf, name = payslip_for(payroll)
+            z.writestr(name, pdf)
+    fy_label = f'FY_{fy_start}-{str(fy_start + 1)[-2:]}'
+    resp = HttpResponse(buf.getvalue(), content_type='application/zip')
+    resp['Content-Disposition'] = f'attachment; filename="Payslips_{fy_label}.zip"'
     return resp
 
 

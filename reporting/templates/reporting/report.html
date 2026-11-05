@@ -1,7 +1,7 @@
 {% extends 'invoice_app/base.html' %}{% block title %}{{ rep.title }} - Reports{% endblock %}{% block content %}{% include 'reporting/_style.html' %}
 {% include 'reporting/_nav.html' %}
-<div class="panel-head"><div><p class="eyebrow">{{ rep.section }} report</p><h1>{{ rep.title }}</h1>
-<p class="rp-basis"><b>Period:</b> {{ rep.period.label }} ({{ rep.period.range_text }}) &middot; <b>Date basis:</b> {{ rep.basis }}{% for k,v in rep.filters %} &middot; <b>{{ k }}:</b> {{ v }}{% endfor %}</p>{% if rep.section != 'Ledger' %}<p class="rp-links"><a href="{% url 'reporting:section' 'ledger' %}">See ledger reports</a> (trial balance, P&amp;L, balance sheet from the general ledger)</p>{% endif %}</div>{% include 'reporting/_exports.html' %}</div>
+<div class="page-heading split"><div><p class="eyebrow">{{ rep.section }} report</p><h1>{{ rep.title }}</h1>
+<p class="rp-basis"><b>Period:</b> {{ rep.period.label }} ({{ rep.period.range_text }}) &middot; <b>Date basis:</b> {{ rep.basis }}{% for k,v in rep.filters %} &middot; <b>{{ k }}:</b> {{ v }}{% endfor %}</p>{% if rep.section != 'Ledger' %}<p class="rp-links"><a href="{% url 'reporting:section' 'ledger' %}">See ledger reports</a> (trial balance, P&amp;L, balance sheet from the general ledger)</p>{% endif %}</div><div class="heading-actions">{% include 'reporting/_exports.html' %}</div></div>
 <form method="get" class="rp-bar">
 {% if not no_period %}{% include 'reporting/_period.html' %}{% endif %}
 {% if 'fy_ab' in filters %}<label>FY A<select name="fy_a">{% for y,l in fy_choices %}<option value="{{ y }}"{% if g.fy_a == y|stringformat:"s" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label><label>FY B<select name="fy_b">{% for y,l in fy_choices %}<option value="{{ y }}"{% if g.fy_b == y|stringformat:"s" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endif %}

@@ -74,7 +74,8 @@ def all_expenses(request):
                            | Q(employee__employee_id__icontains=q) | Q(employee__first_name__icontains=q)
                            | Q(employee__last_name__icontains=q) | Q(remarks__icontains=q)).distinct()
         for e in qs:
-            rows.append(dict(kind='company', id=e.expense_id, date=e.expense_date, category=e.category.name,
+            rows.append(dict(kind='company', pk=e.pk, can_edit=not e.is_cancelled, can_cancel=not e.is_cancelled,
+                             id=e.expense_id, date=e.expense_date, category=e.category.name,
                              party=e.vendor.name if e.vendor_id else '-', ref=e.invoice_number or '-',
                              amount=e.total_amount, currency=e.currency, status=e.get_payment_status_display(),
                              status_key=e.payment_status, url=reverse('exp:expense_detail', args=[e.pk])))
@@ -88,7 +89,9 @@ def all_expenses(request):
                            | Q(description__icontains=q) | Q(reimbursements__reference__icontains=q)
                            | Q(business_purpose__icontains=q)).distinct()
         for c in qs:
-            rows.append(dict(kind='claim', id=c.claim_id, date=c.expense_date, category=c.category.name,
+            rows.append(dict(kind='claim', pk=c.pk, can_edit=c.status in ('draft', 'submitted', 'under_review'),
+                             can_cancel=c.status in ('draft', 'submitted', 'under_review'),
+                             id=c.claim_id, date=c.expense_date, category=c.category.name,
                              party=f'{c.employee.employee_id} - {c.employee.full_name}', ref=c.claim_id,
                              amount=c.approved_amount if c.approved_amount is not None else c.amount_claimed,
                              currency=c.currency, status=c.status_label, status_key=c.status,
@@ -96,7 +99,8 @@ def all_expenses(request):
     rows.sort(key=lambda r: (r['date'], r['id']), reverse=True)
     ctx = _filter_ctx(request, f)
     ctx.update(rows=rows[:500], truncated=len(rows) > 500, total_rows=len(rows), q=q, kind=kind,
-               pay_statuses=CompanyExpense.STATUSES, claim_statuses=C.STATUSES, has_dates=has_dates)
+               pay_statuses=CompanyExpense.STATUSES, claim_statuses=C.STATUSES, has_dates=has_dates,
+               current_url=request.get_full_path())
     return render(request, 'expense_management/all_expenses.html', ctx)
 
 

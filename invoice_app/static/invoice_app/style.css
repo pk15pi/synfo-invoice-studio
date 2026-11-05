@@ -484,3 +484,22 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  .page-heading.split:has(>div:first-child)~.panel:has(>table.pdfcols){overflow-x:auto}
  .page-heading.split:has(>div:first-child)~form.panel input:not([type=hidden]){width:100%}
 }
+
+/* Consistent button contrast and keyboard focus across modules. */
+.button{background:#f2f6f9;color:#33495b}
+.button:visited{color:#33495b}
+.button:hover{color:#253b4e}
+.button.primary,.button.primary:visited,.button.primary:hover,.button.primary:focus-visible{background:#174b78;color:#fff!important}
+.button.primary:hover{background:#103b62}
+.button.secondary,.button.secondary:visited,.button.secondary:hover,.button.secondary:focus-visible{background:#f2f6f9;color:#33495b!important}
+.button.secondary:hover{background:#e6eef4}
+.button.danger{background:#fff0f0;border-color:#efc7c7;color:#8b2525!important}
+.button.danger:hover{background:#ffe5e5;color:#781d1d!important}
+.button.danger.primary,.button.danger.primary:visited,.button.danger.primary:hover{background:#8b2525;color:#fff!important}
+.button:focus-visible,button:focus-visible,input[type="submit"]:focus-visible,input[type="button"]:focus-visible,input[type="reset"]:focus-visible,.icon-btn:focus-visible{outline:3px solid #2877aa;outline-offset:2px}
+.button:disabled,button:disabled,input[type="submit"]:disabled,input[type="button"]:disabled,input[type="reset"]:disabled{background:#e8edf1;color:#52616d;border-color:#c8d1d8;cursor:not-allowed;transform:none;box-shadow:none}
+.page-heading.split .heading-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;min-width:0}
+.heading-actions form.filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0;padding:0;border:0;background:none}
+.heading-actions .field{width:auto;min-width:120px}
+.heading-actions .rp-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:7px}
+@media(max-width:850px){.page-heading.split .heading-actions{justify-content:flex-start}.heading-actions .rp-actions{justify-content:flex-start}}
