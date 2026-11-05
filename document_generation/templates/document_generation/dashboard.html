@@ -6,13 +6,23 @@
 <div class="cards">
   <div class="card"><strong>{{ category_count }}</strong><span>Active categories</span></div>
   <div class="card"><strong>{{ type_count }}</strong><span>Active document types</span></div>
+  <div class="card"><strong>{{ template_count }}</strong><span>Templates</span></div>
+  <div class="card"><strong>{{ approved_template_count }}</strong><span>Approved template versions</span></div>
+  <div class="card"><strong>{{ pending_template_count }}</strong><span>Templates pending review</span></div>
+  <div class="card"><strong>{{ inactive_template_count }}</strong><span>Inactive templates</span></div>
+  <div class="card"><strong>{{ template_version_count }}</strong><span>Template versions</span></div>
+  <div class="card"><strong>{{ clause_count }}</strong><span>Reusable clauses</span></div>
+  <div class="card"><strong>{{ pending_clause_count }}</strong><span>Clauses pending review</span></div>
   <div class="card"><strong>{{ document_count }}</strong><span>Document records</span></div>
   <div class="card"><strong>{{ draft_count }}</strong><span>Draft documents</span></div>
   <div class="card"><strong>{{ pending_count }}</strong><span>Pending approval</span></div>
 </div>
 <p><a href="{% url 'document_generation:generate' %}">Generate document</a> |
    <a href="{% url 'document_generation:catalogue' %}">Browse document catalogue</a> |
-   <a href="{% url 'document_generation:settings' %}">Company document profile</a></p>
+   <a href="{% url 'document_generation:settings' %}">Company document profile</a> |
+   <a href="/admin/document_generation/documenttemplate/">Manage templates</a> |
+   <a href="/admin/document_generation/documenttemplateversion/">Review template versions</a> |
+   <a href="/admin/document_generation/documentclause/">Manage clause library</a></p>
 <h2>Categories</h2>
 <div class="table-wrap"><table class="table">
   <thead><tr><th>Category</th><th>Configured types</th></tr></thead>

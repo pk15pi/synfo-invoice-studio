@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 
 from . import billing, descriptions, gst
-from .models import BusinessProfile, Invoice, InvoiceFormatTemplate, InvoiceLine, ProjectTemplate
+from .models import BusinessProfile, Client, Invoice, InvoiceFormatTemplate, InvoiceLine, ProjectTemplate
 
 
 @dataclass
@@ -278,6 +278,8 @@ def save_invoice(data: InvoiceInput, invoice: Invoice | None = None) -> Invoice:
         apply_tax_input(invoice, data)
         invoice.save()
         _write_lines(invoice, data.lines)
+        if data.pdf_number_override:
+            Client.objects.filter(pk=data.client.pk).update(last_pdf_ref_no=data.pdf_number_override)
     return invoice
 
 

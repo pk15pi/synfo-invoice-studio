@@ -87,7 +87,10 @@ def _render_placeholders(template_text, context, allowed, required_fields):
     )
 
 
-def resolve_template(template_version, values, document_number, document_date, effective_date, signatory, profile):
+def resolve_template(
+    template_version, values, document_number, document_date, effective_date, signatory, profile,
+    allow_review_clauses=False,
+):
     company = company_snapshot(profile)
     context = {
         **values,
@@ -114,7 +117,9 @@ def resolve_template(template_version, values, document_number, document_date, e
         'display_order', 'pk',
     ):
         clause = assignment.clause
-        if clause.approval_status != clause.APPROVED or not clause.is_active:
+        if not clause.is_active:
+            raise ValidationError(f'Clause "{clause.name}" is inactive.')
+        if clause.approval_status != clause.APPROVED and not allow_review_clauses:
             raise ValidationError(f'Clause "{clause.name}" is not approved and active.')
         if (clause.applicable_document_types.exists()
                 and not clause.applicable_document_types.filter(

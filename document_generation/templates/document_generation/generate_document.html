@@ -3,10 +3,17 @@
 {% block content %}
 <h1>Generate Document</h1>
 <p class="muted">Choose an approved template. Generated documents remain drafts until reviewed and issued through the appropriate process.</p>
+{% if missing_company_details %}
+  <div class="message warning">
+    Company profile details are incomplete: {{ missing_company_details|join:", " }}.
+    Configure verified information in <a href="{% url 'document_generation:settings' %}">Document Settings</a>
+    before issuing documents. Missing legal details are not invented.
+  </div>
+{% endif %}
 
 <section class="card">
   <h2>Step 1: Select document</h2>
-  <form method="get" class="filter-form">
+  <form id="document-selection-form" method="get" class="filter-form">
     <label for="id_category">Category</label>
     <select id="id_category" name="category" required>
       <option value="">Select a category</option>
@@ -15,13 +22,15 @@
       {% endfor %}
     </select>
     <label for="id_type">Document type</label>
-    <select id="id_type" name="type" required>
-      <option value="">Select a document type</option>
+    <select id="id_type" name="type" required {% if not selected_category %}disabled{% endif %}>
+      <option value="">{% if selected_category %}Select a document type{% else %}Choose a category first{% endif %}</option>
       {% for item in document_types %}
-        <option value="{{ item.pk }}" {% if selected_type.pk == item.pk %}selected{% endif %}>{{ item.name }}</option>
+        <option value="{{ item.pk }}" {% if selected_type.pk == item.pk %}selected{% endif %}>
+          {{ item.name }}{% if not item.has_approved_template %} (template approval required){% endif %}
+        </option>
       {% endfor %}
     </select>
-    {% if selected_type %}
+    {% if selected_type and has_approved_template %}
       <label for="id_template_version">Approved template</label>
       <select id="id_template_version" name="template_version" required>
         <option value="">Select a template</option>
@@ -33,11 +42,18 @@
       </select>
     {% endif %}
     {% if form.revision_of.value %}<input type="hidden" name="revise" value="{{ form.revision_of.value }}">{% endif %}
-    <button class="btn" type="submit">Load fields</button>
+    <button class="button primary" type="submit">Load fields</button>
   </form>
 </section>
 
-{% if selected_type %}
+{% if selected_type and not has_approved_template %}
+  <div class="message warning">
+    {{ selected_type.name }} is in the catalogue, but it has no active, approved template yet.
+    Review and approve a template in
+    <a href="/admin/document_generation/documenttemplate/">Django Admin</a>
+    before generating this document.
+  </div>
+{% elif selected_type and has_approved_template %}
   <section class="card">
     <h2>Step 2: Select related record (optional)</h2>
     <p class="muted">Selecting a record fills configured fields where a safe source mapping exists. You can edit populated values below without changing the source record.</p>
@@ -52,7 +68,7 @@
           <option value="{{ value }}" {% if form.fields.related_record.initial == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <button class="btn" type="submit">Load record details</button>
+      <button class="button primary" type="submit">Load record details</button>
       {% if form.fields.related_asset.choices|length > 1 %}
         <label for="id_asset">Related asset</label>
         <select id="id_asset" name="asset">
@@ -86,17 +102,22 @@
         </div>
       {% endif %}
     {% endfor %}
-    <button class="btn" type="submit">Preview document</button>
+    <button class="button primary" type="submit">Preview document</button>
   </form>
 {% elif request.GET.type %}
-  <div class="message warning">This document type has no active, approved template yet. Configure and approve a template in Django Admin before generating it.</div>
+  <div class="message warning">That document type is inactive or does not exist. Choose an active type from the catalogue.</div>
 {% endif %}
 
 <script>
 (() => {
   const category = document.getElementById('id_category');
   const type = document.getElementById('id_type');
-  category?.addEventListener('change', () => { type.value = ''; });
+  const selectionForm = document.getElementById('document-selection-form');
+  category?.addEventListener('change', () => {
+    if (type) type.value = '';
+    selectionForm?.submit();
+  });
+  type?.addEventListener('change', () => selectionForm?.requestSubmit());
   const fields = [...document.querySelectorAll('[data-condition]')];
   const valueOf = name => {
     const control = document.querySelector(`[name="${CSS.escape(name)}"]`);

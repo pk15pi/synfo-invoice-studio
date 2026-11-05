@@ -1,5 +1,8 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import format_html
 
 from .models import (
     CompanyDocumentProfile,
@@ -81,17 +84,43 @@ class DocumentTemplateAdmin(admin.ModelAdmin):
     inlines = (DocumentTemplateVersionInline,)
 
 
-@admin.register(DocumentTemplateVersion)
-class DocumentTemplateVersionAdmin(admin.ModelAdmin):
-    list_display = ('template', 'version_number', 'status', 'approved_at', 'created_at')
-    list_filter = ('status', 'template__document_type')
-    search_fields = ('template__name', 'template__document_type__name')
-    readonly_fields = ('created_at',)
+class DocumentTemplateClauseInline(admin.TabularInline):
+    model = DocumentTemplateClause
+    extra = 0
+    fields = ('clause', 'display_order', 'is_mandatory', 'text_override')
 
     def get_readonly_fields(self, request, obj=None):
         if obj and (obj.status == DocumentTemplateVersion.APPROVED or obj.approved_at):
-            return tuple(field.name for field in obj._meta.fields)
+            return self.fields
+        return ()
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and (obj.status == DocumentTemplateVersion.APPROVED or obj.approved_at):
+            return False
+        return super().has_delete_permission(request, obj)
+
+
+@admin.register(DocumentTemplateVersion)
+class DocumentTemplateVersionAdmin(admin.ModelAdmin):
+    list_display = ('template', 'version_number', 'status', 'output_formats', 'approved_at', 'created_at')
+    list_filter = ('status', 'template__document_type')
+    search_fields = ('template__name', 'template__document_type__name')
+    readonly_fields = ('created_at', 'template_preview_link')
+    inlines = (DocumentTemplateClauseInline,)
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj and (obj.status == DocumentTemplateVersion.APPROVED or obj.approved_at):
+            return (*tuple(field.name for field in obj._meta.fields), 'template_preview_link')
         return (*self.readonly_fields, 'approved_by', 'approved_at')
+
+    @admin.display(description='Administrative preview')
+    def template_preview_link(self, obj):
+        if not obj:
+            return 'Save this version to preview it.'
+        return format_html(
+            '<a href="{}">Preview template with sample values</a>',
+            reverse('document_generation:template_preview', args=(obj.pk,)),
+        )
 
     def get_form(self, request, obj=None, **kwargs):
         parent_form = super().get_form(request, obj, **kwargs)
@@ -100,6 +129,16 @@ class DocumentTemplateVersionAdmin(admin.ModelAdmin):
             def clean(self):
                 cleaned = super().clean()
                 if cleaned.get('status') == DocumentTemplateVersion.APPROVED:
+                    version_id = self.instance.pk
+                    if version_id and DocumentTemplateClause.objects.filter(
+                        template_version_id=version_id,
+                    ).exclude(
+                        clause__approval_status=DocumentClause.APPROVED,
+                        clause__is_active=True,
+                    ).exists():
+                        raise ValidationError(
+                            'Approve and activate every mapped clause before approving this template version.'
+                        )
                     self.instance.approved_by = request.user
                     self.instance.approved_at = self.instance.approved_at or timezone.now()
                 return cleaned
@@ -123,9 +162,11 @@ class DocumentTemplateVersionAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentClause)
 class DocumentClauseAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'category', 'version', 'approval_status', 'is_active')
+    list_display = (
+        'name', 'code', 'category', 'version', 'approval_status', 'review_date', 'is_active',
+    )
     list_filter = ('category', 'approval_status', 'is_active', 'applicable_document_types')
-    search_fields = ('name', 'code', 'clause_text')
+    search_fields = ('name', 'code', 'clause_text', 'admin_notes')
     filter_horizontal = ('applicable_document_types',)
     readonly_fields = ('created_at', 'updated_at', 'approved_by', 'approved_at')
 
@@ -159,7 +200,7 @@ class DocumentClauseAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentTemplateClause)
 class DocumentTemplateClauseAdmin(admin.ModelAdmin):
-    list_display = ('template_version', 'clause', 'display_order')
+    list_display = ('template_version', 'clause', 'display_order', 'is_mandatory')
     list_filter = ('clause__category',)
     search_fields = ('template_version__template__name', 'clause__name', 'clause__code')
 

@@ -3,6 +3,7 @@ import json
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import ProtectedError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -156,24 +157,11 @@ def _dup_names(clients_qs):
     return {k for k, v in n.items() if v > 1}
 
 
-def _last_invoices(exclude_pk=None):
-    """client_id -> (invoice_number, pdf_number_override) of the most recently created invoice."""
-    qs = Invoice.objects.order_by('client_id', '-created_at', '-id')
-    if exclude_pk:
-        qs = qs.exclude(pk=exclude_pk)
-    out = {}
-    for cid, num, pdf in qs.values_list('client_id', 'invoice_number', 'pdf_number_override'):
-        out.setdefault(cid, (num, pdf))
-    return out
-
-
-def _projects_json(clients_qs, keep_project_ids=(), exclude_invoice=None):
+def _projects_json(clients_qs, keep_project_ids=()):
     """Only active projects are offered; inactive ones already on the invoice being edited are kept."""
     data = {}
-    last = _last_invoices(exclude_invoice)
     for c in clients_qs:
-        num, pdf = last.get(c.pk, ('', ''))
-        data[c.pk] = {'last': num, 'last_pdf': pdf,
+        data[c.pk] = {'last_pdf_ref_no': c.last_pdf_ref_no,
             'terms_mode': c.terms_mode, 'terms_text': c.terms_text, 'billing': c.billing_type, 'billing_label': c.get_billing_type_display(),
             'treatment': c.tax_treatment, 'state_code': c.state_code, 'gstin': c.gstin, 'lut': c.lut_number, 'projects': [{
                 'id': p.pk, 'name': p.name, 'description': p.description, 'desc_type': p.invoice_description_type, 'type': p.pricing_type,
@@ -286,7 +274,7 @@ def invoice_edit(request, pk=None):
     return render(request, 'invoice_app/invoice_form.html', {
         'invoice': invoice, 'profile': profile, 'clients': all_clients,
         'next_number': invoice.invoice_number if invoice else profile.next_number(),
-        'projects_json': json.dumps(_projects_json(all_clients, keep_ids, invoice.pk if invoice else None)), 'init_json': js_init,
+        'projects_json': json.dumps(_projects_json(all_clients, keep_ids)), 'init_json': js_init,
         'rounding': profile.amount_rounding, 'initial': initial,
         'year_options': _year_options(initial.get('billing_year')),
         'mon_options': [(f'{i:02d}', n) for i, n in enumerate(MONTH_NAMES, 1)],
@@ -318,7 +306,12 @@ def invoice_detail(request, pk):
     invoice = get_object_or_404(Invoice.objects.select_related('client'), pk=pk)
     form = PdfOverrideForm(request.POST or None, instance=invoice)
     if request.method == 'POST' and form.is_valid():
-        form.save()
+        with transaction.atomic():
+            saved_invoice = form.save()
+            if saved_invoice.pdf_number_override:
+                Client.objects.filter(pk=saved_invoice.client_id).update(
+                    last_pdf_ref_no=saved_invoice.pdf_number_override,
+                )
         messages.success(request, 'PDF number override saved (the saved invoice number and sequence are unchanged).')
         return redirect('invoice_detail', pk=pk)
     return render(request, 'invoice_app/invoice_detail.html', {

@@ -17,21 +17,15 @@
     <div class="document-preview-content">{{ preview_html }}</div>
     <h3>Signatures</h3>
     <div class="signature-preview">
-      <div><strong>For {{ payload.company_snapshot.display_name }}</strong>
-        <p>Signature: ____________________</p>
-        <p>Name: {{ payload.signatory_snapshot.name }}</p>
-        <p>Designation: {{ payload.signatory_snapshot.designation }}</p>
-        <p>Date: ____________________</p>
-      </div>
-      {% if payload.signature_configuration.include_counterparty != False %}
-        <div><strong>For {{ payload.party.records.0.record_name|default:"Second Party" }}</strong>
-          <p>Signature: ____________________</p><p>Name: ____________________</p><p>Date: ____________________</p>
+      {% for party in payload.signature_parties %}
+        <div><strong>{{ party.label }}</strong>
+          <p>Signature: ____________________</p>
+          {% if party.name %}<p>Name: {{ party.name }}</p>{% else %}<p>Name: ____________________</p>{% endif %}
+          {% if party.designation %}<p>Designation: {{ party.designation }}</p>{% endif %}
+          <p>Date: ____________________</p>
         </div>
-      {% endif %}
+      {% endfor %}
     </div>
-    {% if payload.signature_configuration.include_witness %}
-      <p>Witness: ____________________________________ Date: ____________________</p>
-    {% endif %}
     <footer>{{ payload.footer_text|default:payload.company_snapshot.document_footer|default:"Confidential" }} · {{ payload.document_number }}</footer>
   </section>
   <form method="post" class="card">
@@ -40,9 +34,9 @@
     <input type="hidden" name="preview_token" value="{{ preview_token }}">
     <h2>Generate and save</h2>
     <p>Generated files are stored in the existing private Document Management repository. They are editable/unsigned drafts, not legally executed documents.</p>
-    <button class="btn" type="submit" name="output_format" value="docx">Generate Word</button>
-    <button class="btn" type="submit" name="output_format" value="pdf">Generate PDF</button>
-    <button class="btn" type="submit" name="output_format" value="both">Generate Both</button>
+    {% if 'docx' in formats %}<button class="button primary" type="submit" name="output_format" value="docx">Generate Word</button>{% endif %}
+    {% if 'pdf' in formats %}<button class="button primary" type="submit" name="output_format" value="pdf">Generate PDF</button>{% endif %}
+    {% if 'both' in formats %}<button class="button secondary" type="submit" name="output_format" value="both">Generate Both</button>{% endif %}
   </form>
   <p><a href="{% url 'document_generation:generate' %}?edit={{ preview_token|urlencode }}">Back to edit fields</a></p>
 {% else %}

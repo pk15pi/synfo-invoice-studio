@@ -39,6 +39,10 @@ def validate_company_logo(upload):
     sniff_upload(upload, 5 * 1024 * 1024, allowed=('png', 'jpg'))
 
 
+def default_template_output_formats():
+    return ['docx', 'pdf']
+
+
 class CompanyDocumentProfile(models.Model):
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     legal_entity_name = models.CharField(max_length=180, default='Quantbud LLP')
@@ -251,6 +255,7 @@ class DocumentTemplateVersion(models.Model):
     header_text = models.TextField(blank=True)
     body_template = models.TextField(blank=True)
     footer_text = models.TextField(blank=True)
+    output_formats = models.JSONField(default=default_template_output_formats, blank=True)
     signature_configuration = models.JSONField(default=dict, blank=True)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
@@ -275,8 +280,21 @@ class DocumentTemplateVersion(models.Model):
         ]
 
     def clean(self):
+        if (not isinstance(self.output_formats, list)
+                or not self.output_formats
+                or any(item not in {'docx', 'pdf'} for item in self.output_formats)):
+            raise ValidationError({'output_formats': 'Choose Word, PDF, or both output formats.'})
         if not isinstance(self.signature_configuration, dict):
             raise ValidationError({'signature_configuration': 'Signature configuration must be a JSON object.'})
+        parties = self.signature_configuration.get('parties')
+        if parties is not None and (
+            not isinstance(parties, list)
+            or any(role not in {'issuer', 'counterparty', 'witness'} for role in parties)
+            or not parties
+        ):
+            raise ValidationError({
+                'signature_configuration': 'Signature parties must be issuer, counterparty, or witness.',
+            })
         if self.status == self.APPROVED and (not self.approved_by_id or not self.approved_at):
             raise ValidationError('An approved template version requires an approver and approval time.')
 
@@ -286,7 +304,8 @@ class DocumentTemplateVersion(models.Model):
             if previous and (previous.status == self.APPROVED or previous.approved_at):
                 immutable_fields = (
                     'template_id', 'version_number', 'header_text', 'body_template',
-                    'footer_text', 'signature_configuration', 'approved_by_id', 'approved_at',
+                    'footer_text', 'output_formats', 'signature_configuration',
+                    'approved_by_id', 'approved_at',
                 )
                 if any(getattr(previous, field) != getattr(self, field) for field in immutable_fields):
                     raise ValidationError('Approved template versions are immutable; create a new version.')
@@ -310,6 +329,8 @@ class DocumentClause(models.Model):
     category = models.CharField(max_length=60, blank=True, db_index=True)
     clause_text = models.TextField()
     version = models.PositiveIntegerField(default=1)
+    review_date = models.DateField(null=True, blank=True)
+    admin_notes = models.TextField(blank=True)
     applicable_document_types = models.ManyToManyField(DocumentType, blank=True, related_name='clauses')
     approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUSES, default=DRAFT, db_index=True)
     effective_date = models.DateField(null=True, blank=True)
@@ -339,7 +360,7 @@ class DocumentClause(models.Model):
             if previous and (previous.approval_status == self.APPROVED or previous.approved_at):
                 immutable_fields = (
                     'code', 'name', 'category', 'clause_text', 'version', 'effective_date',
-                    'approved_by_id', 'approved_at',
+                    'review_date', 'admin_notes', 'approved_by_id', 'approved_at',
                 )
                 if any(getattr(previous, field) != getattr(self, field) for field in immutable_fields):
                     raise ValidationError('Approved clauses are immutable; create a new version.')
@@ -684,6 +705,7 @@ class DocumentTemplateClause(models.Model):
         DocumentClause, on_delete=models.PROTECT, related_name='template_assignments',
     )
     display_order = models.PositiveSmallIntegerField(default=0)
+    is_mandatory = models.BooleanField(default=False)
     text_override = models.TextField(blank=True)
 
     class Meta:

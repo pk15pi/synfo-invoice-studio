@@ -25,10 +25,49 @@ from .models import (
 )
 from .renderers import render_pdf, render_word
 from .services import allocate_document_number
-from .template_engine import resolve_template
+from .template_engine import company_snapshot, resolve_template
 
 PREVIEW_SALT = 'document_generation.preview'
 PREVIEW_MAX_AGE = 60 * 60
+
+
+def available_output_formats(template_version):
+    formats = template_version.output_formats
+    if not formats:
+        formats = template_version.template.document_type.default_output_formats or ['docx', 'pdf']
+    if not isinstance(formats, list):
+        raise ValidationError('The selected template has invalid output format configuration.')
+    available = [format_name for format_name in ('docx', 'pdf') if format_name in formats]
+    if not available:
+        raise ValidationError('The selected template has no available output format.')
+    return tuple(available + (['both'] if len(available) == 2 else []))
+
+
+def _signature_parties(configuration, company, counterparty, signatory):
+    roles = configuration.get('parties')
+    if roles is None:
+        roles = ['issuer']
+        if configuration.get('include_counterparty', True):
+            roles.append('counterparty')
+        if configuration.get('include_witness'):
+            roles.append('witness')
+    parties = []
+    for role in roles:
+        if role == 'issuer':
+            parties.append({
+                'label': f"For {company.get('display_name') or company.get('legal_name', '')}",
+                'name': signatory.get('name', ''),
+                'designation': signatory.get('designation', ''),
+            })
+        elif role == 'counterparty':
+            parties.append({
+                'label': f'For {counterparty or "Second Party"}',
+                'name': '',
+                'designation': '',
+            })
+        else:
+            parties.append({'label': 'Witness', 'name': '', 'designation': ''})
+    return parties
 
 
 def _json_value(value):
@@ -125,6 +164,24 @@ def prepare_preview(form):
         'snapshot': party_snapshot,
         'role': _party_role(data['category'].code, primary_module),
     }
+    party_name = _party_name(
+        data['category'].code,
+        party.get('module'),
+        values,
+        next(
+            (record.get('record_name', '') for record in party_records
+             if record.get('module') == party.get('module')),
+            '',
+        ),
+    )
+    signature_configuration = template_version.signature_configuration or {}
+    signatory_snapshot = {
+        'name': signatory.name if signatory else '',
+        'designation': signatory.designation if signatory else '',
+    }
+    signatures = _signature_parties(
+        signature_configuration, company_snapshot(profile), party_name, signatory_snapshot,
+    )
 
     # Validate template placeholders before consuming a sequence number.
     resolve_template(
@@ -147,6 +204,8 @@ def prepare_preview(form):
         'document_date': data['document_date'].isoformat(),
         'effective_date': data.get('effective_date').isoformat() if data.get('effective_date') else '',
         'signatory_id': signatory.pk if signatory else None,
+        'output_formats': list(available_output_formats(template_version)),
+        'signature_parties': signatures,
         'field_values': values,
         'party': party,
         'rendered_content': resolved['content'],
@@ -157,6 +216,7 @@ def prepare_preview(form):
         'context_snapshot': resolved['context'],
         'company_snapshot': resolved['company'],
         'signatory_snapshot': resolved['signatory'],
+        'signature_parties': signatures,
     }
 
 
@@ -199,6 +259,7 @@ def _render_spec(payload):
         'header_text': payload.get('header_text', ''),
         'footer_text': payload.get('footer_text', ''),
         'signature_configuration': payload.get('signature_configuration', {}),
+        'signature_parties': payload.get('signature_parties', []),
         'company': company,
         'logo': logo,
         'document_number': payload['document_number'],
@@ -257,6 +318,8 @@ def generate_document(payload, output_format, user=None):
         raise ValidationError('The selected document type or approved template is no longer available.') from error
     if template_version.template.active_version_id != template_version.pk:
         raise ValidationError('Only the active approved template version can be generated.')
+    if output_format not in available_output_formats(template_version):
+        raise ValidationError('The selected output format is not enabled for this template.')
 
     previous = None
     if payload.get('previous_document_id'):

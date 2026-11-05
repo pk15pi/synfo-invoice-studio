@@ -181,6 +181,7 @@ class Client(models.Model):
                                   help_text='Only for type 2. Blank = business profile default days.')
     default_terms_days = models.PositiveIntegerField('Legacy terms days (unused; see Terms type/text)',
                                                      null=True, blank=True)
+    last_pdf_ref_no = models.CharField('Last PDF ref no', max_length=40, blank=True)
     notes = models.TextField(blank=True)
     active = models.BooleanField('Active', default=True,
                                  help_text='Inactive customers are hidden from the Bill To list on new invoices.')

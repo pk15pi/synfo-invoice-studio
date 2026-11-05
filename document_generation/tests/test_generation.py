@@ -19,12 +19,15 @@ from document_generation.generation_forms import UniversalDocumentForm
 from document_generation.models import (
     CompanyDocumentProfile,
     CompanyDocumentSignatory,
+    DocumentClause,
     DocumentFieldDefinition,
     DocumentTemplate,
+    DocumentTemplateClause,
     DocumentTemplateVersion,
     DocumentType,
     GeneratedDocument,
 )
+from document_generation.standard_library import FIELD_SETS, TEMPLATES
 
 
 GENERATION_TYPES = (
@@ -36,6 +39,24 @@ GENERATION_TYPES = (
     'experience-certificate',
     'relieving-letter',
     'asset-handover-receipt',
+)
+
+STANDARD_OUTPUT_TYPES = (
+    'non-disclosure-agreement-nda',
+    'mutual-nda',
+    'master-client-agreement-mca',
+    'statement-of-work-sow',
+    'freelancer-agreement',
+    'freelancer-nda',
+    'offer-letter',
+    'appointment-letter',
+    'joining-letter',
+    'experience-certificate',
+    'relieving-letter',
+    'salary-certificate',
+    'asset-handover-receipt',
+    'asset-return-receipt',
+    'no-dues-certificate',
 )
 
 
@@ -108,7 +129,12 @@ class UniversalDocumentGenerationTests(TestCase):
         return f'Test {definition.label}'
 
     def _form_data(self, document_type, version, category=None, revision_of=None):
-        category = category or document_type.categories.filter(is_active=True).first()
+        categories = document_type.categories.filter(is_active=True)
+        category = category or (
+            categories.filter(code='employee').first()
+            or categories.filter(code='client').first()
+            or categories.first()
+        )
         data = {
             'category': str(category.pk),
             'document_type': str(document_type.pk),
@@ -122,14 +148,12 @@ class UniversalDocumentGenerationTests(TestCase):
         }
         for definition in document_type.field_definitions.filter(is_active=True):
             data[definition.field_key] = self._raw_value(definition)
-        if document_type.code in {
-            'joining-letter', 'experience-certificate', 'relieving-letter',
-            'asset-handover-receipt',
-        }:
+        category_codes = set(categories.values_list('code', flat=True))
+        if 'employee' in category_codes:
             data['related_record'] = f'employee:{self.employee.pk}'
-        elif document_type.code in {'non-disclosure-agreement-nda', 'master-client-agreement-mca'}:
+        elif 'client' in category_codes:
             data['related_record'] = f'client:{self.client_record.pk}'
-        if document_type.code == 'asset-handover-receipt':
+        if document_type.field_definitions.filter(source_module='asset', is_auto_populated=True).exists():
             data['related_asset'] = str(self.asset.pk)
         return data
 
@@ -146,6 +170,71 @@ class UniversalDocumentGenerationTests(TestCase):
             with self.subTest(code=code):
                 document_type = DocumentType.objects.get(code=code)
                 self.assertGreater(document_type.field_definitions.count(), 0)
+
+    def test_phase3_library_is_seeded_for_review_not_auto_approved(self):
+        self.assertEqual(len(FIELD_SETS), 30)
+        self.assertEqual(set(FIELD_SETS), set(TEMPLATES))
+        for code in TEMPLATES:
+            with self.subTest(code=code):
+                document_type = DocumentType.objects.get(code=code)
+                template = document_type.templates.get(name=TEMPLATES[code]['name'])
+                version = template.versions.get(version_number=1)
+                self.assertEqual(version.status, DocumentTemplateVersion.REVIEW)
+                self.assertIsNone(template.active_version)
+                self.assertGreater(document_type.field_definitions.filter(is_active=True).count(), 0)
+
+        self.assertEqual(DocumentClause.objects.count(), 24)
+        self.assertFalse(DocumentClause.objects.exclude(
+            approval_status=DocumentClause.REVIEW,
+        ).exists())
+        self.assertGreater(DocumentTemplateClause.objects.count(), 0)
+
+    def test_fifteen_standard_document_templates_generate_inspectable_outputs(self):
+        reviewed_at = timezone.now()
+        for clause in DocumentClause.objects.filter(approval_status=DocumentClause.REVIEW):
+            clause.approval_status = DocumentClause.APPROVED
+            clause.approved_by = self.user
+            clause.approved_at = reviewed_at
+            clause.save()
+
+        for code in STANDARD_OUTPUT_TYPES:
+            with self.subTest(code=code):
+                document_type = DocumentType.objects.get(code=code)
+                template = document_type.templates.get(name=TEMPLATES[code]['name'])
+                version = template.versions.get(version_number=1)
+                version.status = DocumentTemplateVersion.APPROVED
+                version.approved_by = self.user
+                version.approved_at = reviewed_at
+                version.save()
+                template.active_version = version
+                template.save(update_fields=('active_version', 'updated_at'))
+
+                form = self._valid_form(document_type, version)
+                payload = prepare_preview(form)
+                generated = generate_document(payload, 'both', self.user)
+                self.assertEqual(generated.template_version, version)
+                self.assertEqual(generated.status, 'draft')
+                self.assertTrue(generated.rendered_content.startswith(f'# {TEMPLATES[code]["name"]}'))
+                self.assertNotIn('{{', generated.rendered_content)
+
+                with private_storage.open(generated.word_file_document.file_path, 'rb') as stream:
+                    word = WordDocumentReader(BytesIO(stream.read()))
+                word_text = '\n'.join(
+                    [paragraph.text for paragraph in word.paragraphs]
+                    + [cell.text for table in word.tables for row in table.rows for cell in row.cells]
+                )
+                self.assertIn('Quantbud LLP, operating under the brand name Synfowebs Technology',
+                              word_text)
+                self.assertIn('Signature:', word_text)
+                self.assertNotIn('{{', word_text)
+
+                with private_storage.open(generated.pdf_file_document.file_path, 'rb') as stream:
+                    pdf = stream.read()
+                self.assertTrue(pdf.startswith(b'%PDF-'))
+                self.assertIn(b'/Type /Pages', pdf)
+                self.assertIn(b'/Type /Page', pdf)
+                self.assertEqual(generated.word_file_document.content_type.model, 'generateddocument')
+                self.assertEqual(generated.pdf_file_document.content_type.model, 'generateddocument')
 
     def test_related_employee_client_and_asset_fields_are_populated(self):
         employee_type = DocumentType.objects.get(code='experience-certificate')

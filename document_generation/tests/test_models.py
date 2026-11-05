@@ -66,7 +66,7 @@ class DocumentGenerationModelTests(TestCase):
             label='Candidate name', is_required=True,
         )
         clause = DocumentClause.objects.create(
-            code='confidentiality', name='Confidentiality', clause_text='Draft clause text', version=1,
+            code='test-confidentiality', name='Confidentiality', clause_text='Draft clause text', version=1,
         )
         assignment = DocumentTemplateClause.objects.create(template_version=version, clause=clause)
         self.assertEqual(template.versions.get(), version)

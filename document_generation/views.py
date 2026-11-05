@@ -1,13 +1,15 @@
 import hashlib
 
 from django.contrib import messages
+from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import IntegrityError
-from django.db.models import Count, F, Q
+from django.db.models import Count, Exists, F, OuterRef, Q
 from django.http import FileResponse, Http404
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 
 from document_management.models import full_path
 from document_management.services import private_storage
@@ -15,30 +17,50 @@ from employee_management.security import local_only
 
 from .forms import CompanyDocumentProfileForm
 from .generation import (
+    available_output_formats,
     generate_document as generate_document_file,
     load_preview,
     prepare_preview,
     sign_preview,
 )
 from .generation_forms import UniversalDocumentForm
+from .field_resolver import resolve_source_value
 from .models import (
     CompanyDocumentProfile,
+    CompanyDocumentSignatory,
+    DocumentClause,
     DocumentCategory,
+    DocumentTemplate,
     DocumentTemplateVersion,
     DocumentType,
     GeneratedDocument,
 )
-from .template_engine import html_document_content
+from .template_engine import html_document_content, resolve_template
 
 
 @local_only
 def dashboard(request):
+    template_versions = DocumentTemplateVersion.objects.all()
     return render(request, 'document_generation/dashboard.html', {
         'category_count': DocumentCategory.objects.filter(is_active=True).count(),
         'type_count': DocumentType.objects.filter(is_active=True).count(),
         'document_count': GeneratedDocument.objects.count(),
         'draft_count': GeneratedDocument.objects.filter(status='draft').count(),
         'pending_count': GeneratedDocument.objects.filter(status='pending_approval').count(),
+        'template_count': DocumentTemplate.objects.count(),
+        'approved_template_count': template_versions.filter(
+            status=DocumentTemplateVersion.APPROVED,
+            template__is_active=True,
+        ).count(),
+        'pending_template_count': template_versions.filter(
+            status=DocumentTemplateVersion.REVIEW,
+        ).count(),
+        'inactive_template_count': DocumentTemplate.objects.filter(is_active=False).count(),
+        'template_version_count': template_versions.count(),
+        'clause_count': DocumentClause.objects.count(),
+        'pending_clause_count': DocumentClause.objects.filter(
+            approval_status=DocumentClause.REVIEW,
+        ).count(),
         'recent_documents': GeneratedDocument.objects.select_related('document_type')[:8],
         'categories': DocumentCategory.objects.filter(is_active=True).annotate(
             type_count=Count('document_types', filter=Q(document_types__is_active=True), distinct=True),
@@ -98,13 +120,25 @@ def _approved_type(pk):
         return None
 
 
+def _active_type(pk):
+    if not pk:
+        return None
+    try:
+        return DocumentType.objects.filter(pk=pk, is_active=True).distinct().first()
+    except (TypeError, ValueError):
+        return None
+
+
 def _generation_context(form, document_type=None, **extra):
     categories = DocumentCategory.objects.filter(is_active=True)
-    document_types = DocumentType.objects.filter(
+    approved_templates = DocumentTemplate.objects.filter(
+        document_type_id=OuterRef('pk'),
         is_active=True,
-        templates__is_active=True,
-        templates__active_version__status=DocumentTemplateVersion.APPROVED,
-    ).distinct()
+        active_version__status=DocumentTemplateVersion.APPROVED,
+    )
+    document_types = DocumentType.objects.filter(is_active=True).annotate(
+        has_approved_template=Exists(approved_templates),
+    )
     category_id = form.data.get('category') or form.initial.get('category')
     if category_id:
         document_types = document_types.filter(categories__id=category_id)
@@ -114,8 +148,79 @@ def _generation_context(form, document_type=None, **extra):
         'document_types': document_types.order_by('name'),
         'selected_type': document_type,
         'selected_category': str(category_id or ''),
+        'has_approved_template': bool(
+            document_type and form.fields['template_version'].queryset.exists()
+        ),
+        'missing_company_details': _missing_company_details(),
         **extra,
     }
+
+
+def _missing_company_details():
+    profile = CompanyDocumentProfile.objects.filter(pk=1).first()
+    if profile is None:
+        missing = ['legal entity name', 'brand name', 'registered/business address', 'LLPIN']
+    else:
+        missing = [
+            label for label, value in (
+                ('legal entity name', profile.legal_entity_name),
+                ('brand name', profile.brand_name),
+                ('registered/business address', profile.business_address or profile.registered_office_address),
+                ('LLPIN', profile.llpin),
+                ('official email', profile.official_email),
+                ('contact number', profile.contact_number),
+                ('website', profile.website),
+            ) if not value
+        ]
+    if not CompanyDocumentSignatory.objects.filter(is_active=True, is_authorized=True).exists():
+        missing.append('an active authorised signatory')
+    return missing
+
+
+@local_only
+@staff_member_required
+def template_preview(request, version_id):
+    version = get_object_or_404(
+        DocumentTemplateVersion.objects.select_related('template__document_type'),
+        pk=version_id,
+    )
+    profile = CompanyDocumentProfile.current()
+    values = {}
+    for definition in version.template.document_type.field_definitions.filter(is_active=True):
+        if definition.is_auto_populated and definition.source_module == 'company':
+            value = resolve_source_value('company', definition.source_field, profile)
+        elif definition.default_value:
+            value = definition.default_value
+        elif definition.value_type == 'boolean':
+            value = 'Yes'
+        elif definition.value_type == 'select' and definition.choices:
+            value = definition.choices[0]
+        else:
+            value = f'[{definition.label}]'
+        values[definition.field_key] = value
+    signatory = CompanyDocumentSignatory.objects.filter(
+        is_active=True, is_authorized=True,
+    ).first()
+    resolved = resolve_template(
+        version,
+        values,
+        'TEMPLATE-PREVIEW',
+        timezone.localdate(),
+        None,
+        signatory,
+        profile,
+        allow_review_clauses=True,
+    )
+    return render(request, 'document_generation/template_preview.html', {
+        'version': version,
+        'resolved': resolved,
+        'preview_html': html_document_content(resolved['content']),
+        'admin_url': reverse(
+            'admin:document_generation_documenttemplateversion_change',
+            args=(version.pk,),
+        ),
+        'preview_warnings': _missing_company_details(),
+    })
 
 
 @local_only
@@ -136,7 +241,7 @@ def generate_document(request):
                 'payload': payload,
                 'preview_token': token,
                 'errors': error.messages,
-                'formats': ('docx', 'pdf', 'both'),
+                'formats': tuple(payload.get('output_formats', ('docx', 'pdf', 'both'))),
                 'preview_html': html_document_content(payload.get('rendered_content', '')),
             }, status=400)
         except IntegrityError:
@@ -144,7 +249,7 @@ def generate_document(request):
                 'payload': payload,
                 'preview_token': token,
                 'errors': ['This draft version was already revised or its document number was consumed. Preview again.'],
-                'formats': ('docx', 'pdf', 'both'),
+                'formats': tuple(payload.get('output_formats', ('docx', 'pdf', 'both'))),
                 'preview_html': html_document_content(payload.get('rendered_content', '')),
             }, status=409)
         used_tokens.append(token_hash)
@@ -162,9 +267,10 @@ def generate_document(request):
             ) if generated.pdf_file_document_id else '',
         })
 
-    selected_type = _approved_type(
-        request.POST.get('document_type') if request.method == 'POST'
-        else request.GET.get('type'),
+    selected_type = (
+        _approved_type(request.POST.get('document_type'))
+        if request.method == 'POST'
+        else _active_type(request.GET.get('type'))
     )
     if request.method == 'POST':
         form = UniversalDocumentForm(
@@ -181,7 +287,7 @@ def generate_document(request):
                     'payload': payload,
                     'preview_html': html_document_content(payload['rendered_content']),
                     'preview_token': sign_preview(payload),
-                    'formats': ('docx', 'pdf', 'both'),
+                    'formats': tuple(payload['output_formats']),
                     'default_format': (
                         selected_type.default_output_formats[0]
                         if selected_type.default_output_formats else 'both'
@@ -199,9 +305,12 @@ def generate_document(request):
                 messages.error(request, error.messages[0])
         if selected_type:
             initial['document_type'] = selected_type.pk
-            initial['category'] = selected_type.categories.filter(is_active=True).values_list(
-                'pk', flat=True,
-            ).first()
+            selected_category = request.GET.get('category')
+            category_queryset = selected_type.categories.filter(is_active=True)
+            if selected_category and category_queryset.filter(pk=selected_category).exists():
+                initial['category'] = selected_category
+            else:
+                initial['category'] = category_queryset.values_list('pk', flat=True).first()
             versions = DocumentTemplateVersion.objects.filter(
                 template__document_type=selected_type,
                 template__is_active=True,
@@ -228,6 +337,8 @@ def generate_document(request):
                     ).first(),
                     'template_version': previous.template_version_id,
                 })
+        elif request.GET.get('category'):
+            initial['category'] = request.GET['category']
         related_record = request.GET.get('entity')
         related_asset = request.GET.get('asset')
         if edit_payload:

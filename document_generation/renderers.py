@@ -15,6 +15,7 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
     Paragraph,
+    PageBreak,
     SimpleDocTemplate,
     Spacer,
     Table,
@@ -65,6 +66,27 @@ def _document_lines(text):
         index += 1
 
 
+def _signature_parties(spec):
+    parties = spec.get('signature_parties')
+    if parties:
+        return parties
+    configuration = spec.get('signature_configuration') or {}
+    parties = [{
+        'label': f"For {spec['company'].get('display_name', '')}",
+        'name': spec.get('signatory_name', ''),
+        'designation': spec.get('signatory_designation', ''),
+    }]
+    if configuration.get('include_counterparty', True):
+        parties.append({
+            'label': f"For {spec.get('party_name') or 'Second Party'}",
+            'name': '',
+            'designation': '',
+        })
+    if configuration.get('include_witness'):
+        parties.append({'label': 'Witness', 'name': '', 'designation': ''})
+    return parties
+
+
 def render_word(spec, output):
     doc = WordDocument()
     section = doc.sections[0]
@@ -97,9 +119,12 @@ def render_word(spec, output):
     identity.add_run(spec['company'].get('display_name', '')).bold = True
     if spec['company'].get('address'):
         identity.add_run('\n' + spec['company']['address'])
-    if spec['company'].get('email') or spec['company'].get('phone'):
+    if spec['company'].get('email') or spec['company'].get('phone') or spec['company'].get('website'):
         identity.add_run('\n' + ' | '.join(
-            item for item in (spec['company'].get('email'), spec['company'].get('phone')) if item
+            item for item in (
+                spec['company'].get('email'), spec['company'].get('phone'),
+                spec['company'].get('website'),
+            ) if item
         ))
     identity.add_run(
         f"\n{spec['document_number']}  |  {spec.get('document_date', '')}"
@@ -139,6 +164,8 @@ def render_word(spec, output):
         flush_table()
         if not value.strip():
             doc.add_paragraph()
+        elif value.strip() == '[[pagebreak]]':
+            doc.add_page_break()
         elif value.startswith('# '):
             paragraph = doc.add_heading(value[2:].strip(), level=1)
             paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -151,24 +178,18 @@ def render_word(spec, output):
     flush_table()
 
     doc.add_paragraph()
-    signature_configuration = spec.get('signature_configuration') or {}
-    include_counterparty = signature_configuration.get('include_counterparty', True)
-    include_witness = signature_configuration.get('include_witness', False)
-    sign_table = doc.add_table(rows=1, cols=2 if include_counterparty else 1)
+    parties = _signature_parties(spec)
+    signature_columns = 2 if len(parties) > 1 else 1
+    sign_table = doc.add_table(rows=0, cols=signature_columns)
     sign_table.style = 'Table Grid'
-    company_label = spec['company'].get('legal_name', '')
-    if spec['company'].get('brand_name'):
-        company_label += f", operating under the brand name {spec['company']['brand_name']}"
-    party_label = spec.get('party_name') or 'Second Party'
-    signature_cells = [
-        (f'For {company_label}', spec.get('signatory_name', ''), spec.get('signatory_designation', '')),
-    ]
-    if include_counterparty:
-        signature_cells.append((f'For {party_label}', '', ''))
-    for cell, (heading, name, designation) in zip(sign_table.rows[0].cells, signature_cells):
-        cell.text = f'\n\n\n{heading}\n\nSignature: ____________________\nName: {name}\nDesignation: {designation}\nDate: ____________________'
-    if include_witness:
-        doc.add_paragraph('Witness: ____________________________________    Date: ____________________')
+    for start in range(0, len(parties), signature_columns):
+        cells = sign_table.add_row().cells
+        for cell, party in zip(cells, parties[start:start + signature_columns]):
+            cell.text = (
+                f"\n\n\n{party.get('label', '')}\n\nSignature: ____________________"
+                f"\nName: {party.get('name', '')}\nDesignation: {party.get('designation', '')}"
+                '\nDate: ____________________'
+            )
     doc.save(output)
 
 
@@ -241,6 +262,8 @@ def render_pdf(spec, output):
             continue
         if not value.strip():
             story.append(Spacer(1, 5))
+        elif value.strip() == '[[pagebreak]]':
+            story.append(PageBreak())
         elif value.startswith('# '):
             story.append(Paragraph(xml_escape(value[2:].strip()), styles['DocTitle']))
         elif value.startswith('## '):
@@ -250,32 +273,29 @@ def render_pdf(spec, output):
         else:
             story.append(_pdf_paragraph(value, styles['DocBody']))
 
-    signature_configuration = spec.get('signature_configuration') or {}
-    include_counterparty = signature_configuration.get('include_counterparty', True)
-    include_witness = signature_configuration.get('include_witness', False)
+    parties = _signature_parties(spec)
     story.extend((Spacer(1, 22), Paragraph('SIGNATURES', styles['DocHeading'])))
-    legal_name = spec['company'].get('display_name', '')
-    party_name = spec.get('party_name') or 'Second Party'
-    signature_data = [
-        [_pdf_paragraph(f'For {legal_name}', styles['DocBody'])],
-        [Paragraph(
-            '<br/><br/><br/>Signature: ____________________'
-            f"<br/>Name: {xml_escape(spec.get('signatory_name', ''))}"
-            f"<br/>Designation: {xml_escape(spec.get('signatory_designation', ''))}<br/>Date: __________",
-            styles['DocBody'],
-        )],
-    ]
-    if include_counterparty:
-        signature_data[0].append(_pdf_paragraph(f'For {party_name}', styles['DocBody']))
-        signature_data[1].append(Paragraph(
-            '<br/><br/><br/>Signature: ____________________<br/>Name: <br/>Date: __________',
-            styles['DocBody'],
-        ))
-    signature_table = Table(
-        signature_data,
-        colWidths=(80 * mm, 80 * mm) if include_counterparty else (160 * mm,),
-        hAlign='LEFT',
-    )
+    signature_data = []
+    signature_columns = 2 if len(parties) > 1 else 1
+    for start in range(0, len(parties), signature_columns):
+        cells = []
+        for party in parties[start:start + signature_columns]:
+            content = (
+                f"<br/><br/><br/>Signature: ____________________"
+                f"<br/>Name: {xml_escape(party.get('name', ''))}"
+                f"<br/>Designation: {xml_escape(party.get('designation', ''))}"
+                "<br/>Date: ____________________"
+            )
+            cells.append([
+                _pdf_paragraph(party.get('label', ''), styles['DocBody']),
+                Paragraph(content, styles['DocBody']),
+            ])
+        signature_data.extend([
+            [cell[0] if cell else '' for cell in cells],
+            [cell[1] if cell else '' for cell in cells],
+        ])
+    column_widths = (80 * mm, 80 * mm) if signature_columns == 2 else (160 * mm,)
+    signature_table = Table(signature_data, colWidths=column_widths, hAlign='LEFT')
     signature_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#9aa8b2')),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
@@ -285,10 +305,6 @@ def render_pdf(spec, output):
         ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
     ]))
     story.append(signature_table)
-    if include_witness:
-        story.append(Spacer(1, 10))
-        story.append(_pdf_paragraph('Witness: ____________________________________    Date: ____________________', styles['DocBody']))
-
     logo_reader = ImageReader(BytesIO(spec['logo'])) if spec.get('logo') else None
     footer_text = (
         spec.get('footer_text') or spec['company'].get('document_footer') or 'Confidential'

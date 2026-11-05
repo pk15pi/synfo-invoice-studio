@@ -144,14 +144,36 @@ class NumberingTests(Fixture):
     def test_pdf_number_override_only_changes_pdf(self):
         self.client.post(reverse('new_invoice'), self.post_data())
         inv = Invoice.objects.get()
+        self.client_obj.refresh_from_db()
+        self.assertEqual(self.client_obj.last_pdf_ref_no, '')
         n = BusinessProfile.current().next_invoice_number
         self.client.post(reverse('invoice_detail', args=[inv.pk]), {'pdf_number_override': 'QB020'})
         inv.refresh_from_db()
+        self.client_obj.refresh_from_db()
         self.assertEqual(inv.display_number, 'QB020')
+        self.assertEqual(self.client_obj.last_pdf_ref_no, 'QB020')
         self.assertNotEqual(inv.invoice_number, 'QB020')
         self.assertEqual(BusinessProfile.current().next_invoice_number, n)
         r = self.client.get(reverse('invoice_pdf', args=[inv.pk]))
         self.assertIn('QB020.pdf', r['Content-Disposition'])
+
+    def test_manual_pdf_reference_is_saved_on_customer_and_shown_in_invoice_form(self):
+        response = self.client.post(
+            reverse('new_invoice'),
+            self.post_data(pdf_number_override='MANUAL-REF-7'),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.client_obj.refresh_from_db()
+        self.assertEqual(self.client_obj.last_pdf_ref_no, 'MANUAL-REF-7')
+
+        response = self.client.get(reverse('new_invoice'))
+        projects = json.loads(response.context['projects_json'])
+        self.assertEqual(
+            projects[str(self.client_obj.pk)]['last_pdf_ref_no'],
+            'MANUAL-REF-7',
+        )
+        self.assertContains(response, 'Last PDF ref:')
+        self.assertNotContains(response, 'Last invoice number generated for this customer')
 
     def test_validation_errors(self):
         r = self.client.post(reverse('new_invoice'), self.post_data(line_days=['', ''], line_from=['', ''], line_to=['', '']))
@@ -680,28 +702,25 @@ class BillToDropdownTests(TestCase):
 
 
 class LastInvoiceTagTests(TestCase):
-    def test_label_and_last_number_per_customer(self):
+    def test_label_and_last_pdf_reference_per_customer(self):
         a = Client.objects.create(name='A Co')
-        b = Client.objects.create(name='B Co')
+        b = Client.objects.create(name='B Co', last_pdf_ref_no='PDF-B-19')
         Client.objects.create(name='C Co')
-        i1 = Invoice.objects.create(client=a, invoice_number='QB018')
-        i2 = Invoice.objects.create(client=a, invoice_number='QB020', pdf_number_override='X-20')
-        Invoice.objects.create(client=b, invoice_number='QB019')
+        Client.objects.filter(pk=a.pk).update(last_pdf_ref_no='PDF-A-20')
         r = self.client.get(reverse('new_invoice'))
         html = r.content.decode()
         self.assertIn('>Manual Invoice number for pdf only</label>', html)
         self.assertNotIn('PDF number override', html)
         self.assertIn('id="last_invoice"', html)
-        self.assertIn('No previous invoice', html)
+        self.assertIn('No previous PDF ref', html)
+        self.assertIn('Last PDF ref:', html)
         P = json.loads(r.context['projects_json'])
-        self.assertEqual((P[str(a.pk)]['last'], P[str(a.pk)]['last_pdf']), ('QB020', 'X-20'))
-        self.assertEqual(P[str(b.pk)]['last'], 'QB019')
-        self.assertEqual(P[[k for k, v in P.items() if k not in (str(a.pk), str(b.pk))][0]]['last'], '')
-        # edit page excludes the invoice being edited
-        P = json.loads(self.client.get(reverse('invoice_edit', args=[i2.pk])).context['projects_json'])
-        self.assertEqual(P[str(a.pk)]['last'], 'QB018')
-        P = json.loads(self.client.get(reverse('invoice_edit', args=[i1.pk])).context['projects_json'])
-        self.assertEqual(P[str(a.pk)]['last'], 'QB020')
+        self.assertEqual(P[str(a.pk)]['last_pdf_ref_no'], 'PDF-A-20')
+        self.assertEqual(P[str(b.pk)]['last_pdf_ref_no'], 'PDF-B-19')
+        self.assertEqual(
+            P[[k for k, v in P.items() if k not in (str(a.pk), str(b.pk))][0]]['last_pdf_ref_no'],
+            '',
+        )
 
 
 class IconActionTests(TestCase):

@@ -252,7 +252,7 @@ The app's migrations have not been applied to the configured database. Before ap
 the targeted migration plan. Run the focused tests with
 `.venv\Scripts\python.exe manage.py test financial_reporting`.
 
-# Document & Agreement Management (Phases 1–2)
+# Document & Agreement Management (Phases 1–3)
 
 The `document_generation` app provides a universal generation form at `/documents/generate/`, a
 configurable catalogue at `/documents/catalogue/`, a company profile at `/documents/settings/`, and
@@ -273,6 +273,14 @@ and document revisions are preserved. Downloads are localhost-only and private. 
 unsigned drafts; they are not legally executed, certified, or automatically legally valid or enforceable.
 Have templates, clauses, jurisdiction, and signatory authority reviewed by an authorised representative
 or legal professional.
+
+Phase 3 adds 30 standard document types with editable field definitions and review-status template
+versions, plus a reusable clause library. These templates and clauses are deliberately not approved
+by default. Review and approve clauses in Django Admin before approving a template version; template
+approval is blocked while any mapped clause is inactive or awaiting approval. Admins can preview an
+unapproved template using sample values without generating a document or consuming a number. Configure
+each template's allowed output formats and the company profile before use. The dashboard highlights
+items awaiting review and missing company-profile details.
 
 Before applying the new migrations, back up `db.sqlite3` and `private_media`, validate on a disposable
 SQLite copy, and review `manage.py migrate document_generation --plan`. Do not migrate the configured
