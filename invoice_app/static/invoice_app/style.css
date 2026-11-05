@@ -321,22 +321,63 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
 @media(prefers-reduced-motion:reduce){
  *,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
 }
-.payroll-heading{align-items:flex-end;gap:12px}
-.payroll-toolbar,.payroll-toolbar .filters,.payroll-refresh-form{display:flex;align-items:flex-end;gap:8px;margin:0}
-.payroll-toolbar{justify-content:flex-end;flex-wrap:wrap}
-.payroll-toolbar .field,.payroll-period-panel .filters .field{width:auto;min-width:0}
-.payroll-period-panel .filters{margin:0}
+.payroll-heading{display:grid;grid-template-columns:minmax(210px,.8fr) minmax(0,1.2fr);align-items:center;gap:14px}
+.payroll-toolbar,.payroll-toolbar .filters,.payroll-refresh-form{display:flex;align-items:center;gap:6px;margin:0}
+.payroll-toolbar{justify-content:flex-end;flex-wrap:nowrap;min-width:0;overflow-x:auto;padding:2px 0 5px}
+.payroll-toolbar .filters{flex:0 0 auto;flex-wrap:nowrap}
+.payroll-toolbar .field{width:auto;min-width:0;min-height:35px;padding:7px 8px;font-size:12px}
+.payroll-toolbar .filters select[name="month"]{width:105px}
+.payroll-toolbar .filters select[name="year"]{width:76px}
+.payroll-toolbar .filters select[name="department"]{width:142px}
+.payroll-toolbar .button,.payroll-period-panel .button,.payroll-heading~.panel .button{min-height:35px;padding:7px 10px;font-size:11px;white-space:nowrap}
+.payroll-period-panel .split{align-items:center;gap:12px}
+.payroll-period-panel .split>div:first-child{flex:1 1 auto;min-width:200px;font-size:12px}
+.payroll-period-panel .filters{display:flex;flex:0 0 auto;align-items:center;flex-wrap:nowrap;gap:6px;margin:0}
+.payroll-period-panel .filters .field{width:auto;min-width:0;min-height:35px;padding:7px 8px;font-size:12px}
+.payroll-period-panel .filters select{max-width:185px}
+.payroll-period-panel .filters input[type="date"]{width:140px}
+.payroll-heading~.panel .filters{display:flex;align-items:center;flex-wrap:nowrap;gap:6px}
+.payroll-heading~.panel .filters .field{width:auto;min-width:0;min-height:35px;padding:7px 8px;font-size:12px}
+.payroll-heading~.panel .filters button{flex:0 0 auto}
+.payroll-exports{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.payroll-exports .button{min-height:34px;padding:7px 10px;font-size:11px}
+.payroll-heading~form .form-actions{margin-top:12px}
+.payroll-heading~form .icon-btn{width:30px;height:30px}
 @media(max-width:850px){
- .payroll-heading{align-items:flex-start;flex-direction:column}
+ .payroll-heading{grid-template-columns:minmax(0,1fr);align-items:flex-start}
  .payroll-toolbar{justify-content:flex-start}
+ .payroll-period-panel .split{align-items:flex-start;flex-direction:column}
 }
 @media(max-width:560px){
- .payroll-toolbar,.payroll-toolbar .filters{width:100%;flex-wrap:wrap}
- .payroll-toolbar .filters .field{flex:1 1 125px}
+ .payroll-toolbar{width:100%;justify-content:flex-start}
+ .payroll-period-panel .filters{width:100%;overflow-x:auto;padding-bottom:3px}
+ .payroll-heading~.panel .filters{overflow-x:auto;padding-bottom:3px}
+ .payroll-exports{align-items:center;flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px}
+ .payroll-exports .button{flex:0 0 auto}
+}
+
+.invoice-list-filters{display:grid;gap:14px}
+.invoice-filter-toolbar{display:flex;align-items:center;gap:8px;min-width:0;overflow-x:auto;padding-bottom:2px}
+.invoice-list-filters .segmented{display:flex;flex:0 0 auto;flex-wrap:nowrap;gap:4px}
+.invoice-list-filters .segmented a{padding:7px 9px;color:#40576a;font-size:11px;white-space:nowrap}
+.invoice-list-filters .segmented a.on{color:#fff}
+.invoice-period-form,.invoice-fy-form{display:flex;flex:0 0 auto;align-items:center;gap:6px;margin:0}
+.invoice-period-form .field,.invoice-fy-form .field{width:auto;min-width:112px;min-height:36px;padding:7px 8px;font-size:12px}
+.invoice-period-form #invoice-month{min-width:122px}
+.invoice-fy-form .field{min-width:145px}
+.invoice-period-form .button{min-height:36px;padding:7px 10px;font-size:11px}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.invoice-filter-summary{padding-top:2px;font-size:12px}
+@media(max-width:560px){
+ .invoice-list-filters{gap:10px}
+ .invoice-filter-toolbar{margin-right:-4px}
+ .invoice-list-filters .segmented{display:flex;grid-template-columns:none}
+ .invoice-period-form,.invoice-fy-form{align-items:center}
+ .invoice-period-form .button{flex:0 0 auto}
 }
 
 /* Invoice detail page */
-.page-heading.split{
+.page-heading.split:has(>div:first-child){
  display:grid;
  grid-template-columns:minmax(0,1fr) minmax(390px,1.05fr);
  align-items:start;
@@ -347,8 +388,8 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  background:linear-gradient(135deg,#fff 0%,#f8fbfd 100%);
  box-shadow:var(--shadow-sm);
 }
-.page-heading.split>div:first-child{min-width:0}
-.page-heading.split>div:last-child{
+.page-heading.split:has(>div:first-child)>div:first-child{min-width:0}
+.page-heading.split:has(>div:first-child)>div:last-child{
  display:flex;
  align-items:center;
  justify-content:flex-end;
@@ -356,8 +397,8 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  gap:8px;
  min-width:0;
 }
-.page-heading.split>div:last-child>.button{white-space:nowrap}
-.page-heading.split #otherfmt{
+.page-heading.split:has(>div:first-child)>div:last-child>.button{white-space:nowrap}
+.page-heading.split:has(>div:first-child) #otherfmt{
  display:flex;
  flex:1 1 100%;
  align-items:center;
@@ -365,13 +406,13 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  min-width:0;
  margin:0;
 }
-.page-heading.split #otherfmt .field{flex:1 1 220px;min-width:0}
-.page-heading.split #otherfmt .button{flex:0 0 auto}
-.page-heading.split>div:last-child>.muted{flex:1 1 100%;text-align:right}
-.page-heading.split>div:first-child>.muted{max-width:680px;line-height:1.75}
-.page-heading.split~.panel,
-.page-heading.split~form.panel{border-color:#e0e7ed}
-.page-heading.split~.panel>table.pdfcols{
+.page-heading.split:has(>div:first-child) #otherfmt .field{flex:1 1 220px;min-width:0}
+.page-heading.split:has(>div:first-child) #otherfmt .button{flex:0 0 auto}
+.page-heading.split:has(>div:first-child)>div:last-child>.muted{flex:1 1 100%;text-align:right}
+.page-heading.split:has(>div:first-child)>div:first-child>.muted{max-width:680px;line-height:1.75}
+.page-heading.split:has(>div:first-child)~.panel,
+.page-heading.split:has(>div:first-child)~form.panel{border-color:#e0e7ed}
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols{
  display:table!important;
  width:100%;
  max-width:100%;
@@ -379,7 +420,7 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  border-collapse:separate;
  border-spacing:0;
 }
-.page-heading.split~.panel>table.pdfcols th{
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols th{
  padding:13px 14px;
  border-bottom:1px solid #dfe7ed;
  background:#edf4f8;
@@ -387,51 +428,51 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  font-size:10px;
  letter-spacing:.075em;
 }
-.page-heading.split~.panel>table.pdfcols th:first-child{border-radius:8px 0 0 0}
-.page-heading.split~.panel>table.pdfcols th:last-child{border-radius:0 8px 0 0}
-.page-heading.split~.panel>table.pdfcols td{padding:14px}
-.page-heading.split~.panel>table.pdfcols tbody tr:nth-child(even) td{background:#f8fafc}
-.page-heading.split~.panel>table.pdfcols tbody tr:last-child td{
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols th:first-child{border-radius:8px 0 0 0}
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols th:last-child{border-radius:0 8px 0 0}
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols td{padding:14px}
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols tbody tr:nth-child(even) td{background:#f8fafc}
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols tbody tr:last-child td{
  border-top:2px solid #dce6ed;
  background:#f3f7fa;
  color:#203b50;
  font-weight:600;
 }
-.page-heading.split~.panel>table.pdfcols td.num,
-.page-heading.split~.panel>table.pdfcols th:not(:first-child):not(:nth-child(2)){white-space:nowrap}
-.page-heading.split~.panel h2{color:#243b4e;letter-spacing:-.015em}
-.page-heading.split~.panel .pill{vertical-align:middle}
-.page-heading.split~.panel .form-panel{
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols td.num,
+.page-heading.split:has(>div:first-child)~.panel>table.pdfcols th:not(:first-child):not(:nth-child(2)){white-space:nowrap}
+.page-heading.split:has(>div:first-child)~.panel h2{color:#243b4e;letter-spacing:-.015em}
+.page-heading.split:has(>div:first-child)~.panel .pill{vertical-align:middle}
+.page-heading.split:has(>div:first-child)~.panel .form-panel{
  max-width:none;
  margin-top:20px;
  padding:20px;
  background:#f8fafc;
 }
-.page-heading.split~form.panel{max-width:none}
-.page-heading.split~form.panel input:not([type=hidden]){
+.page-heading.split:has(>div:first-child)~form.panel{max-width:none}
+.page-heading.split:has(>div:first-child)~form.panel input:not([type=hidden]){
  width:min(100%,520px);
  min-height:40px;
  padding:9px 11px;
  border:1px solid #d5e0e8;
  border-radius:8px;
 }
-.page-heading.split~form.panel input:focus{
+.page-heading.split:has(>div:first-child)~form.panel input:focus{
  border-color:#6e9fc2;
  outline:none;
  box-shadow:0 0 0 3px rgba(69,132,174,.14);
 }
 @media(max-width:850px){
- .page-heading.split{grid-template-columns:minmax(0,1fr);gap:16px}
- .page-heading.split>div:last-child{justify-content:flex-start}
- .page-heading.split>div:last-child>.muted{text-align:left}
+ .page-heading.split:has(>div:first-child){grid-template-columns:minmax(0,1fr);gap:16px}
+ .page-heading.split:has(>div:first-child)>div:last-child{justify-content:flex-start}
+ .page-heading.split:has(>div:first-child)>div:last-child>.muted{text-align:left}
 }
 @media(max-width:560px){
- .page-heading.split{padding:18px 16px}
- .page-heading.split>div:last-child>.button{flex:1 1 calc(50% - 8px)}
- .page-heading.split #otherfmt{flex-wrap:wrap}
- .page-heading.split #otherfmt .field,
- .page-heading.split #otherfmt .button{flex:1 1 100%;width:100%}
- .page-heading.split~.panel>table.pdfcols{min-width:650px}
- .page-heading.split~.panel:has(>table.pdfcols){overflow-x:auto}
- .page-heading.split~form.panel input:not([type=hidden]){width:100%}
+ .page-heading.split:has(>div:first-child){padding:18px 16px}
+ .page-heading.split:has(>div:first-child)>div:last-child>.button{flex:1 1 calc(50% - 8px)}
+ .page-heading.split:has(>div:first-child) #otherfmt{flex-wrap:wrap}
+ .page-heading.split:has(>div:first-child) #otherfmt .field,
+ .page-heading.split:has(>div:first-child) #otherfmt .button{flex:1 1 100%;width:100%}
+ .page-heading.split:has(>div:first-child)~.panel>table.pdfcols{min-width:650px}
+ .page-heading.split:has(>div:first-child)~.panel:has(>table.pdfcols){overflow-x:auto}
+ .page-heading.split:has(>div:first-child)~form.panel input:not([type=hidden]){width:100%}
 }

@@ -1,4 +1,5 @@
 from datetime import date
+from calendar import month_name
 import json
 
 from django.contrib import messages
@@ -8,6 +9,7 @@ from django.db.models import ProtectedError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import get_valid_filename
 from django.views.decorators.http import require_POST
 from employee_management.security import local_only
@@ -19,6 +21,7 @@ from .models import BusinessProfile, Client, CreditNote, Invoice, InvoiceDescrip
 from .pdf import render_invoice_pdf
 from .pdf.from_models import build_invoice_data
 from .pdf.formats import render_for_invoice
+from reporting import periods as reporting_periods
 
 
 def dashboard(request):
@@ -304,7 +307,81 @@ def _with_pay(qs):
 
 
 def invoice_list(request):
-    return render(request, 'invoice_app/invoice_list.html', {'invoices': _with_pay(Invoice.objects.all())})
+    period = (request.GET.get('period') or '').strip()
+    year = (request.GET.get('year') or '').strip()
+    month = (request.GET.get('month') or '').strip()
+    financial_year = (request.GET.get('financial_year') or '').strip()
+    financial_year_options = reporting_periods.fy_choices(back=4, forward=0)
+    today = timezone.localdate()
+    current_month = today.replace(day=1)
+    qs = Invoice.objects.all()
+    filter_error = ''
+
+    def month_start(offset):
+        index = current_month.year * 12 + current_month.month - 1 + offset
+        return date(index // 12, index % 12 + 1, 1)
+
+    if period in ('last3', 'previous', 'last6'):
+        start = month_start({'last3': -2, 'previous': -1, 'last6': -5}[period])
+        end = month_start(0 if period == 'previous' else 1)
+        qs = qs.filter(invoice_date__gte=start, invoice_date__lt=end)
+    elif period == 'financial_year':
+        allowed_financial_years = {str(start_year) for start_year, _ in financial_year_options}
+        if financial_year not in allowed_financial_years:
+            filter_error = 'Choose a financial year from the available options.'
+            qs = qs.none()
+        else:
+            start_year = int(financial_year)
+            qs = qs.filter(
+                invoice_date__gte=date(start_year, 4, 1),
+                invoice_date__lt=date(start_year + 1, 4, 1),
+            )
+    elif period == 'year_month':
+        try:
+            selected_year = int(year)
+            if not 1 <= selected_year <= 9999:
+                raise ValueError
+            qs = qs.filter(invoice_date__year=selected_year)
+            if month:
+                selected_month = int(month)
+                if not 1 <= selected_month <= 12:
+                    raise ValueError
+                qs = qs.filter(invoice_date__month=selected_month)
+        except (TypeError, ValueError):
+            filter_error = 'Choose a valid year and month.'
+            qs = qs.none()
+    elif period not in ('', 'all'):
+        filter_error = 'Choose a valid invoice date filter.'
+        qs = qs.none()
+
+    years = {year_date.year for year_date in Invoice.objects.dates('invoice_date', 'year')}
+    years.add(today.year)
+    if year.isdigit():
+        years.add(int(year))
+    selected_month_label = (
+        month_name[int(month)] if month.isdigit() and 1 <= int(month) <= 12 else ''
+    )
+    financial_year_label = (
+        reporting_periods.fy_label(int(financial_year))
+        if financial_year.isdigit() and financial_year in {
+            str(start_year) for start_year, _ in financial_year_options
+        } else ''
+    )
+    return render(request, 'invoice_app/invoice_list.html', {
+        'invoices': _with_pay(qs.order_by('-invoice_date', '-id')),
+        'period': period or 'all',
+        'year': year,
+        'month': month,
+        'year_options': sorted(years, reverse=True),
+        'month_options': [(f'{i:02d}', month_name[i]) for i in range(1, 13)],
+        'financial_year_options': financial_year_options,
+        'financial_year': financial_year,
+        'financial_year_label': financial_year_label,
+        'selected_month_label': selected_month_label,
+        'filter_error': filter_error,
+        'empty_text': 'No invoices match the selected date filter.' if period not in ('', 'all')
+        else 'No invoices yet.',
+    })
 
 
 def invoice_detail(request, pk):

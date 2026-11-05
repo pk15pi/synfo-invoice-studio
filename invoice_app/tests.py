@@ -712,6 +712,90 @@ class BillingYearMonthFieldTests(TestCase):
         self.assertIn('function ym()', html)
 
 
+class InvoiceListDateFilterTests(TestCase):
+    def setUp(self):
+        self.client_obj = Client.objects.create(name='Date filter customer')
+
+    def invoice(self, number, invoice_date):
+        invoice_date = date.fromisoformat(invoice_date)
+        return Invoice.objects.create(
+            client=self.client_obj,
+            invoice_number=number,
+            invoice_date=invoice_date,
+            due_date=invoice_date,
+        )
+
+    def get(self, **params):
+        with patch('invoice_app.views.timezone.localdate', return_value=date(2026, 11, 5)):
+            return self.client.get(reverse('invoice_list'), params)
+
+    @staticmethod
+    def numbers(response):
+        return {invoice.invoice_number for invoice in response.context['invoices']}
+
+    def test_selected_year_and_optional_month_filter_invoice_date(self):
+        self.invoice('SEP26', '2026-09-10')
+        self.invoice('OCT26', '2026-10-10')
+        self.invoice('OCT25', '2025-10-10')
+
+        year = self.get(period='year_month', year='2026')
+        self.assertEqual(self.numbers(year), {'SEP26', 'OCT26'})
+        month = self.get(period='year_month', year='2026', month='10')
+        self.assertEqual(self.numbers(month), {'OCT26'})
+        self.assertContains(month, 'October 2026')
+
+    def test_last_three_months_includes_current_and_previous_two_calendar_months(self):
+        self.invoice('AUG', '2026-08-31')
+        self.invoice('SEP', '2026-09-01')
+        self.invoice('NOV', '2026-11-30')
+        self.invoice('DEC', '2026-12-01')
+
+        self.assertEqual(self.numbers(self.get(period='last3')), {'SEP', 'NOV'})
+
+    def test_previous_month_filter(self):
+        self.invoice('SEP', '2026-09-30')
+        self.invoice('OCT-START', '2026-10-01')
+        self.invoice('OCT-END', '2026-10-31')
+        self.invoice('NOV', '2026-11-01')
+
+        self.assertEqual(self.numbers(self.get(period='previous')), {'OCT-START', 'OCT-END'})
+
+    def test_last_six_months_includes_current_and_previous_five_calendar_months(self):
+        self.invoice('MAY', '2026-05-31')
+        self.invoice('JUN', '2026-06-01')
+        self.invoice('NOV', '2026-11-30')
+        self.invoice('DEC', '2026-12-01')
+
+        self.assertEqual(self.numbers(self.get(period='last6')), {'JUN', 'NOV'})
+
+    def test_financial_year_filters_april_to_march_and_offers_only_five_years(self):
+        self.invoice('MAR26', '2026-03-31')
+        self.invoice('APR26', '2026-04-01')
+        self.invoice('MAR27', '2027-03-31')
+        self.invoice('APR27', '2027-04-01')
+
+        response = self.get(period='financial_year', financial_year='2026')
+        self.assertEqual(self.numbers(response), {'APR26', 'MAR27'})
+        self.assertContains(response, 'FY 2026-27')
+
+        all_invoices = self.get()
+        self.assertEqual(len(all_invoices.context['financial_year_options']), 5)
+        self.assertContains(all_invoices, 'FY 2026-27')
+        self.assertContains(all_invoices, 'onchange="this.form.submit()"')
+
+    def test_financial_year_filter_rejects_year_outside_last_five_options(self):
+        self.invoice('APR20', '2020-04-01')
+        response = self.get(period='financial_year', financial_year='2020')
+        self.assertEqual(self.numbers(response), set())
+        self.assertContains(response, 'Choose a financial year from the available options.')
+
+    def test_invalid_month_does_not_fall_back_to_unfiltered_invoices(self):
+        self.invoice('OCT', '2026-10-01')
+        response = self.get(period='year_month', year='2026', month='13')
+        self.assertEqual(self.numbers(response), set())
+        self.assertContains(response, 'Choose a valid year and month.')
+
+
 class BillToDropdownTests(TestCase):
     def test_bill_to_is_select_of_active_customers_with_filter(self):
         for i in range(30):
