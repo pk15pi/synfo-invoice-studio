@@ -334,3 +334,104 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  .payroll-toolbar,.payroll-toolbar .filters{width:100%;flex-wrap:wrap}
  .payroll-toolbar .filters .field{flex:1 1 125px}
 }
+
+/* Invoice detail page */
+.page-heading.split{
+ display:grid;
+ grid-template-columns:minmax(0,1fr) minmax(390px,1.05fr);
+ align-items:start;
+ gap:28px;
+ padding:23px 24px;
+ border:1px solid #e0e7ed;
+ border-radius:14px;
+ background:linear-gradient(135deg,#fff 0%,#f8fbfd 100%);
+ box-shadow:var(--shadow-sm);
+}
+.page-heading.split>div:first-child{min-width:0}
+.page-heading.split>div:last-child{
+ display:flex;
+ align-items:center;
+ justify-content:flex-end;
+ flex-wrap:wrap;
+ gap:8px;
+ min-width:0;
+}
+.page-heading.split>div:last-child>.button{white-space:nowrap}
+.page-heading.split #otherfmt{
+ display:flex;
+ flex:1 1 100%;
+ align-items:center;
+ gap:8px;
+ min-width:0;
+ margin:0;
+}
+.page-heading.split #otherfmt .field{flex:1 1 220px;min-width:0}
+.page-heading.split #otherfmt .button{flex:0 0 auto}
+.page-heading.split>div:last-child>.muted{flex:1 1 100%;text-align:right}
+.page-heading.split>div:first-child>.muted{max-width:680px;line-height:1.75}
+.page-heading.split~.panel,
+.page-heading.split~form.panel{border-color:#e0e7ed}
+.page-heading.split~.panel>table.pdfcols{
+ display:table!important;
+ width:100%;
+ max-width:100%;
+ overflow:visible;
+ border-collapse:separate;
+ border-spacing:0;
+}
+.page-heading.split~.panel>table.pdfcols th{
+ padding:13px 14px;
+ border-bottom:1px solid #dfe7ed;
+ background:#edf4f8;
+ color:#526a7c;
+ font-size:10px;
+ letter-spacing:.075em;
+}
+.page-heading.split~.panel>table.pdfcols th:first-child{border-radius:8px 0 0 0}
+.page-heading.split~.panel>table.pdfcols th:last-child{border-radius:0 8px 0 0}
+.page-heading.split~.panel>table.pdfcols td{padding:14px}
+.page-heading.split~.panel>table.pdfcols tbody tr:nth-child(even) td{background:#f8fafc}
+.page-heading.split~.panel>table.pdfcols tbody tr:last-child td{
+ border-top:2px solid #dce6ed;
+ background:#f3f7fa;
+ color:#203b50;
+ font-weight:600;
+}
+.page-heading.split~.panel>table.pdfcols td.num,
+.page-heading.split~.panel>table.pdfcols th:not(:first-child):not(:nth-child(2)){white-space:nowrap}
+.page-heading.split~.panel h2{color:#243b4e;letter-spacing:-.015em}
+.page-heading.split~.panel .pill{vertical-align:middle}
+.page-heading.split~.panel .form-panel{
+ max-width:none;
+ margin-top:20px;
+ padding:20px;
+ background:#f8fafc;
+}
+.page-heading.split~form.panel{max-width:none}
+.page-heading.split~form.panel input:not([type=hidden]){
+ width:min(100%,520px);
+ min-height:40px;
+ padding:9px 11px;
+ border:1px solid #d5e0e8;
+ border-radius:8px;
+}
+.page-heading.split~form.panel input:focus{
+ border-color:#6e9fc2;
+ outline:none;
+ box-shadow:0 0 0 3px rgba(69,132,174,.14);
+}
+@media(max-width:850px){
+ .page-heading.split{grid-template-columns:minmax(0,1fr);gap:16px}
+ .page-heading.split>div:last-child{justify-content:flex-start}
+ .page-heading.split>div:last-child>.muted{text-align:left}
+}
+@media(max-width:560px){
+ .page-heading.split{padding:18px 16px}
+ .page-heading.split>div:last-child>.button{flex:1 1 calc(50% - 8px)}
+ .page-heading.split #otherfmt{flex-wrap:wrap}
+ .page-heading.split #otherfmt .field,
+ .page-heading.split #otherfmt .button{flex:1 1 100%;width:100%}
+ .page-heading.split~.panel>table.pdfcols{min-width:650px}
+ .page-heading.split~.panel:has(>table.pdfcols){overflow-x:auto}
+ .page-heading.split~form.panel input:not([type=hidden]){width:100%}
+}
