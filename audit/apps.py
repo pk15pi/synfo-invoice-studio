@@ -25,6 +25,22 @@ AUDITED_MODELS = [
     'financial_reporting.AuditChecklist', 'financial_reporting.AuditChecklistResult',
     'financial_reporting.ComplianceTemplate', 'financial_reporting.ComplianceSubmission',
     'financial_reporting.ExportManifest',
+    'document_generation.CompanyDocumentProfile',
+    'document_generation.CompanyDocumentSignatory',
+    'document_generation.DocumentCategory',
+    'document_generation.DocumentType',
+    'document_generation.DocumentTemplate',
+    'document_generation.DocumentTemplateVersion',
+    'document_generation.DocumentClause',
+    'document_generation.DocumentTemplateClause',
+    'document_generation.DocumentFieldDefinition',
+    'document_generation.GeneratedDocument',
+    'document_generation.DocumentParty',
+    'document_generation.DocumentApproval',
+    'document_generation.DocumentAcknowledgement',
+    'document_generation.DocumentSignature',
+    'document_generation.DocumentNumberSequence',
+    'document_generation.DocumentActivityLog',
 ]
 
 

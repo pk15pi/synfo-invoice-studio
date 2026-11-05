@@ -1,0 +1,14 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Document generated{% endblock %}
+{% block content %}
+<h1>Document saved</h1>
+<div class="message success">{{ document.document_type.name }} {{ document.document_number }} was saved as draft version {{ document.version_number }}.</div>
+<section class="card">
+  <h2>Download</h2>
+  {% if word_url %}<p><a class="btn" href="{{ word_url }}">Download Word (.docx)</a></p>{% endif %}
+  {% if pdf_url %}<p><a class="btn" href="{{ pdf_url }}">Download PDF (.pdf)</a></p>{% endif %}
+  <p>These are unsigned working drafts. Review all terms and obtain appropriate approvals before issuing or signing.</p>
+  <p><a href="{% url 'document_generation:generate' %}?revise={{ document.pk }}">Create a revised draft</a></p>
+  <p><a href="{% url 'document_generation:dashboard' %}">Back to document dashboard</a></p>
+</section>
+{% endblock %}

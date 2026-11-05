@@ -5,6 +5,11 @@ LAST4_FIELDS = {'aadhaar_number', 'aadhaar', 'pan', 'pan_number', 'snap_pan_mask
                 'bank_account_number', 'snap_account_number', 'snap_aadhaar_masked',
                 'passport_number', 'driving_licence_number', 'uan_number', 'esic_number'}
 NEVER_LOG = ('password', 'secret', 'token', 'api_key', 'apikey', 'private_key', 'otp', 'pin_code_hash')
+HASH_FIELDS = {
+    'rendered_content', 'content_snapshot', 'body_template', 'clause_text', 'contact_snapshot',
+    'partner_details', 'signature_configuration', 'approval_workflow', 'validation_rules', 'metadata',
+    'details',
+}
 
 _LONG_DIGITS = re.compile(r'\d[\d \-]{6,}\d')
 _PAN = re.compile(r'\b[A-Z]{5}\d{4}[A-Z]\b')

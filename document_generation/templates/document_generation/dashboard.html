@@ -1,0 +1,33 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Document &amp; Agreement Management{% endblock %}
+{% block content %}
+<h1>Document &amp; Agreement Management</h1>
+<p>Generate Word and PDF drafts from configured document types, approved templates and dynamic field definitions.</p>
+<div class="cards">
+  <div class="card"><strong>{{ category_count }}</strong><span>Active categories</span></div>
+  <div class="card"><strong>{{ type_count }}</strong><span>Active document types</span></div>
+  <div class="card"><strong>{{ document_count }}</strong><span>Document records</span></div>
+  <div class="card"><strong>{{ draft_count }}</strong><span>Draft documents</span></div>
+  <div class="card"><strong>{{ pending_count }}</strong><span>Pending approval</span></div>
+</div>
+<p><a href="{% url 'document_generation:generate' %}">Generate document</a> |
+   <a href="{% url 'document_generation:catalogue' %}">Browse document catalogue</a> |
+   <a href="{% url 'document_generation:settings' %}">Company document profile</a></p>
+<h2>Categories</h2>
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Category</th><th>Configured types</th></tr></thead>
+  <tbody>{% for category in categories %}
+    <tr><td>{{ category.name }}</td><td>{{ category.type_count }}</td></tr>
+  {% empty %}<tr><td colspan="2">No active categories configured.</td></tr>{% endfor %}</tbody>
+</table></div>
+<h2>Recent document records</h2>
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Number</th><th>Type</th><th>Status</th><th>Created</th></tr></thead>
+  <tbody>{% for document in recent_documents %}
+    <tr><td>{{ document.document_number }}</td><td>{{ document.document_type.name }}</td>
+      <td>{{ document.get_status_display }}</td><td>{{ document.created_at }}</td></tr>
+  {% empty %}<tr><td colspan="4">No documents have been generated.</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="muted">Generated agreements are not automatically legally valid, executed or certified. Templates and clauses require appropriate review.</p>
+<p class="muted">An internal digital acknowledgement is not a legally certified electronic signature.</p>
+{% endblock %}

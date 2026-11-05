@@ -252,6 +252,33 @@ The app's migrations have not been applied to the configured database. Before ap
 the targeted migration plan. Run the focused tests with
 `.venv\Scripts\python.exe manage.py test financial_reporting`.
 
+# Document & Agreement Management (Phases 1–2)
+
+The `document_generation` app provides a universal generation form at `/documents/generate/`, a
+configurable catalogue at `/documents/catalogue/`, a company profile at `/documents/settings/`, and
+a dashboard at `/documents/`. The legal entity and operating brand are represented as
+“Quantbud LLP, operating under the brand name Synfowebs Technology.” Configure company identifiers,
+addresses, contact details, signatories, partner details, and jurisdiction with verified information.
+
+The catalogue and document fields are configurable in Django Admin. A single form renders the
+configured fields for a selected type, pre-fills supported employee/client/vendor/asset/company data,
+and allows values to be corrected for that document without changing source records. Candidate and
+freelancer records are not separate installed modules and therefore use manual entry. Generation
+requires an active template version explicitly approved in Admin. Starter templates are drafts for
+review and contain placeholders only—not approved legal clauses.
+
+Preview and Word/PDF rendering share the same resolved content. Output files are saved in the existing
+private document store and indexed in `document_management`; generated input/content/company snapshots
+and document revisions are preserved. Downloads are localhost-only and private. Generated files are
+unsigned drafts; they are not legally executed, certified, or automatically legally valid or enforceable.
+Have templates, clauses, jurisdiction, and signatory authority reviewed by an authorised representative
+or legal professional.
+
+Before applying the new migrations, back up `db.sqlite3` and `private_media`, validate on a disposable
+SQLite copy, and review `manage.py migrate document_generation --plan`. Do not migrate the configured
+database until the backup and plan are verified. Run focused tests with
+`.venv\Scripts\python.exe manage.py test document_generation`.
+
 # Attendance & Leave
 
 Find it in the nav under **Attendance & Leave**, or on its home-page card. It is localhost-only like the rest of the app.

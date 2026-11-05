@@ -1,0 +1,60 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Preview {{ payload.title|default:"Document" }}{% endblock %}
+{% block content %}
+<h1>Document Preview</h1>
+{% for error in errors %}<div class="message error">{{ error }}</div>{% endfor %}
+{% if payload.document_number %}
+  <div class="message">Preview number: <strong>{{ payload.document_number }}</strong>. The document will be saved as a draft.</div>
+  <section class="card document-preview">
+    <header class="document-preview-header">
+      <strong>{{ payload.company_snapshot.display_name }}</strong>
+      {% if payload.company_snapshot.address %}<div>{{ payload.company_snapshot.address }}</div>{% endif %}
+      {% if payload.header_text %}<div>{{ payload.header_text }}</div>{% endif %}
+      <div>Document number: {{ payload.document_number }}</div>
+      <div>Document date: {{ payload.document_date }}</div>
+      {% if payload.effective_date %}<div>Effective date: {{ payload.effective_date }}</div>{% endif %}
+    </header>
+    <div class="document-preview-content">{{ preview_html }}</div>
+    <h3>Signatures</h3>
+    <div class="signature-preview">
+      <div><strong>For {{ payload.company_snapshot.display_name }}</strong>
+        <p>Signature: ____________________</p>
+        <p>Name: {{ payload.signatory_snapshot.name }}</p>
+        <p>Designation: {{ payload.signatory_snapshot.designation }}</p>
+        <p>Date: ____________________</p>
+      </div>
+      {% if payload.signature_configuration.include_counterparty != False %}
+        <div><strong>For {{ payload.party.records.0.record_name|default:"Second Party" }}</strong>
+          <p>Signature: ____________________</p><p>Name: ____________________</p><p>Date: ____________________</p>
+        </div>
+      {% endif %}
+    </div>
+    {% if payload.signature_configuration.include_witness %}
+      <p>Witness: ____________________________________ Date: ____________________</p>
+    {% endif %}
+    <footer>{{ payload.footer_text|default:payload.company_snapshot.document_footer|default:"Confidential" }} · {{ payload.document_number }}</footer>
+  </section>
+  <form method="post" class="card">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="generate">
+    <input type="hidden" name="preview_token" value="{{ preview_token }}">
+    <h2>Generate and save</h2>
+    <p>Generated files are stored in the existing private Document Management repository. They are editable/unsigned drafts, not legally executed documents.</p>
+    <button class="btn" type="submit" name="output_format" value="docx">Generate Word</button>
+    <button class="btn" type="submit" name="output_format" value="pdf">Generate PDF</button>
+    <button class="btn" type="submit" name="output_format" value="both">Generate Both</button>
+  </form>
+  <p><a href="{% url 'document_generation:generate' %}?edit={{ preview_token|urlencode }}">Back to edit fields</a></p>
+{% else %}
+  <p><a href="{% url 'document_generation:generate' %}">Return to document form</a></p>
+{% endif %}
+<style>
+.document-preview { background: #fff; color: #202b36; padding: 2rem; max-width: 850px; margin: 1.5rem auto; }
+.document-preview-header { text-align: right; border-bottom: 1px solid #ccd4dc; padding-bottom: 1rem; }
+.document-preview-header h2 { color: #1f4e79; text-align: center; margin-top: 2rem; }
+.document-preview-content { white-space: pre-wrap; line-height: 1.65; padding: 1.5rem 0; overflow-wrap: anywhere; }
+.signature-preview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.signature-preview > div { border: 1px solid #ccd4dc; padding: 1rem; min-height: 180px; }
+.document-preview footer { border-top: 1px solid #ccd4dc; padding-top: .75rem; text-align: center; font-size: .85rem; }
+</style>
+{% endblock %}

@@ -1,4 +1,5 @@
 """Signal handlers that turn model saves/deletes into AuditEvents."""
+import hashlib
 import json
 import logging
 
@@ -6,7 +7,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models.fields.files import FieldFile
 
 from . import context
-from .masking import mask_value, never_log, scrub_text
+from .masking import HASH_FIELDS, mask_value, never_log, scrub_text
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +32,11 @@ def snapshot(obj):
     for f in obj._meta.concrete_fields:
         if never_log(f.name):
             continue
-        out[f.attname] = _plain(getattr(obj, f.attname, None))
+        value = _plain(getattr(obj, f.attname, None))
+        if f.name in HASH_FIELDS:
+            serialized = json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
+            value = hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+        out[f.attname] = value
     return out
 
 

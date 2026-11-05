@@ -1,0 +1,127 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Generate Document{% endblock %}
+{% block content %}
+<h1>Generate Document</h1>
+<p class="muted">Choose an approved template. Generated documents remain drafts until reviewed and issued through the appropriate process.</p>
+
+<section class="card">
+  <h2>Step 1: Select document</h2>
+  <form method="get" class="filter-form">
+    <label for="id_category">Category</label>
+    <select id="id_category" name="category" required>
+      <option value="">Select a category</option>
+      {% for category in categories %}
+        <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+      {% endfor %}
+    </select>
+    <label for="id_type">Document type</label>
+    <select id="id_type" name="type" required>
+      <option value="">Select a document type</option>
+      {% for item in document_types %}
+        <option value="{{ item.pk }}" {% if selected_type.pk == item.pk %}selected{% endif %}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+    {% if selected_type %}
+      <label for="id_template_version">Approved template</label>
+      <select id="id_template_version" name="template_version" required>
+        <option value="">Select a template</option>
+        {% for version in form.fields.template_version.queryset %}
+          <option value="{{ version.pk }}" {% if form.fields.template_version.initial == version.pk %}selected{% endif %}>
+            {{ version.template.name }} (v{{ version.version_number }})
+          </option>
+        {% endfor %}
+      </select>
+    {% endif %}
+    {% if form.revision_of.value %}<input type="hidden" name="revise" value="{{ form.revision_of.value }}">{% endif %}
+    <button class="btn" type="submit">Load fields</button>
+  </form>
+</section>
+
+{% if selected_type %}
+  <section class="card">
+    <h2>Step 2: Select related record (optional)</h2>
+    <p class="muted">Selecting a record fills configured fields where a safe source mapping exists. You can edit populated values below without changing the source record.</p>
+    <form method="get" class="filter-form">
+      <input type="hidden" name="type" value="{{ selected_type.pk }}">
+      {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+      {% if form.fields.template_version.initial %}<input type="hidden" name="template_version" value="{{ form.fields.template_version.initial }}">{% endif %}
+      {% if form.revision_of.value %}<input type="hidden" name="revise" value="{{ form.revision_of.value }}">{% endif %}
+      <label for="id_entity">Related record</label>
+      <select id="id_entity" name="entity">
+        {% for value, label in form.fields.related_record.choices %}
+          <option value="{{ value }}" {% if form.fields.related_record.initial == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn" type="submit">Load record details</button>
+      {% if form.fields.related_asset.choices|length > 1 %}
+        <label for="id_asset">Related asset</label>
+        <select id="id_asset" name="asset">
+          {% for value, label in form.fields.related_asset.choices %}
+            <option value="{{ value }}" {% if form.fields.related_asset.initial|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      {% endif %}
+    </form>
+  </section>
+
+  <form method="post" class="card" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="action" value="preview">
+    {{ form.category.as_hidden }}
+    {{ form.document_type.as_hidden }}
+    {{ form.template_version.as_hidden }}
+    {{ form.related_record.as_hidden }}
+    {{ form.related_asset.as_hidden }}
+    {{ form.revision_of.as_hidden }}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+
+    <h2>Step 3: Complete document details</h2>
+    {% for field in form %}
+      {% if field.name != "category" and field.name != "document_type" and field.name != "template_version" and field.name != "related_record" and field.name != "revision_of" %}
+        <div class="form-row" data-field-key="{{ field.name }}" data-condition="{{ field.field.condition|default:'{}' }}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-label="required">*</span>{% endif %}</label>
+          {{ field }}
+          {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
+          {% for error in field.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    {% endfor %}
+    <button class="btn" type="submit">Preview document</button>
+  </form>
+{% elif request.GET.type %}
+  <div class="message warning">This document type has no active, approved template yet. Configure and approve a template in Django Admin before generating it.</div>
+{% endif %}
+
+<script>
+(() => {
+  const category = document.getElementById('id_category');
+  const type = document.getElementById('id_type');
+  category?.addEventListener('change', () => { type.value = ''; });
+  const fields = [...document.querySelectorAll('[data-condition]')];
+  const valueOf = name => {
+    const control = document.querySelector(`[name="${CSS.escape(name)}"]`);
+    if (!control) return '';
+    if (control.type === 'checkbox') return control.checked;
+    return control.value;
+  };
+  const refresh = () => fields.forEach(wrapper => {
+    let condition = {};
+    try { condition = JSON.parse(wrapper.dataset.condition || '{}'); } catch { condition = {}; }
+    if (!condition.field) return;
+    const actual = valueOf(condition.field);
+    let visible = Boolean(actual);
+    if (condition.operator === 'equals') visible = typeof actual === 'boolean' || typeof condition.value === 'boolean'
+      ? Boolean(actual) === Boolean(condition.value)
+      : String(actual) === String(condition.value ?? '');
+    if (condition.operator === 'not_equals') visible = typeof actual === 'boolean' || typeof condition.value === 'boolean'
+      ? Boolean(actual) !== Boolean(condition.value)
+      : String(actual) !== String(condition.value ?? '');
+    if (condition.operator === 'empty') visible = actual === '' || actual === false;
+    if (condition.operator === 'present') visible = actual !== '' && actual !== false;
+    wrapper.hidden = !visible;
+  });
+  document.addEventListener('change', refresh);
+  refresh();
+})();
+</script>
+{% endblock %}

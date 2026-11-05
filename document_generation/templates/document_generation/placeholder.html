@@ -1,0 +1,8 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}{{ section_title }}{% endblock %}
+{% block content %}
+<h1>{{ section_title }}</h1>
+<div class="message warning">This workflow is not included in the current document-generation release.</div>
+<p class="muted">An internal digital acknowledgement is not a legally certified electronic signature.</p>
+<p><a href="{% url 'document_generation:dashboard' %}">Back to Document &amp; Agreement Management</a></p>
+{% endblock %}
