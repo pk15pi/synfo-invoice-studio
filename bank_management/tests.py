@@ -281,6 +281,11 @@ class UISmokeTests(TestCase):
     def test_book_shows_opening(self):
         self.assertContains(self.client.get(reverse('bank:book', args=['bank']) + '?period=current_fy'), 'Opening balance')
 
+    def test_imports_page_links_to_statement_upload_for_each_account(self):
+        response = self.client.get(reverse('bank:imports'))
+        self.assertContains(response, 'Import a statement')
+        self.assertContains(response, reverse('bank:import_upload', args=[self.b.pk]))
+
     def test_create_account_via_form(self):
         r = self.client.post(reverse('bank:account_new'), {'kind': 'cash', 'name': 'Petty', 'opening_balance': '50',
                                                            'opening_date': '2026-04-01', 'active': 'on'})

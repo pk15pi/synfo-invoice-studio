@@ -12,12 +12,12 @@ The merge is additive: existing records and financial history are never overwrit
 <form method="post" action="{% url 'backup:export' %}">{% csrf_token %}<button type="submit">Export data package</button></form>
 <form method="post" action="{% url 'backup:import' %}" enctype="multipart/form-data" style="margin-top:12px">
 {% csrf_token %}{{ import_form.as_p }}<button type="submit">Validate package and preview</button></form>
-{% if packages %}<h3>Recent imports</h3><table class="table"><thead><tr><th>Source</th><th>Exported</th><th>Status</th><th>Preview</th></tr></thead><tbody>
+{% if packages %}<h3>Recent imports</h3><table class="table" data-server-sort="orm"><thead><tr><th data-sort-key="source">Source</th><th>Exported</th><th data-sort-key="status" data-sort-type="status">Status</th><th>Preview</th></tr></thead><tbody>
 {% for package in packages %}<tr><td>{{ package.source_instance_name }}</td><td>{{ package.manifest.exported_at }}</td>
 <td>{{ package.get_status_display }}</td><td><a href="{% url 'backup:merge_preview' package.pk %}">Review</a></td></tr>
 {% endfor %}</tbody></table>{% endif %}
 <p class="muted">Automatic backup: run <code>run_backup.bat</code> (or <code>.venv\Scripts\python.exe manage.py create_backup --kind auto --verify --retention</code>). Habit: run <code>manage.py create_backup --kind pre_migration --verify</code> before every migrate.</p>
-<table class="table"><thead><tr><th>Name</th><th>Kind</th><th>Created (IST)</th><th>Size</th><th>Verified</th><th>Protected</th><th>Note</th></tr></thead><tbody>
+<table class="table" data-server-sort="orm"><thead><tr><th data-sort-key="name">Name</th><th data-sort-key="kind" data-sort-type="status">Kind</th><th data-sort-key="created" data-sort-type="date">Created (IST)</th><th data-sort-key="size" data-sort-type="number">Size</th><th data-sort-key="verified" data-sort-type="status">Verified</th><th data-sort-key="protected" data-sort-type="status">Protected</th><th data-sort-key="note">Note</th></tr></thead><tbody>
 {% for r in records %}<tr><td><a href="{% url 'backup:detail' r.pk %}">{{ r.name }}</a>{% if r.deleted_at %} <span class="muted">(removed by retention)</span>{% endif %}</td><td>{{ r.get_kind_display }}</td><td>{{ r.created_at|date:"d-m-Y H:i:s" }}</td><td>{{ r.size|filesizeformat }}</td>
 <td>{% if r.verify_ok %}OK {{ r.verified_at|date:"d-m H:i" }}{% elif r.verify_ok is False %}<strong style="color:#b3261e">FAILED</strong>{% else %}&mdash;{% endif %}</td><td>{% if r.is_protected %}Yes{% endif %}</td><td>{{ r.note }}</td></tr>
 {% empty %}<tr><td colspan="7" class="muted">No backups yet.</td></tr>{% endfor %}</tbody></table>{% endblock %}

@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from reporting import periods as rp
+from invoice_app.table_sorting import apply_queryset_sort
 
 from . import services as S
 from .forms import AccountForm
@@ -122,9 +123,16 @@ def journal_list(request):
         qs = qs.filter(status=st)
     if q:
         qs = qs.filter(Q(number__icontains=q) | Q(narration__icontains=q) | Q(source_key__icontains=q))
-    page = Paginator(qs.order_by('-date', '-id'), 100).get_page(request.GET.get('page'))
+    qs = qs.order_by('-date', '-id')
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'number': 'number', 'date': 'date', 'narration': 'narration', 'source': 'source_type',
+        'status': 'status', 'amount': 'amount',
+    })
+    page = Paginator(qs, 100).get_page(request.GET.get('page'))
+    params = request.GET.copy()
+    params.pop('page', None)
     return render(request, 'accounting/journal_list.html', {'page': page, 'f': f, 'status': st, 'q': q,
-                  'statuses': JournalEntry.STATUSES, 'params': request.GET, 'periods': rp.OPTIONS, 'fy_list': rp.fy_choices(),
+                  'statuses': JournalEntry.STATUSES, 'params': params, 'periods': rp.OPTIONS, 'fy_list': rp.fy_choices(),
                   'month_choices': _month_choices(request.GET)})
 
 

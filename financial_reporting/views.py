@@ -7,6 +7,7 @@ from django.utils.text import slugify
 from django.utils.http import urlencode
 
 from employee_management.security import local_only
+from invoice_app.table_sorting import apply_queryset_sort, apply_sequence_sort
 from reporting import periods
 from reporting.exports import period_workbook
 
@@ -69,6 +70,14 @@ def catalogue(request):
     q = request.GET.get('q', '').strip()[:100]
     category = request.GET.get('category', '').strip()[:40]
     report_rows = active_reports(query=q, category=category, period_type=period_type)
+    fields = {
+        'report': ('report_name', 'text'), 'category': ('category__name', 'text'),
+        'source': ('source_application', 'text'), 'formats': ('supported_formats', 'text'),
+    }
+    if hasattr(report_rows, 'order_by'):
+        report_rows, _, _ = apply_queryset_sort(report_rows, request, {k: v[0] for k, v in fields.items()})
+    else:
+        report_rows, _, _ = apply_sequence_sort(report_rows, request, fields)
     page = Paginator(report_rows, 30).get_page(request.GET.get('page'))
     page_query = request.GET.copy()
     page_query.pop('page', None)

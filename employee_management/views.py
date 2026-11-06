@@ -15,6 +15,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from invoice_app.table_sorting import apply_queryset_sort
+
 from . import payroll as engine
 from .exports import (bank_csv, bank_xlsx, generic_xlsx, salary_register_csv, salary_register_xlsx)
 from .forms import (BankAccountForm, DepartmentForm, DocumentForm, EmergencyContactForm, EmployeeForm,
@@ -143,6 +145,10 @@ def employee_detail(request, pk):
     e = get_object_or_404(Employee.objects.select_related('department', 'reporting_manager'), pk=pk)
     s = PayrollSettings.current()
     docs = list(e.documents.filter(is_current=True))
+    change_log = e.change_log.all()
+    change_log, _, _ = apply_queryset_sort(change_log, request, {
+        'changed': 'changed_at', 'field': 'field', 'from': 'old_value', 'to': 'new_value',
+    })
     have = {d.document_type for d in docs}
     tab = request.GET.get('tab', 'overview')
     return render(request, T + 'employee_detail.html', {
@@ -153,7 +159,7 @@ def employee_detail(request, pk):
         'doc_states': {d.pk: d.expiry_state(s.expiry_alert_days) for d in docs},
         'banks': e.bank_accounts.all(), 'structures': e.salary_structures.prefetch_related('components'),
         'payrolls': e.payrolls.select_related('period').order_by('-period__year', '-period__month', '-revision'),
-        'contacts': e.emergency_contacts.all(), 'log': e.change_log.all()[:50],
+        'contacts': e.emergency_contacts.all(), 'log': change_log[:50],
     })
 
 

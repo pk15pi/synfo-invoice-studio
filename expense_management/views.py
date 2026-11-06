@@ -6,7 +6,7 @@ from datetime import date
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Max, Min, Q
+from django.db.models import Max, Min, Q, Sum
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 from employee_management.models import Department, Employee
 from employee_management.security import local_only, private_file_response
 from invoice_app.models import BusinessProfile, Client, ProjectTemplate
+from invoice_app.table_sorting import apply_queryset_sort, sort_table_values
 
 from . import exports, reports, services
 from .forms import (CLAIM_DOC_TYPES, COMPANY_DOC_TYPES, CategoryForm, ClaimForm, CompanyExpenseForm, PaymentForm,
@@ -117,7 +118,19 @@ def all_expenses(request):
                              amount=c.approved_amount if c.approved_amount is not None else c.amount_claimed,
                              currency=c.currency, status=c.status_label, status_key=c.status,
                              url=reverse('exp:claim_detail', args=[c.pk])))
-    rows.sort(key=lambda r: (r['date'], r['id']), reverse=True)
+    sort_fields = {
+        'id': ('id', 'text'), 'date': ('date', 'date'), 'type': ('kind', 'text'),
+        'category': ('category', 'text'), 'party': ('party', 'text'), 'reference': ('ref', 'text'),
+        'amount': ('amount', 'currency'), 'status': ('status', 'status'),
+    }
+    sort_key = (request.GET.get('sort') or '').strip()
+    sort_direction = (request.GET.get('direction') or 'asc').lower()
+    if sort_key in sort_fields and sort_direction in {'asc', 'desc'}:
+        rows.sort(key=lambda r: (r['kind'], r['pk']))
+        field, value_kind = sort_fields[sort_key]
+        rows = [r[1] for r in sort_table_values([[r[field], r] for r in rows], 0, value_kind, sort_direction)]
+    else:
+        rows.sort(key=lambda r: (r['date'], r['id']), reverse=True)
     ctx = _filter_ctx(request, f)
     ctx.update(rows=rows[:500], truncated=len(rows) > 500, total_rows=len(rows), q=q, kind=kind,
                pay_statuses=CompanyExpense.STATUSES, claim_statuses=C.STATUSES, has_dates=has_dates,
@@ -302,7 +315,16 @@ def _claim_filters(request):
 
 
 def _claim_list(request, template, title):
-    ctx = dict(rows=_claim_filters(request)[:500], params=request.GET, statuses=C.STATUSES, title=title,
+    qs = _claim_filters(request)
+    if request.GET.get('sort') == 'reimbursed':
+        qs = qs.annotate(_reimbursed_sort=Sum('reimbursements__amount'))
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'claim': 'claim_id', 'employee': 'snap_name', 'department': 'snap_department',
+        'claim_date': 'claim_date', 'expense_date': 'expense_date', 'category': 'category__name',
+        'claimed': 'amount_claimed', 'approved': 'approved_amount', 'reimbursed': '_reimbursed_sort',
+        'status': 'status', 'expense': 'expense_date',
+    })
+    ctx = dict(rows=qs[:500], params=request.GET, statuses=C.STATUSES, title=title,
                employees_all=Employee.objects.all(), departments_all=Department.objects.all(),
                categories=ExpenseCategory.objects.all(), next_url=request.get_full_path())
     return render(request, template, ctx)

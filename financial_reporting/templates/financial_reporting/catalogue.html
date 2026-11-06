@@ -23,8 +23,8 @@
 </form>
 {% if page.object_list %}
 <div class="table-wrap">
-  <table>
-    <thead><tr><th>Report</th><th>Category</th><th>Source</th><th>Formats</th><th>Availability</th><th></th></tr></thead>
+  <table data-server-sort="orm">
+    <thead><tr><th data-sort-key="report">Report</th><th data-sort-key="category">Category</th><th data-sort-key="source">Source</th><th data-sort-key="formats">Formats</th><th>Availability</th><th></th></tr></thead>
     <tbody>
     {% for report in page.object_list %}
       <tr>

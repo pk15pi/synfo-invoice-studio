@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from employee_management.security import local_only
+from invoice_app.table_sorting import apply_queryset_sort
 
 from . import services as S
 from . import consolidation as C
@@ -22,10 +23,17 @@ def home(request):
         S.rescan()
     except S.BackupError as e:
         folder, err = None, str(e)
+    records = BackupRecord.objects.all()
+    records, _, _ = apply_queryset_sort(records, request, {
+        'name': 'name', 'kind': 'kind', 'created': 'created_at', 'size': 'size',
+        'verified': 'verify_ok', 'protected': 'protected', 'note': 'note',
+    })
+    packages = MergePackage.objects.all()
+    packages, _, _ = apply_queryset_sort(packages, request, {'source': 'source_instance_name', 'status': 'status'})
     return render(request, 'backup/home.html', {
-        'records': BackupRecord.objects.all()[:200], 'folder': folder, 'err': err, 'form': CreateForm(),
+        'records': records[:200], 'folder': folder, 'err': err, 'form': CreateForm(),
         'keep': getattr(settings, 'BACKUP_KEEP_LAST', 10), 'identity': InstanceIdentity.current(),
-        'import_form': ImportPackageForm(), 'packages': MergePackage.objects.all()[:20]})
+        'import_form': ImportPackageForm(), 'packages': packages[:20]})
 
 
 @local_only

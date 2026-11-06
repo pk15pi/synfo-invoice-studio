@@ -14,6 +14,7 @@ from django.utils import timezone
 from document_management.models import full_path
 from document_management.services import private_storage
 from employee_management.security import local_only
+from invoice_app.table_sorting import apply_queryset_sort
 
 from .forms import CompanyDocumentProfileForm
 from .generation import (
@@ -80,6 +81,9 @@ def catalogue(request):
     if category:
         document_types = document_types.filter(categories__code=category)
     document_types = document_types.distinct()
+    document_types, _, _ = apply_queryset_sort(document_types, request, {
+        'type': 'name', 'code': 'code', 'numbering': 'number_prefix', 'approval': 'approval_required',
+    })
     page = Paginator(document_types, 30).get_page(request.GET.get('page'))
     page_query = request.GET.copy()
     page_query.pop('page', None)

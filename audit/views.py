@@ -8,6 +8,7 @@ from django.shortcuts import render
 from django.utils import timezone
 
 from employee_management.security import local_only
+from invoice_app.table_sorting import apply_queryset_sort
 
 from .models import OPERATOR_TEXT, AuditEvent
 
@@ -39,6 +40,10 @@ def _filtered(request):
 
 
 def _ctx(qs, g, request, **extra):
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'timestamp': 'timestamp', 'source': 'source', 'object': 'object_repr',
+        'action': 'action', 'reason': 'reason', 'path': 'request_path',
+    })
     page = Paginator(qs, 100).get_page(request.GET.get('page'))
     qd = request.GET.copy()
     qd.pop('page', None)

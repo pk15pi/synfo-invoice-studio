@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from employee_management.security import local_only
+from invoice_app.table_sorting import apply_queryset_sort
 
 from . import services as S
 from .forms import EditForm, UploadForm
@@ -27,10 +28,17 @@ def doc_list(request):
         qs = qs.filter(missing=True)
     elif state == 'ok':
         qs = qs.filter(missing=False)
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'uploaded': 'uploaded_at', 'category': 'category', 'title': 'title',
+        'linked': 'object_id', 'sensitivity': 'sensitivity', 'tags': 'tags',
+        'size': 'size', 'hash': 'sha256',
+    })
     page = Paginator(qs, 50).get_page(request.GET.get('page'))
+    page_query = request.GET.copy()
+    page_query.pop('page', None)
     return render(request, 'document_management/list.html', {
         'page': page, 'q': q, 'category': cat, 'sensitivity': sens, 'state': state,
-        'categories': Document.CATEGORIES, 'sensitivities': Document.SENSITIVITY,
+        'categories': Document.CATEGORIES, 'sensitivities': Document.SENSITIVITY, 'page_query': page_query.urlencode(),
         'missing_count': Document.objects.filter(missing=True).count(), 'total': Document.objects.count()})
 
 

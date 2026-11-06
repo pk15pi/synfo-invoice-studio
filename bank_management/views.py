@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from accounting import services as A
 from accounting.models import JournalLine
 from accounting.money import q2
+from invoice_app.table_sorting import apply_queryset_sort
 from reporting import periods as rp
 
 from . import importer, services as S
@@ -84,7 +85,12 @@ def transactions(request, pk):
     st = request.GET.get('status', '')
     if st:
         qs = qs.filter(status=st)
-    ctx.update(b=b, form=form, rows=qs.order_by('-date', '-id')[:1000], status=st, statuses=BankTransaction.STATUSES)
+    qs = qs.order_by('-date', '-id')
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'date': 'date', 'description': 'description', 'reference': 'reference', 'debit': 'debit',
+        'credit': 'credit', 'balance': 'balance', 'source': 'source', 'status': 'status',
+    })
+    ctx.update(b=b, form=form, rows=qs[:1000], status=st, statuses=BankTransaction.STATUSES)
     return render(request, 'bank_management/transactions.html', ctx)
 
 
@@ -170,7 +176,15 @@ def import_batch(request, pk):
 
 
 def imports(request):
-    return render(request, 'bank_management/imports.html', {'rows': ImportBatch.objects.select_related('bank_account')[:200]})
+    qs = ImportBatch.objects.select_related('bank_account')
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'when': 'created_at', 'account': 'bank_account__name', 'file': 'file_name', 'status': 'status',
+        'rows': 'total_rows', 'imported': 'imported', 'duplicates': 'duplicates', 'errors': 'errors',
+    })
+    return render(request, 'bank_management/imports.html', {
+        'rows': qs[:200],
+        'accounts': BankAccount.objects.order_by('kind', 'name'),
+    })
 
 
 def manual_entry(request, pk):
@@ -197,8 +211,12 @@ def transfers(request):
             return redirect('bank:transfers')
         except ValidationError as e:
             messages.error(request, _err(e))
-    return render(request, 'bank_management/transfers.html', {
-        'form': form, 'rows': BankTransfer.objects.select_related('from_account', 'to_account', 'entry')[:200]})
+    qs = BankTransfer.objects.select_related('from_account', 'to_account', 'entry')
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'date': 'date', 'from': 'from_account__name', 'to': 'to_account__name', 'amount': 'amount',
+        'reference': 'reference', 'journal': 'entry__number',
+    })
+    return render(request, 'bank_management/transfers.html', {'form': form, 'rows': qs[:200]})
 
 
 def reconciliation(request, pk):

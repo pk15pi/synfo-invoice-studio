@@ -553,6 +553,12 @@ main select:not([class]),main textarea:not([class]){min-height:38px}
 .table-wrap{max-width:100%;overscroll-behavior-inline:contain}
 .table-wrap th{padding:9px 11px}
 .table-wrap td{padding:9px 11px;line-height:1.45}
+th.table-sortable-header{cursor:pointer;user-select:none;white-space:nowrap}
+th.table-sortable-header:hover{filter:brightness(.94)}
+th.table-sortable-header:focus-visible{outline:2px solid #4e8bd2;outline-offset:-2px}
+th.table-sortable-header .table-sort-indicator{display:inline-block;margin-inline-start:.45em;min-width:.8em;font-size:.82em;line-height:1;opacity:.58;vertical-align:middle}
+th.table-sortable-header.table-sort-active{box-shadow:inset 0 -2px 0 #5a9be0}
+th.table-sortable-header.table-sort-active .table-sort-indicator{opacity:1;color:inherit}
 .navmenu{max-height:min(68vh,520px);overflow-y:auto;overscroll-behavior:contain}
 .navmenu a{white-space:normal}
 main{min-width:0}

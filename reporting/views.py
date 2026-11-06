@@ -5,6 +5,7 @@ from django.utils.text import slugify
 
 from employee_management.models import Department, Employee
 from employee_management.security import local_only
+from invoice_app.table_sorting import sort_table_values
 from expense_management.models import CompanyExpense, EmployeeExpenseClaim, ExpenseCategory, Vendor
 from invoice_app.models import Client, ProjectTemplate
 
@@ -40,6 +41,15 @@ def _ctx(request, **kw):
 def _respond(request, rep, template='reporting/report.html', **extra):
     fmt = request.GET.get('format')
     name = slugify(f'{rep.title} {rep.period.label}')
+    sort_table = request.GET.get('sort_table', '')
+    sort_column = request.GET.get('sort', '')
+    direction = request.GET.get('direction', 'asc').lower()
+    if sort_table.isdigit() and sort_column.isdigit() and direction in {'asc', 'desc'}:
+        table_index, column_index = int(sort_table), int(sort_column)
+        if table_index < len(rep.tables):
+            table = rep.tables[table_index]
+            if column_index < len(table.cols) and not any(table.styles):
+                table.rows = sort_table_values(table.rows, column_index, table.cols[column_index].kind, direction)
     if fmt == 'xlsx':
         r = HttpResponse(exports.report_xlsx(rep),
                          content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -55,7 +65,7 @@ def _respond(request, rep, template='reporting/report.html', **extra):
         return r
     page_no = request.GET.get('page') or 1
     tables = []
-    for t in rep.tables:
+    for table_index, t in enumerate(rep.tables):
         rows = [dict(cells=[dict(v=text(c, col.kind), url=c[1] if isinstance(c, tuple) else '',
                                  num=col.kind in ('money', 'int', 'pct'))
                             for c, col in zip(r_, t.cols)], style=s) for r_, s in zip(t.rows, t.styles)]
@@ -63,7 +73,7 @@ def _respond(request, rep, template='reporting/report.html', **extra):
         if t.paginate and len(rows) > PAGE:
             page = Paginator(rows, PAGE).get_page(page_no)
             rows = list(page.object_list)
-        tables.append(dict(t=t, rows=rows, page=page,
+        tables.append(dict(t=t, rows=rows, page=page, table_index=table_index, sort_enabled=not any(t.styles),
                            total=[dict(v=text(c, col.kind), num=col.kind in ('money', 'int', 'pct'))
                                   for c, col in zip(t.total, t.cols)] if t.total else None))
     cards = [dict(c, text=text(c['value'], c['kind']) if c['value'] is not None else 'Not tracked',

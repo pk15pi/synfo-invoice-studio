@@ -1,5 +1,12 @@
 {% extends 'bank_management/base_bank.html' %}{% block bk_title %}Imports{% endblock %}{% block bk %}
-<div class="page-heading"><p class="eyebrow">Bank Management</p><h1>Statement imports</h1></div>
-<div class="panel"><table><thead><tr><th>When</th><th>Account</th><th>File</th><th>Status</th><th class="num">Rows</th><th class="num">Imported</th><th class="num">Duplicates</th><th class="num">Errors</th></tr></thead><tbody>
+<div class="page-heading split"><div><p class="eyebrow">Bank Management</p><h1>Statement imports</h1></div></div>
+<section class="panel">
+  <h2>Import a statement</h2>
+  <p class="muted">Choose the bank or cash account the statement belongs to. You’ll upload the file, map its columns, review a preview, then confirm the import. Duplicate rows are skipped.</p>
+  {% if accounts %}<div class="button-row">
+    {% for account in accounts %}<a class="button primary" href="{% url 'bank:import_upload' account.pk %}">Import to {{ account.name }}</a>{% endfor %}
+  </div>{% else %}<p>No bank or cash accounts are set up yet. <a href="{% url 'bank:account_new' %}">Create an account</a> before importing a statement.</p>{% endif %}
+</section>
+<div class="panel"><table data-server-sort="orm"><thead><tr><th data-sort-key="when" data-sort-type="date">When</th><th data-sort-key="account">Account</th><th data-sort-key="file">File</th><th data-sort-key="status" data-sort-type="status">Status</th><th class="num" data-sort-key="rows" data-sort-type="number">Rows</th><th class="num" data-sort-key="imported" data-sort-type="number">Imported</th><th class="num" data-sort-key="duplicates" data-sort-type="number">Duplicates</th><th class="num" data-sort-key="errors" data-sort-type="number">Errors</th></tr></thead><tbody>
 {% for x in rows %}<tr><td>{{ x.created_at|date:"d-m-Y H:i" }}</td><td>{{ x.bank_account }}</td><td><a href="{% url 'bank:import_batch' x.pk %}">{{ x.file_name }}</a></td><td>{{ x.status }}</td><td class="num">{{ x.total_rows }}</td><td class="num">{{ x.imported }}</td><td class="num">{{ x.duplicates }}</td><td class="num">{{ x.errors }}</td></tr>
 {% empty %}<tr><td colspan="8" class="empty">No imports yet.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}

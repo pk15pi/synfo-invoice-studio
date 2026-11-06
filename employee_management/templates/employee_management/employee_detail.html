@@ -55,6 +55,6 @@
 {% empty %}<tr><td colspan="7" class="empty">No payroll yet.</td></tr>{% endfor %}</tbody></table></div></div>
 
 {% else %}
-<div class="panel"><div class="table-wrap"><table><thead><tr><th>When</th><th>Field</th><th>From</th><th>To</th></tr></thead><tbody>
+<div class="panel"><div class="table-wrap"><table data-server-sort="orm"><thead><tr><th data-sort-key="changed" data-sort-type="date">When</th><th data-sort-key="field">Field</th><th data-sort-key="from">From</th><th data-sort-key="to">To</th></tr></thead><tbody>
 {% for l in log %}<tr><td>{{ l.changed_at|date:"d-m-Y H:i" }}</td><td>{{ l.field }}</td><td>{{ l.old_value }}</td><td>{{ l.new_value }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No changes recorded.</td></tr>{% endfor %}</tbody></table></div></div>
 {% endif %}{% endblock %}

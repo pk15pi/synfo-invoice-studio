@@ -12,6 +12,7 @@ from django.views.decorators.http import require_POST
 
 from employee_management.exports import generic_xlsx
 from employee_management.models import Employee
+from invoice_app.table_sorting import apply_queryset_sort
 
 from . import services as svc
 from .forms import (AttendanceSettingsForm, HolidayForm, ImportForm, LeaveApplicationForm, LeaveBalanceForm,
@@ -235,6 +236,10 @@ def applications(request):
     st = request.GET.get('status', '')
     if st:
         qs = qs.filter(status=st)
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'id': 'pk', 'employee': 'employee__employee_id', 'type': 'leave_type__code',
+        'start': 'start_date', 'end': 'end_date', 'days': 'days', 'status': 'status', 'reason': 'reason',
+    })
     return render(request, T + 'applications.html', {'rows': qs[:500], 'status': st,
                                                      'statuses': LeaveApplication.STATUSES})
 
@@ -376,6 +381,10 @@ def corrections(request):
         qs = qs.filter(date__year=int(y))
         if m.isdigit():
             qs = qs.filter(date__month=int(m))
+    qs, _, _ = apply_queryset_sort(qs, request, {
+        'changed': 'changed_at', 'employee': 'employee__employee_id', 'date': 'date',
+        'old': 'old_value', 'new': 'new_value', 'reason': 'reason',
+    })
     return render(request, T + 'corrections.html', {
         'rows': qs[:500], 'employees': Employee.objects.order_by('employee_id'), 'emp': emp, 'y': y, 'm': m,
         'months': MONTHS, 'years': _years()})
