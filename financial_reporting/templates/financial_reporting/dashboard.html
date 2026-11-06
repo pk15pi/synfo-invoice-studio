@@ -1,24 +1,32 @@
 {% extends "invoice_app/base.html" %}
+{% load static %}
 {% block title %}Financial Reports &amp; Audit Centre{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'financial_reporting/dashboard.css' %}">{% endblock %}
 {% block content %}
-<h1>Financial Reports &amp; Audit Centre</h1>
-<p>Reporting period: <strong>{{ period.label }}</strong> ({{ period.range_text }})</p>
-<form method="get" class="filter-form">
+<div class="fr-dashboard">
+<header class="page-heading split fr-heading">
+  <div><p class="eyebrow">Finance &amp; audit</p><h1>Financial Reports &amp; Audit Centre</h1>
+    <p class="fr-current-period">Reporting period <strong>{{ period.label }}</strong><span>{{ period.range_text }}</span></p>
+  </div>
+  <a class="button primary" href="{% url 'financial_reporting:catalogue' %}">Browse report catalogue</a>
+</header>
+<form method="get" class="fr-filter panel">
+  <div class="fr-filter-title"><h2>Reporting period</h2><p>Choose the dates and reporting interval to view.</p></div>
   <label>Period {{ period_form.period }}</label>
   <label>Financial year start {{ period_form.financial_year }}</label>
   <label>FY quarter / half {{ period_form.financial_year_part }}</label>
   <label>Month {{ period_form.month }}</label>
   <label>From {{ period_form.date_from }}</label>
   <label>To {{ period_form.date_to }}</label>
-  <button type="submit">Apply period</button>
+  <div class="fr-filter-action"><button class="button secondary" type="submit">Apply period</button><button class="button primary" type="submit" name="export" value="xlsx">Export to Excel</button></div>
 </form>
-<div class="cards">
-  <article class="card"><h2>Financial year</h2><p>{{ period.label }}</p></article>
-  <article class="card"><h2>Available report definitions</h2><p>{{ report_count }}</p></article>
-  <article class="card"><h2>Pending / warning audit checks</h2><p>{{ pending_checks }}</p></article>
-  <article class="card"><h2>Audit readiness</h2><p>Not assessed in Phase 1</p></article>
+<div class="fr-summary">
+  <article class="fr-metric"><span>Financial year</span><strong>{{ period.label }}</strong><small>{{ period.range_text }}</small></article>
+  <article class="fr-metric"><span>Available report definitions</span><strong>{{ report_count }}</strong><small>In the report catalogue</small></article>
+  <article class="fr-metric"><span>Pending / warning audit checks</span><strong>{{ pending_checks }}</strong><small>Checks requiring attention</small></article>
+  <article class="fr-metric"><span>Audit readiness</span><strong class="fr-metric-note">Not assessed</strong><small>Phase 1</small></article>
 </div>
-<section>
+<section class="fr-section">
   <h2>Report categories</h2>
   <ul class="link-list">
     {% for category in active_categories %}
@@ -27,9 +35,8 @@
       <li>No report categories have been configured.</li>
     {% endfor %}
   </ul>
-  <p><a class="button" href="{% url 'financial_reporting:catalogue' %}">Browse report catalogue</a></p>
 </section>
-<section>
+<section class="fr-section">
   <h2>Recent report runs</h2>
   <ul class="link-list">
     {% for run in recent_runs %}
@@ -39,7 +46,7 @@
     {% endfor %}
   </ul>
 </section>
-<section>
+<section class="fr-section">
   <h2>Recent export packages</h2>
   <ul class="link-list">
     {% for package in recent_packages %}
@@ -49,5 +56,6 @@
     {% endfor %}
   </ul>
 </section>
-<p class="notice">Phase 1 provides reporting periods and a catalogue foundation. Reports already available in Reports &amp; Analytics open their existing report pages; tax filing, reconciliations, audit certification and package generation are not implemented here.</p>
+<p class="notice fr-notice">Phase 1 provides reporting periods and a catalogue foundation. Reports already available in Reports &amp; Analytics open their existing report pages; tax filing, reconciliations, audit certification and package generation are not implemented here.</p>
+</div>
 {% endblock %}

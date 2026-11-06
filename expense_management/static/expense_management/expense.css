@@ -1,5 +1,43 @@
 /* Expense Management additions (kept separate from invoice_app/style.css) */
 .xm-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:14px}
+.xm-period-filters{display:flex;align-items:center;gap:10px;flex:0 1 auto;min-width:0}
+.xm-period-control{display:inline-flex;align-items:center;gap:5px;min-width:0}
+.xm-period-control>span{color:var(--muted,#6d7d89);font-size:11px;font-weight:700;white-space:nowrap}
+.xm-period-control>.field{width:auto;min-width:0;min-height:35px;padding:6px 8px;font-size:12px}
+.xm-period-control select[name="period"]{width:145px}
+.xm-period-control select[name="fy"]{width:125px}
+.xm-period-control input[name="month"]{width:150px}
+.all-expenses-filters .xm-period-filters{flex:0 1 auto}
+.all-expenses-filters .xm-period-control>span{font-size:10px}
+.all-expenses-filters{display:flex;align-items:center;gap:7px;padding:12px 14px;margin-bottom:12px;flex-wrap:wrap}
+.all-expenses-filters>.field{flex:0 1 auto;width:auto;min-width:0;min-height:35px;padding:6px 8px;font-size:12px}
+.all-expenses-filters>input[name="q"]{flex:1 1 240px;width:240px;min-width:210px}
+.all-expenses-filters>select[name="type"]{flex-basis:140px}
+.all-expenses-filters>select[name="category"]{flex-basis:145px}
+.all-expenses-filters>select[name="vendor"]{flex-basis:145px}
+.all-expenses-filters>select[name="employee"]{flex-basis:160px}
+.all-expenses-filters>select[name="department"]{flex-basis:140px}
+.all-expenses-filters>select[name="payment_status"]{flex-basis:150px}
+.all-expenses-filters>select[name="claim_status"]{flex-basis:140px}
+.all-expenses-filters>select[name="period"]{flex-basis:125px}
+.all-expenses-filters>select[name="fy"]{flex-basis:92px}
+.all-expenses-filters>input[name="month"]{flex-basis:145px}
+.all-expenses-filters .xm-custom{display:inline-flex;align-items:center;gap:5px;flex:0 1 auto}
+.all-expenses-filters .xm-custom input{width:132px;min-width:0;min-height:35px;padding:6px 7px;font-size:12px}
+.all-expenses-filters>.button{flex:0 0 auto;min-height:35px;padding:6px 11px;font-size:12px}
+.all-expenses-filters>a:not(.button){flex:0 0 auto;font-size:12px}
+#all-table{min-width:1180px;table-layout:fixed}
+#all-table th:nth-child(1),#all-table td:nth-child(1){width:100px;white-space:nowrap}
+#all-table th:nth-child(2),#all-table td:nth-child(2){width:95px;white-space:nowrap}
+#all-table th:nth-child(3),#all-table td:nth-child(3){width:130px;white-space:nowrap}
+#all-table th:nth-child(4),#all-table td:nth-child(4){width:140px}
+#all-table th:nth-child(5),#all-table td:nth-child(5){width:170px}
+#all-table th:nth-child(6),#all-table td:nth-child(6){width:140px}
+#all-table th:nth-child(7),#all-table td:nth-child(7){width:110px;white-space:nowrap}
+#all-table th:nth-child(8),#all-table td:nth-child(8){width:115px;white-space:nowrap}
+#all-table th:nth-child(9),#all-table td:nth-child(9){width:180px;white-space:nowrap}
+@media(max-width:850px){.all-expenses-filters{gap:6px}.all-expenses-filters>input[name="q"]{flex-basis:220px}}
+@media(max-width:560px){.all-expenses-filters>input[name="q"]{flex:1 1 100%;width:100%;min-width:0}.all-expenses-filters>.field,.all-expenses-filters .xm-custom{flex:1 1 120px}.all-expenses-filters .xm-custom input{flex:1 1 100px;width:100%}.all-expenses-filters>.button{flex:1 1 auto}.xm-period-filters{flex-wrap:wrap;gap:8px}.xm-period-control select[name="period"]{width:135px}.xm-period-control select[name="fy"]{width:115px}.xm-period-control input[name="month"]{width:145px}}
 .xm-card{background:#fff;border:1px solid var(--line,#e1e8ee);border-radius:10px;padding:12px 14px;color:inherit;text-decoration:none;display:block}
 .xm-card .muted{display:block;font-size:12px}.xm-card strong{display:block;font-size:20px;color:var(--navy,#0B5394)}
 .xm-card small{color:#6d7d89}

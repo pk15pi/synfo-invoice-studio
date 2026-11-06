@@ -10,7 +10,7 @@ from pathlib import Path
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
 from employee_management.models import Department, Employee
@@ -180,7 +180,31 @@ class CompanyExpenseTests(Base):
         self.assertEqual(e.client_id, c1.pk)
 
 
-class AttachmentTests(Base):
+@override_settings(EMPLOYEE_PRIVATE_ROOT=TMP)
+class AttachmentTests(TransactionTestCase):
+    # Streamed file responses close the connection at request_finished. Use a
+    # transaction-capable test case here so the next request can reconnect.
+    def setUp(self):
+        # TransactionTestCase flushes the database between tests, including
+        # categories normally inserted by the app's data migration.
+        from accounting.models import Account, AccountMapping
+        from accounting.seed import seed as seed_accounts
+
+        seed_accounts(Account, AccountMapping)
+        tech, _ = ExpenseCategory.objects.get_or_create(name='Technology')
+        travel, _ = ExpenseCategory.objects.get_or_create(name='Travel')
+        ExpenseSubcategory.objects.get_or_create(category=tech, name='Hosting')
+        Base.setUp(self)
+    expense = Base.expense
+    claim = Base.claim
+    pay = Base.pay
+    reimb = Base.reimb
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(TMP, ignore_errors=True)
+
     def test_upload_view_download_replace_delete(self):
         e = self.expense()
         att = services.add_attachment(e, pdf(), 'vendor_invoice')

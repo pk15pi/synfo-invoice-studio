@@ -1,6 +1,22 @@
-<select class="field" name="period" onchange="this.form.querySelector('.xm-custom').style.display=this.value==='custom'?'':'none'">
-{% for k, l in periods %}<option value="{{ k }}" {% if f.period == k %}selected{% endif %}>{{ l }}</option>{% endfor %}
-{% if f.period == 'fy' or f.period == 'month' %}<option value="{{ f.period }}" selected>{{ f.label }}</option>{% endif %}</select>
-<select class="field" name="fy" title="Financial year (used when period is blank)" onchange="const p=this.form.period;if(this.value){p.value='';}"><option value="">FY&hellip;</option>{% for y, l in fy_list %}<option value="{{ y }}" {% if params.fy == y|stringformat:"s" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-<input class="field" type="month" name="month" value="{{ params.month }}" title="Month (YYYY-MM)" onchange="if(this.value){this.form.period.value='';}">
-<span class="xm-custom" {% if f.period != 'custom' %}style="display:none"{% endif %}><input class="field" type="date" name="date_from" value="{{ params.date_from }}"> to <input class="field" type="date" name="date_to" value="{{ params.date_to }}"></span>
+<div class="xm-period-filters" role="group" aria-label="Date range filters">
+    <label class="xm-period-control"><span>Period</span>
+        <select class="field" name="period" title="Choose a preset date range"
+            onchange="const f=this.form;const c=f.querySelector('.xm-custom');if(c)c.style.display=this.value==='custom'?'':'none';if(this.value!=='fy')f.elements.fy.value='';f.elements.month.value='';">
+            {% for k, l in periods %}<option value="{{ k }}" {% if f.period == k %}selected{% endif %}>{{ l }}</option>{% endfor %}
+            {% if f.period == 'fy' or f.period == 'month' %}<option value="{{ f.period }}" selected>{{ f.label }}</option>{% endif %}
+        </select>
+    </label>
+    <label class="xm-period-control"><span>Financial year</span>
+        <select class="field" name="fy" title="Choose a financial year"
+            onchange="if(this.value){this.form.elements.period.value='';this.form.elements.month.value='';const c=this.form.querySelector('.xm-custom');if(c)c.style.display='none';}">
+            <option value="">Any year</option>{% for y, l in fy_list %}<option value="{{ y }}" {% if params.fy == y|stringformat:"s" %}selected{% endif %}>{{ l }}</option>{% endfor %}
+        </select>
+    </label>
+    <label class="xm-period-control"><span>Month</span>
+        <input class="field" type="month" name="month" value="{{ params.month }}" title="Choose a specific month"
+            onchange="if(this.value){this.form.elements.period.value='';this.form.elements.fy.value='';const c=this.form.querySelector('.xm-custom');if(c)c.style.display='none';}">
+    </label>
+</div>
+<span class="xm-custom" {% if f.period != 'custom' %}style="display:none" {% endif %}><input class="field" type="date"
+        name="date_from" value="{{ params.date_from }}"> to <input class="field" type="date" name="date_to"
+        value="{{ params.date_to }}"></span>

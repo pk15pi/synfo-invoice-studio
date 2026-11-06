@@ -1,11 +1,14 @@
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils.text import slugify
 from django.utils.http import urlencode
 
 from employee_management.security import local_only
 from reporting import periods
+from reporting.exports import period_workbook
 
 from .forms import ReportingPeriodForm
 from .models import (
@@ -23,11 +26,19 @@ def dashboard(request):
     form = ReportingPeriodForm(request.GET or None)
     if request.GET and not form.is_valid():
         messages.error(request, 'The reporting period is invalid. Review the selected dates and try again.')
-        form = ReportingPeriodForm(initial={'period': 'current_fy'})
+        form = ReportingPeriodForm(initial={'period': 'this_quarter'})
     if form.is_bound and form.is_valid():
         period = periods.resolve(form.period_params())
     else:
-        period = periods.resolve({}, default='current_fy')
+        period = periods.resolve({}, default='this_quarter')
+
+    if request.GET.get('export') == 'xlsx' and form.is_bound and form.is_valid():
+        response = HttpResponse(
+            period_workbook(period),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="{slugify(f"financial-report-{period.label}")}.xlsx"'
+        return response
 
     return render(request, 'financial_reporting/dashboard.html', {
         'period_form': form,
@@ -47,9 +58,9 @@ def catalogue(request):
     period_form = ReportingPeriodForm(request.GET or None)
     if request.GET and not period_form.is_valid():
         messages.error(request, 'The reporting period is invalid. Review the selected dates and try again.')
-        period_form = ReportingPeriodForm(initial={'period': 'current_fy'})
+        period_form = ReportingPeriodForm(initial={'period': 'this_quarter'})
     period = periods.resolve(period_form.period_params()) if period_form.is_bound and period_form.is_valid() \
-        else periods.resolve({}, default='current_fy')
+        else periods.resolve({}, default='this_quarter')
     period_type = {
         'month': 'month', 'quarter': 'quarter', 'half': 'half_year',
         'fy': 'financial_year', 'year': 'annual',

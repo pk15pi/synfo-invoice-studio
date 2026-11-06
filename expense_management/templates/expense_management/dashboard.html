@@ -1,29 +1,153 @@
 {% extends 'expense_management/xm_base.html' %}{% load exp_tags %}{% block xm_title %}Expense dashboard{% endblock %}{% block xm %}
-<div class="page-heading split"><div><p class="eyebrow">Expense Management</p><h1>Expense dashboard</h1></div>
-<div class="heading-actions"><a class="button secondary" href="{% url 'exp:all' %}">View all expenses</a><a class="button secondary" href="{% url 'exp:reports' %}">Expense reports</a><a class="button secondary" href="{% url 'exp:categories' %}">Manage categories</a><a class="button secondary" href="{% url 'exp:vendors' %}">Manage vendors</a><a class="button secondary" href="{% url 'exp:claim_new' %}">+ Employee claim</a><a class="button primary" href="{% url 'exp:expense_new' %}">+ Company expense</a></div></div>
-<form class="panel filters" method="get">{% include 'expense_management/_period_filter.html' %}<button class="button secondary" type="submit">Apply</button><span class="muted">Showing <b>{{ f.label }}</b> ({{ f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span></form>
+<div class="page-heading split">
+    <div>
+        <p class="eyebrow">Expense Management</p>
+        <h1>Expense dashboard</h1>
+    </div>
+    <div class="heading-actions"><a class="button secondary" href="{% url 'exp:all' %}">View all expenses</a><a
+            class="button secondary" href="{% url 'exp:reports' %}">Expense reports</a><a class="button secondary"
+            href="{% url 'exp:categories' %}">Manage categories</a><a class="button secondary"
+            href="{% url 'exp:vendors' %}">Manage vendors</a><a class="button secondary"
+            href="{% url 'exp:claim_new' %}">+ Employee claim</a><a class="button primary"
+            href="{% url 'exp:expense_new' %}">+ Company expense</a></div>
+</div>
+<form class="panel filters" method="get">{% include 'expense_management/_period_filter.html' %}<button
+        class="button secondary" type="submit">Apply</button><span class="muted">Showing <b>{{ f.label }}</b> ({{
+        f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span></form>
 <div class="xm-cards">
-<div class="xm-card"><span class="muted">Total expenses this month</span><strong>{{ cards.month_total|money }}</strong><small>{{ cards.month_label }}</small></div>
-<div class="xm-card"><span class="muted">Total expenses this financial year</span><strong>{{ cards.fy_total|money }}</strong><small>{{ cards.fy_label }}</small></div>
-<a class="xm-card" href="{% url 'exp:review' %}?status=pending"><span class="muted">Pending employee claims</span><strong>{{ cards.pending.0 }}</strong><small>{{ cards.pending.1|money }} &middot; {{ f.label }}</small></a>
-<a class="xm-card" href="{% url 'exp:review' %}?status=approved"><span class="muted">Approved employee claims</span><strong>{{ cards.approved.0 }}</strong><small>{{ cards.approved.1|money }} approved</small></a>
-<a class="xm-card" href="{% url 'exp:review' %}?status=reimbursed"><span class="muted">Reimbursed employee claims</span><strong>{{ cards.reimbursed.0 }}</strong><small>{{ cards.reimbursed.1|money }}</small></a>
-<a class="xm-card" href="{% url 'exp:all' %}?type=company&period={{ f.period }}"><span class="muted">Total company expenses</span><strong>{{ cards.company_total|money }}</strong><small>{{ cards.company_count }} bills &middot; {{ cards.company_outstanding|money }} outstanding</small></a>
-<a class="xm-card" href="{% url 'exp:report' 'employee' %}"><span class="muted">Total employee reimbursements</span><strong>{{ cards.reimb_total|money }}</strong><small>{{ cards.reimb_count }} payments</small></a>
+    <div class="xm-card"><span class="muted">Total expenses this month</span><strong>{{ cards.month_total|money }}</strong><small>{{ cards.month_label }}</small></div>
+    <div class="xm-card"><span class="muted">Total expenses this financial year</span><strong>{{ cards.fy_total|money }}</strong><small>{{ cards.fy_label }}</small></div>
+    <a class="xm-card" href="{% url 'exp:review' %}?status=pending"><span class="muted">Pending employee
+            claims</span><strong>{{ cards.pending.0 }}</strong><small>{{ cards.pending.1|money }} &middot; {{ f.label
+            }}</small></a>
+    <a class="xm-card" href="{% url 'exp:review' %}?status=approved"><span class="muted">Approved employee
+            claims</span><strong>{{ cards.approved.0 }}</strong><small>{{ cards.approved.1|money }} approved</small></a>
+    <a class="xm-card" href="{% url 'exp:review' %}?status=reimbursed"><span class="muted">Reimbursed employee
+            claims</span><strong>{{ cards.reimbursed.0 }}</strong><small>{{ cards.reimbursed.1|money }}</small></a>
+    <a class="xm-card" href="{% url 'exp:all' %}?type=company&period={{ f.period }}"><span class="muted">Total company
+            expenses</span><strong>{{ cards.company_total|money }}</strong><small>{{ cards.company_count }} bills
+            &middot; {{ cards.company_outstanding|money }} outstanding</small></a>
+    <a class="xm-card" href="{% url 'exp:report' 'employee' %}"><span class="muted">Total employee
+            reimbursements</span><strong>{{ cards.reimb_total|money }}</strong><small>{{ cards.reimb_count }}
+            payments</small></a>
 </div>
 <div class="xm-grid2">
-<div class="panel"><div class="panel-head"><h2>Monthly trend</h2></div><div class="table-wrap"><table><thead><tr><th>Month</th><th class="num">Company</th><th class="num">Reimbursed</th><th class="num">Total</th><th style="width:30%"></th></tr></thead><tbody>
-{% for m, a, b, t, pct in trend %}<tr><td>{{ m }}</td><td class="num">{{ a|money }}</td><td class="num">{{ b|money }}</td><td class="num">{{ t|money }}</td><td><div class="xm-bar"><span style="width:{{ pct }}%"></span></div></td></tr>{% endfor %}
-</tbody></table></div></div>
-<div class="panel"><div class="panel-head"><h2>By category</h2></div><div class="table-wrap"><table><thead><tr><th>Category</th><th class="num">Txns</th><th class="num">Amount</th><th style="width:30%"></th></tr></thead><tbody>
-{% for n, c, a, pct in cat_rows %}<tr><td>{{ n }}</td><td class="num">{{ c }}</td><td class="num">{{ a|money }}</td><td><div class="xm-bar"><span style="width:{{ pct }}%"></span></div></td></tr>{% empty %}<tr><td colspan="4" class="empty">No expenses in this period.</td></tr>{% endfor %}
-</tbody></table></div></div>
-<div class="panel"><div class="panel-head"><h2>Department-wise</h2></div><div class="table-wrap"><table><thead><tr><th>Department</th><th class="num">Company</th><th class="num">Claims</th><th class="num">Total</th></tr></thead><tbody>
-{% for r in department.rows %}<tr><td>{{ r.0 }}</td><td class="num">{{ r.1|money }}</td><td class="num">{{ r.2|money }}</td><td class="num">{{ r.3|money }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No data.</td></tr>{% endfor %}
-</tbody></table></div></div>
-<div class="panel"><div class="panel-head"><h2>Employee-wise reimbursements</h2></div><div class="table-wrap"><table><thead><tr><th>Employee</th><th class="num">Claims</th><th class="num">Approved</th><th class="num">Reimbursed</th><th class="num">Outstanding</th></tr></thead><tbody>
-{% for r in employee.rows %}<tr><td>{{ r.0 }}</td><td class="num">{{ r.1 }}</td><td class="num">{{ r.3|money }}</td><td class="num">{{ r.4|money }}</td><td class="num">{{ r.5|money }}</td></tr>{% empty %}<tr><td colspan="5" class="empty">No claims.</td></tr>{% endfor %}
-</tbody></table></div></div>
+    <div class="panel">
+        <div class="panel-head">
+            <h2>Monthly trend</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th class="num">Company</th>
+                        <th class="num">Reimbursed</th>
+                        <th class="num">Total</th>
+                        <th style="width:30%"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m, a, b, t, pct in trend %}<tr>
+                        <td>{{ m }}</td>
+                        <td class="num">{{ a|money }}</td>
+                        <td class="num">{{ b|money }}</td>
+                        <td class="num">{{ t|money }}</td>
+                        <td>
+                            <div class="xm-bar"><span style="width:{{ pct }}%"></span></div>
+                        </td>
+                    </tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel">
+        <div class="panel-head">
+            <h2>By category</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th class="num">Txns</th>
+                        <th class="num">Amount</th>
+                        <th style="width:30%"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for n, c, a, pct in cat_rows %}<tr>
+                        <td>{{ n }}</td>
+                        <td class="num">{{ c }}</td>
+                        <td class="num">{{ a|money }}</td>
+                        <td>
+                            <div class="xm-bar"><span style="width:{{ pct }}%"></span></div>
+                        </td>
+                    </tr>{% empty %}<tr>
+                        <td colspan="4" class="empty">No expenses in this period.</td>
+                    </tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel">
+        <div class="panel-head">
+            <h2>Department-wise</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Department</th>
+                        <th class="num">Company</th>
+                        <th class="num">Claims</th>
+                        <th class="num">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in department.rows %}<tr>
+                        <td>{{ r.0 }}</td>
+                        <td class="num">{{ r.1|money }}</td>
+                        <td class="num">{{ r.2|money }}</td>
+                        <td class="num">{{ r.3|money }}</td>
+                    </tr>{% empty %}<tr>
+                        <td colspan="4" class="empty">No data.</td>
+                    </tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="panel">
+        <div class="panel-head">
+            <h2>Employee-wise reimbursements</h2>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th class="num">Claims</th>
+                        <th class="num">Approved</th>
+                        <th class="num">Reimbursed</th>
+                        <th class="num">Outstanding</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in employee.rows %}<tr>
+                        <td>{{ r.0 }}</td>
+                        <td class="num">{{ r.1 }}</td>
+                        <td class="num">{{ r.3|money }}</td>
+                        <td class="num">{{ r.4|money }}</td>
+                        <td class="num">{{ r.5|money }}</td>
+                    </tr>{% empty %}<tr>
+                        <td colspan="5" class="empty">No claims.</td>
+                    </tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
-<div class="panel note">All figures are calculated from saved records (amounts in INR; foreign-currency items use their stored exchange rate). Expenses = company expenses (not cancelled) + approved employee claims. Local-only module: keep the app bound to 127.0.0.1.</div>
+<div class="panel note">All figures are calculated from saved records (amounts in INR; foreign-currency items use their
+    stored exchange rate). Expenses = company expenses (not cancelled) + approved employee claims. Local-only module:
+    keep the app bound to 127.0.0.1.</div>
 {% endblock %}

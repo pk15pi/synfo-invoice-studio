@@ -23,7 +23,7 @@ PERIOD_CHOICES = [
 
 
 class ReportingPeriodForm(forms.Form):
-    period = forms.ChoiceField(choices=PERIOD_CHOICES, initial='current_fy', required=False)
+    period = forms.ChoiceField(choices=PERIOD_CHOICES, initial='this_quarter', required=False)
     financial_year = forms.IntegerField(required=False, min_value=1900, max_value=9998)
     financial_year_part = forms.ChoiceField(required=False, choices=periods.FY_PARTS)
     month = forms.CharField(required=False, max_length=7)
@@ -32,7 +32,7 @@ class ReportingPeriodForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
-        period = cleaned.get('period') or 'current_fy'
+        period = cleaned.get('period') or 'this_quarter'
         year = cleaned.get('financial_year')
         month = cleaned.get('month', '')
         date_from, date_to = cleaned.get('date_from'), cleaned.get('date_to')
@@ -60,7 +60,7 @@ class ReportingPeriodForm(forms.Form):
     def period_params(self):
         if not self.is_valid():
             raise ValueError('The reporting period form must be valid.')
-        period = self.cleaned_data.get('period') or 'current_fy'
+        period = self.cleaned_data.get('period') or 'this_quarter'
         params = {'period': period}
         if period == 'fy':
             params['fy'] = str(self.cleaned_data['financial_year'])

@@ -7,7 +7,7 @@ from financial_reporting.models import FinancialPeriod
 
 
 def resolve_period(params=None):
-    return shared_periods.resolve(params or {}, default='current_fy')
+    return shared_periods.resolve(params or {}, default='this_quarter')
 
 
 def persisted_period_type(period):

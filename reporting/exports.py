@@ -240,12 +240,12 @@ FY_SHEETS = [('Executive Summary', 'pnl'), ('Revenue Details', 'invoice_register
              ('Monthly Financial Summary', 'monthly_perf'), ('Outstanding Amounts', 'outstanding')]
 
 
-def fy_workbook(fy_year):
-    """Complete FY workbook with the 7 required sheets."""
+def period_workbook(period):
+    """Seven-sheet financial workbook covering the selected reporting period."""
     from openpyxl import Workbook
     from . import reports
     from .dashboard import executive
-    params = {'period': 'fy', 'fy': str(fy_year)}
+    params = dict(period.params)
     wb = Workbook()
     wb.remove(wb.active)
     st = _xl_styles()
@@ -259,6 +259,12 @@ def fy_workbook(fy_year):
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def fy_workbook(fy_year):
+    """Backward-compatible full financial-year workbook export."""
+    from . import periods as P
+    return period_workbook(P.resolve({'period': 'fy', 'fy': str(fy_year)}))
 
 
 # ------------------------------------------------------------------------------------------- PDF
