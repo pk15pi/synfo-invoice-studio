@@ -1,9 +1,10 @@
+import calendar
 from datetime import date
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
-from django.db.models import Q, Sum
+from django.db.models import Max, Min, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -16,6 +17,26 @@ from .models import Account, AccountMapping, FinancialPeriod, FinancialYear, Jou
 from .money import q2
 
 MAX_LINES = 10
+
+
+def _month_choices(params):
+    bounds = JournalEntry.objects.aggregate(first=Min('date'), last=Max('date'))
+    dates = [value for value in bounds.values() if value]
+    selected = (params.get('month') or '').strip()
+    try:
+        if selected:
+            dates.append(date.fromisoformat(f'{selected}-01'))
+    except ValueError:
+        pass
+    first = min(dates, default=rp.today()).replace(day=1)
+    last_date = max([rp.today(), *dates])
+    last = date(last_date.year + 1, last_date.month, 1)
+    year, month = first.year, first.month
+    choices = []
+    while (year, month) <= (last.year, last.month):
+        choices.append((f'{year:04d}-{month:02d}', f'{calendar.month_name[month]} {year}'))
+        year, month = rp.add_months(year, month, 1)
+    return choices
 
 
 def _err(e):
@@ -103,7 +124,8 @@ def journal_list(request):
         qs = qs.filter(Q(number__icontains=q) | Q(narration__icontains=q) | Q(source_key__icontains=q))
     page = Paginator(qs.order_by('-date', '-id'), 100).get_page(request.GET.get('page'))
     return render(request, 'accounting/journal_list.html', {'page': page, 'f': f, 'status': st, 'q': q,
-                  'statuses': JournalEntry.STATUSES, 'params': request.GET, 'periods': rp.OPTIONS, 'fy_list': rp.fy_choices()})
+                  'statuses': JournalEntry.STATUSES, 'params': request.GET, 'periods': rp.OPTIONS, 'fy_list': rp.fy_choices(),
+                  'month_choices': _month_choices(request.GET)})
 
 
 def journal_detail(request, pk):
@@ -157,7 +179,8 @@ def ledger_view(request, pk=None):
     data = S.ledger(acct, f.start, f.end) if acct and not acct.is_group else None
     return render(request, 'accounting/ledger.html', {
         'acct': acct, 'data': data, 'f': f, 'accounts': Account.objects.filter(is_group=False),
-        'periods': rp.OPTIONS, 'fy_list': rp.fy_choices(), 'fy_parts': rp.FY_PARTS, 'params': request.GET})
+        'periods': rp.OPTIONS, 'fy_list': rp.fy_choices(), 'fy_parts': rp.FY_PARTS, 'params': request.GET,
+        'month_choices': _month_choices(request.GET)})
 
 
 def periods(request):

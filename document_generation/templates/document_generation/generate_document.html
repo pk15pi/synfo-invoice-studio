@@ -1,7 +1,10 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}Generate Document{% endblock %}
 {% block content %}
-<h1>Generate Document</h1>
+<div class="page-heading split">
+  <div><p class="eyebrow">Document Management</p><h1>Generate Document</h1></div>
+  <div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:catalogue' %}">Document catalogue</a></div>
+</div>
 <p class="muted">Choose an approved template. Generated documents remain drafts until reviewed and issued through the appropriate process.</p>
 {% if missing_company_details %}
   <div class="message warning">

@@ -1,7 +1,10 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}Document Catalogue{% endblock %}
 {% block content %}
-<h1>Document Catalogue</h1>
+<div class="page-heading split">
+  <div><p class="eyebrow">Document Management</p><h1>Document Catalogue</h1></div>
+  <div class="heading-actions"><a class="button primary" href="{% url 'document_generation:generate' %}">Generate document</a></div>
+</div>
 <p>Document types are configurable in <a href="{% url 'admin:document_generation_documenttype_changelist' %}">Django Admin</a>.
   Types with approved templates can be generated from the <a href="{% url 'document_generation:generate' %}">universal generation form</a>.</p>
 <form method="get" class="filter-form">

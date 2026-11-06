@@ -12,14 +12,12 @@
             href="{% url 'exp:expense_new' %}">+ Company expense</a></div>
 </div>
 <form class="panel filters" method="get">{% include 'expense_management/_period_filter.html' %}<button
-        class="button secondary" type="submit">Apply</button><span class="muted">Showing <b>{{ f.label }}</b> ({{
-        f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span></form>
+        class="button secondary" type="submit">Apply</button><span class="muted">Showing <b>{{ f.label }}</b> ({{ f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span></form>
 <div class="xm-cards">
     <div class="xm-card"><span class="muted">Total expenses this month</span><strong>{{ cards.month_total|money }}</strong><small>{{ cards.month_label }}</small></div>
     <div class="xm-card"><span class="muted">Total expenses this financial year</span><strong>{{ cards.fy_total|money }}</strong><small>{{ cards.fy_label }}</small></div>
     <a class="xm-card" href="{% url 'exp:review' %}?status=pending"><span class="muted">Pending employee
-            claims</span><strong>{{ cards.pending.0 }}</strong><small>{{ cards.pending.1|money }} &middot; {{ f.label
-            }}</small></a>
+            claims</span><strong>{{ cards.pending.0 }}</strong><small>{{ cards.pending.1|money }} &middot; {{ f.label }}</small></a>
     <a class="xm-card" href="{% url 'exp:review' %}?status=approved"><span class="muted">Approved employee
             claims</span><strong>{{ cards.approved.0 }}</strong><small>{{ cards.approved.1|money }} approved</small></a>
     <a class="xm-card" href="{% url 'exp:review' %}?status=reimbursed"><span class="muted">Reimbursed employee

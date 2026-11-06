@@ -1,7 +1,7 @@
 {% extends 'invoice_app/base.html' %}{% load ui_icons %}{% block content %}
 <div class="page-heading"><p class="eyebrow">Business Settings</p><h1>Payroll settings</h1></div>
 <div class="panel note">Company name, address, contact and GSTIN on payslips come from the <a href="{% url 'profile_edit' %}">Business profile</a>.</div>
-<form method="post" class="panel form-panel" enctype="multipart/form-data">{% csrf_token %}{{ form.non_field_errors }}
+<form method="post" class="panel form-panel shared-settings-form" enctype="multipart/form-data">{% csrf_token %}{{ form.non_field_errors }}
 <div class="form-grid">{% for field in form %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}</div>
 <div class="form-actions"><button class="button primary" type="submit">Save settings</button></div></form>
 <div class="panel"><div class="panel-head split"><h2>Statutory rules</h2><a class="button secondary" href="{% url 'em:rule_new' %}">+ Add rule</a></div>

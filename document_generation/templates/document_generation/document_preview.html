@@ -1,7 +1,10 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}Preview {{ payload.title|default:"Document" }}{% endblock %}
 {% block content %}
-<h1>Document Preview</h1>
+<div class="page-heading">
+  <p class="eyebrow">Document Management</p>
+  <h1>Document Preview</h1>
+</div>
 {% for error in errors %}<div class="message error">{{ error }}</div>{% endfor %}
 {% if payload.document_number %}
   <div class="message">Preview number: <strong>{{ payload.document_number }}</strong>. The document will be saved as a draft.</div>

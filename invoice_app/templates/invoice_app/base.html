@@ -3,7 +3,7 @@
 <title>{% block title %}QuantBud Business Management{% endblock %}</title>
 <link rel="icon" href="{% static 'invoice_app/favicon.ico' %}" sizes="any">
 <link rel="stylesheet" href="{% static 'invoice_app/style.css' %}">{% block extra_head %}{% endblock %}</head>
-<body><header class="topbar"><a class="brand" href="{% url 'home' %}">QUANTBUD <span>Business Management</span></a>
+<body><header class="topbar"><a class="brand" href="{% url 'home' %}">{{ brand_name }} <span>Business Management</span></a>
 <nav class="groups"><a href="{% url 'home' %}">Home</a>
 <div class="navgroup"><a href="{% url 'dashboard' %}">Invoice Management &#9662;</a><div class="navmenu"><a href="{% url 'dashboard' %}">Invoice dashboard</a><a href="{% url 'clients' %}">Customers</a><a href="{% url 'projects_hub' %}">Projects</a><a href="{% url 'new_invoice' %}">Billing (create invoice)</a><a href="{% url 'invoice_list' %}">Invoice PDFs</a><a href="{% url 'receipts' %}">Receipts</a><a href="{% url 'description_templates' %}">Description templates</a><a href="{% url 'format_templates' %}">Invoice formats</a></div></div>
 <div class="navgroup"><a href="{% url 'em:home' %}">Employee Management &#9662;</a><div class="navmenu"><a href="{% url 'em:home' %}">HR dashboard</a><a href="{% url 'em:employees' %}">Employees</a><a href="{% url 'em:departments' %}">Departments</a><a href="{% url 'em:personal_details' %}">Personal Details</a><a href="{% url 'em:documents' %}">Documents</a><a href="{% url 'em:bank_details' %}">Bank Details</a></div></div>

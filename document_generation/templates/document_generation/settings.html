@@ -1,13 +1,16 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}Company Document Profile{% endblock %}
 {% block content %}
-<h1>Company Document Profile</h1>
+<div class="page-heading split">
+  <div><p class="eyebrow">Document Management</p><h1>Company Document Profile</h1></div>
+  <div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:dashboard' %}">Document dashboard</a></div>
+</div>
 <p>Contracting party: <strong>{{ profile.contracting_party_display }}</strong>.
   Configure only verified company details; blank fields are not inferred.</p>
 {% if profile.logo %}<p>Current private logo: <code>{{ profile.logo.name }}</code></p>{% endif %}
-<form method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data" class="panel form-panel shared-settings-form document-profile-form">
   {% csrf_token %}
   {{ form.as_p }}
-  <button type="submit">Save company profile</button>
+  <button class="button primary" type="submit">Save company profile</button>
 </form>
 {% endblock %}

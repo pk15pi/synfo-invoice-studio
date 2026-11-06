@@ -1,11 +1,12 @@
 """Expense Management views. Every view is wrapped by employee_management's local_only guard
 (no auth in this app by design: keep it bound to 127.0.0.1)."""
+import calendar
 from datetime import date
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Max, Min, Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -18,7 +19,7 @@ from invoice_app.models import BusinessProfile, Client, ProjectTemplate
 from . import exports, reports, services
 from .forms import (CLAIM_DOC_TYPES, COMPANY_DOC_TYPES, CategoryForm, ClaimForm, CompanyExpenseForm, PaymentForm,
                     QuickVendorForm, ReimbursementForm, SubcategoryForm, VendorForm)
-from .fy import PERIODS, fy_choices, today
+from .fy import PERIODS, fy_choices, months_between, today
 from .models import (CompanyExpense, CompanyExpenseAttachment, EmployeeExpenseAttachment, EmployeeExpenseClaim,
                      ExpenseCategory, ExpenseSubcategory, Vendor)
 
@@ -33,7 +34,27 @@ def _errs(e):
 
 
 def _filter_ctx(request, f):
+    date_bounds = [
+        CompanyExpense.objects.aggregate(first=Min('expense_date'), last=Max('expense_date')),
+        C.objects.aggregate(first=Min('expense_date'), last=Max('expense_date')),
+    ]
+    recorded_dates = [value for bounds in date_bounds for value in bounds.values() if value]
+    selected_month = request.GET.get('month', '').strip()
+    try:
+        if selected_month:
+            recorded_dates.append(date.fromisoformat(f'{selected_month}-01'))
+    except ValueError:
+        pass
+    first_date = min(recorded_dates, default=today())
+    last_date = max([today(), *recorded_dates])
+    first_month = first_date.replace(day=1)
+    last_month = date(last_date.year + 1, last_date.month, 1)
+    month_choices = [
+        (f'{year:04d}-{month:02d}', f'{calendar.month_name[month]} {year}')
+        for year, month in months_between(first_month, last_month)
+    ]
     return dict(f=f, periods=PERIODS, fy_list=fy_choices(), params=request.GET,
+                month_choices=month_choices,
                 categories=ExpenseCategory.objects.all(), vendors_all=Vendor.objects.all(),
                 employees_all=Employee.objects.all(), departments_all=Department.objects.all(),
                 clients_all=Client.objects.all(), projects_all=ProjectTemplate.objects.select_related('client'))

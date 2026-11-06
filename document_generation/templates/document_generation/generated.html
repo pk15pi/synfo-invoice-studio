@@ -1,7 +1,10 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}Document generated{% endblock %}
 {% block content %}
-<h1>Document saved</h1>
+<div class="page-heading split">
+  <div><p class="eyebrow">Document Management</p><h1>Document saved</h1></div>
+  <div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:dashboard' %}">Document dashboard</a></div>
+</div>
 <div class="message success">{{ document.document_type.name }} {{ document.document_number }} was saved as draft version {{ document.version_number }}.</div>
 <section class="card">
   <h2>Download</h2>

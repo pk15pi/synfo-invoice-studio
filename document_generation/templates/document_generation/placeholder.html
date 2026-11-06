@@ -1,8 +1,10 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}{{ section_title }}{% endblock %}
 {% block content %}
-<h1>{{ section_title }}</h1>
+<div class="page-heading split">
+  <div><p class="eyebrow">Document Management</p><h1>{{ section_title }}</h1></div>
+  <div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:dashboard' %}">Document dashboard</a></div>
+</div>
 <div class="message warning">This workflow is not included in the current document-generation release.</div>
 <p class="muted">An internal digital acknowledgement is not a legally certified electronic signature.</p>
-<p><a href="{% url 'document_generation:dashboard' %}">Back to Document &amp; Agreement Management</a></p>
 {% endblock %}

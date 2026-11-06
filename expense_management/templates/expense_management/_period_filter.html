@@ -13,8 +13,10 @@
         </select>
     </label>
     <label class="xm-period-control"><span>Month</span>
-        <input class="field" type="month" name="month" value="{{ params.month }}" title="Choose a specific month"
+        <select class="field" name="month" title="Choose a specific month"
             onchange="if(this.value){this.form.elements.period.value='';this.form.elements.fy.value='';const c=this.form.querySelector('.xm-custom');if(c)c.style.display='none';}">
+            <option value="">Any month</option>{% for value, label in month_choices %}<option value="{{ value }}" {% if params.month == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
     </label>
 </div>
 <span class="xm-custom" {% if f.period != 'custom' %}style="display:none" {% endif %}><input class="field" type="date"

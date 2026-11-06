@@ -1,7 +1,10 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}Preview {{ version.template.name }}{% endblock %}
 {% block content %}
-<h1>Template Preview</h1>
+<div class="page-heading split">
+  <div><p class="eyebrow">Document Management</p><h1>Template Preview</h1></div>
+  <div class="heading-actions"><a class="button secondary" href="{{ admin_url }}">Back to template version</a></div>
+</div>
 <p>{{ version.template.document_type.name }} · Version {{ version.version_number }} · {{ version.get_status_display }}</p>
 <div class="message warning">
   Administrative sample only. Values in brackets are examples, not business data.
@@ -23,7 +26,6 @@
   <div class="document-preview-content">{{ preview_html }}</div>
   <footer>{{ resolved.footer|default:resolved.company.document_footer|default:"Confidential" }}</footer>
 </section>
-<p><a class="button secondary" href="{{ admin_url }}">Back to template version</a></p>
 <style>
 .document-preview { background: #fff; color: #202b36; padding: 2rem; max-width: 850px; margin: 1.5rem auto; }
 .document-preview-header { text-align: right; border-bottom: 1px solid #ccd4dc; padding-bottom: 1rem; }

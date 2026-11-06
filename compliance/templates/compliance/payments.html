@@ -1,6 +1,6 @@
 {% extends 'compliance/base_c.html' %}{% block c_title %}Statutory payments{% endblock %}{% block c %}
 <div class="page-heading"><p class="eyebrow">Compliance</p><h1>Statutory payments</h1></div>
-<form method="post" class="panel">{% csrf_token %}<h3>Record a payment</h3>{{ form.non_field_errors }}{% for f in form %}<p><label>{{ f.label }}</label> {{ f }} {{ f.errors }} <span class="muted">{{ f.help_text }}</span></p>{% endfor %}
+<form method="post" class="panel compact-entry-form">{% csrf_token %}<h3>Record a payment</h3>{{ form.non_field_errors }}{% for f in form %}<p><label for="{{ f.id_for_label }}">{{ f.label }}</label> {{ f }} {{ f.errors }} <span class="muted">{{ f.help_text }}</span></p>{% endfor %}
 <p class="muted">Posts Dr the mapped payable / Cr the bank. Recording here does not file or pay anything externally.</p><button class="button primary">Record</button></form>
 <div class="panel"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Kind</th><th>Period</th><th class="num">Amount</th><th>Bank</th><th>Challan</th><th>Status</th><th></th></tr></thead><tbody>
 {% for p in payments %}<tr><td>{{ p.date|date:"d-m-Y" }}</td><td>{{ p.get_kind_display }}</td><td>{{ p.period_label }}</td><td class="num">{{ p.amount }}</td><td>{{ p.bank_account|default:"Default" }}</td><td>{{ p.challan_ref }}</td><td>{% if p.cancelled %}Cancelled: {{ p.cancel_reason }}{% else %}Posted{% endif %}</td>
