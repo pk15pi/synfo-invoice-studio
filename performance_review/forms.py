@@ -1,11 +1,13 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.forms import BaseInlineFormSet, inlineformset_factory
+from django.utils import timezone
 
 from employee_management.models import Employee
 from invoice_app.models import Client, RecruitmentCandidate
 
 from .models import (CandidateApplication, PerformanceSettings, PerformanceStage, RecruiterActivity,
-                     RecruiterAssignment, RecruitmentJD)
+                     RecruiterAssignment, RecruitmentJD, DailyBrief, DailyBriefJDDetail)
 
 
 class RecruitmentJDForm(forms.ModelForm):
@@ -91,6 +93,78 @@ class PerformanceStageForm(forms.ModelForm):
     class Meta:
         model = PerformanceStage
         fields = ['name', 'kind', 'sort_order', 'active']
+
+
+class DailyBriefForm(forms.ModelForm):
+    class Meta:
+        model = DailyBrief
+        fields = ['recruiter', 'activity_date', 'achieved']
+        widgets = {'recruiter': forms.Select(attrs={'class': 'field'}),
+                   'activity_date': forms.DateInput(attrs={'type': 'date', 'class': 'field'}),
+                   'achieved': forms.NumberInput(attrs={'class': 'field', 'min': 0, 'step': 1})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        recruiters = Employee.objects.filter(is_recruiter=True, status__in=Employee.EMPLOYED)
+        if self.instance and self.instance.pk:
+            recruiters = Employee.objects.filter(pk__in=recruiters.values('pk')) | Employee.objects.filter(
+                pk=self.instance.recruiter_id)
+        self.fields['recruiter'].queryset = recruiters.select_related('department').distinct().order_by(
+            'employee_id')
+        self.fields['recruiter'].label_from_instance = lambda e: f'{e.employee_id} · {e.full_name}'
+        self.fields['activity_date'].initial = self.fields['activity_date'].initial or timezone.localdate
+        self.duplicate_record = None
+
+    def clean(self):
+        cleaned = super().clean()
+        recruiter = cleaned.get('recruiter')
+        activity_date = cleaned.get('activity_date')
+        if recruiter and activity_date:
+            duplicate = DailyBrief.objects.filter(recruiter=recruiter, activity_date=activity_date)
+            if self.instance and self.instance.pk:
+                duplicate = duplicate.exclude(pk=self.instance.pk)
+            self.duplicate_record = duplicate.first()
+            if self.duplicate_record:
+                raise ValidationError('A Daily Brief already exists for this recruiter and activity date. '
+                                      'Review the existing record or open it to edit.')
+        return cleaned
+
+
+class DailyBriefJDDetailForm(forms.ModelForm):
+    row_active = forms.CharField(required=False, widget=forms.HiddenInput)
+
+    class Meta:
+        model = DailyBriefJDDetail
+        fields = ['jd_number', 'total_resumes_submitted', 'row_order']
+        widgets = {'jd_number': forms.TextInput(attrs={'class': 'field', 'maxlength': 80}),
+                   'total_resumes_submitted': forms.NumberInput(attrs={'class': 'field', 'min': 0, 'step': 1}),
+                   'row_order': forms.HiddenInput()}
+
+    def clean_jd_number(self):
+        return self.cleaned_data['jd_number'].strip()
+
+
+class BaseDailyBriefJDDetailFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        seen = set()
+        for form in self.forms:
+            data = getattr(form, 'cleaned_data', {})
+            if not data or data.get('DELETE'):
+                continue
+            number = data.get('jd_number', '').strip()
+            key = number.casefold()
+            if key in seen:
+                raise ValidationError(f'JD Number “{number}” appears more than once in this Daily Brief.')
+            seen.add(key)
+
+
+DailyBriefJDDetailFormSet = inlineformset_factory(
+    DailyBrief, DailyBriefJDDetail, form=DailyBriefJDDetailForm, formset=BaseDailyBriefJDDetailFormSet,
+    fields=['jd_number', 'total_resumes_submitted', 'row_order'], extra=1, min_num=1,
+    validate_min=True, can_delete=True, can_delete_extra=True)
 
 
 class RecruiterSelectionForm(forms.Form):

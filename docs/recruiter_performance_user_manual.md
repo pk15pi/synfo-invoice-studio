@@ -2,6 +2,8 @@
 
 The module is available from the **Performance Review** navigation menu and the Performance Review card on the home page. It uses the existing Employee and candidate records. It is management-only under the current local-only application architecture; the app does not have recruiter logins or individual user roles.
 
+Daily recruiter progress reports are recorded separately in **Performance Review → Daily Brief**. See the independent [Daily Brief User Manual](daily_brief_user_manual.md) for entry, records, date filters, analytics and correction history. Daily Brief does not modify the candidate-level Performance Review records described below.
+
 ## Performance Dashboard
 
 Choose a reporting period and apply the filter. Options include this/previous month, current/previous/selected financial quarter, current/previous/selected financial year, calendar year, selected month and custom date range. A financial year starts in the month configured in Performance Settings (April by default). Q1 is the first three financial-year months.

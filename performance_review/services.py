@@ -1,15 +1,16 @@
 import calendar
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from reporting import charts
 
 from employee_management.models import Employee
 from .models import (CandidateApplication, CandidateStageHistory, PerformanceSettings, PerformanceStage, RecruiterActivity,
-                     RecruiterAssignment, RecruitmentJD)
+                     RecruiterAssignment, RecruitmentJD, DailyBrief, DailyBriefJDDetail)
 
 
 def period_bounds(params=None, settings=None):
@@ -295,3 +296,177 @@ def _quarterly(monthly, start_month):
                     'summary_rejected', 'summary_selected', 'summary_offers', 'summary_joined'):
             row[key] += month[key]
     return [rows[key] for key in sorted(rows)]
+
+
+def daily_brief_period_bounds(params=None, settings=None):
+    """Resolve Daily Brief date filters; calendar and financial years are labelled distinctly."""
+    params = params or {}
+    settings = settings or PerformanceSettings.current()
+    today = timezone.localdate()
+    mode = params.get('period') or 'monthly'
+    year = _int(params.get('year'), today.year)
+    year = min(2100, max(2000, year))
+    month = min(12, max(1, _int(params.get('month'), today.month)))
+    fy_year = min(2100, max(2000, _int(params.get('fy_year'), today.year if today.month >= settings.financial_year_start_month else today.year - 1)))
+    quarter = min(4, max(1, _int(params.get('quarter'), 1)))
+    half = min(2, max(1, _int(params.get('half'), 1)))
+    reference_date = parse_date(params.get('reference_date') or '') or today
+    start_month = settings.financial_year_start_month
+
+    def shift_month(start_year, start_m, offset):
+        index = start_year * 12 + start_m - 1 + offset
+        return index // 12, index % 12 + 1
+
+    if mode == 'selected_year':
+        start, end = date(year, 1, 1), date(year, 12, 31)
+        label = f'Calendar year {year}'
+    elif mode == 'weekly':
+        start = reference_date - timedelta(days=reference_date.weekday())
+        end = start + timedelta(days=6)
+        label = f'Week of {start:%d %b %Y} – {end:%d %b %Y}'
+    elif mode == 'fifteen_days':
+        end = reference_date
+        start = end - timedelta(days=14)
+        label = f'15 days through {end:%d %b %Y}'
+    elif mode == 'monthly':
+        start = date(year, month, 1)
+        end = date(year, month, calendar.monthrange(year, month)[1])
+        label = start.strftime('%B %Y')
+    elif mode in ('quarterly', 'half_yearly', 'yearly'):
+        if mode == 'quarterly':
+            first_offset, month_count = (quarter - 1) * 3, 3
+        elif mode == 'half_yearly':
+            first_offset, month_count = (half - 1) * 6, 6
+        else:
+            first_offset, month_count = 0, 12
+        start_year, first_month = shift_month(fy_year, start_month, first_offset)
+        end_year, last_month = shift_month(start_year, first_month, month_count - 1)
+        start, end = date(start_year, first_month, 1), date(
+            end_year, last_month, calendar.monthrange(end_year, last_month)[1])
+        fy_label = f'FY {fy_year}–{(fy_year + 1) % 100:02d}'
+        label = f'Q{quarter} · {fy_label}' if mode == 'quarterly' else (
+            f'H{half} · {fy_label}' if mode == 'half_yearly' else fy_label)
+    elif mode == 'custom':
+        start = parse_date(params.get('from_date') or '')
+        end = parse_date(params.get('to_date') or '')
+        if not start or not end or end < start:
+            mode = 'monthly'
+            start = date(today.year, today.month, 1)
+            end = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+            label = start.strftime('%B %Y')
+        else:
+            label = f'{start:%d %b %Y} – {end:%d %b %Y}'
+    else:
+        mode = 'monthly'
+        start = date(today.year, today.month, 1)
+        end = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+        label = start.strftime('%B %Y')
+
+    return {
+        'period': mode, 'start': start, 'end': end, 'label': label,
+        'year': year, 'month': month, 'fy_year': fy_year, 'quarter': quarter, 'half': half,
+        'reference_date': reference_date.isoformat(),
+        'fy_start_label': calendar.month_name[start_month],
+        'from_date': params.get('from_date', ''), 'to_date': params.get('to_date', ''),
+        'period_choices': [
+            ('selected_year', 'Calendar year'), ('weekly', 'Weekly'), ('fifteen_days', '15 days'),
+            ('monthly', 'Monthly'), ('quarterly', 'Quarterly (financial year)'),
+            ('half_yearly', 'Half-yearly (financial year)'), ('yearly', 'Yearly (financial year)'),
+            ('custom', 'Custom date range')],
+        'month_choices': [(n, calendar.month_name[n]) for n in range(1, 13)],
+        'quarter_choices': range(1, 5), 'half_choices': (1, 2),
+    }
+
+
+def daily_brief_filtered_querysets(period, params):
+    """Return parent and detail querysets with matching activity date and search filters."""
+    details = DailyBriefJDDetail.objects.filter(
+        daily_brief__activity_date__range=(period['start'], period['end']))
+    recruiter_id = params.get('recruiter')
+    if recruiter_id and str(recruiter_id).isdigit():
+        details = details.filter(daily_brief__recruiter_id=int(recruiter_id))
+    recruiter_search = (params.get('recruiter_search') or '').strip()
+    if recruiter_search:
+        for term in recruiter_search.split():
+            details = details.filter(
+                Q(daily_brief__recruiter__employee_id__icontains=term) |
+                Q(daily_brief__recruiter__first_name__icontains=term) |
+                Q(daily_brief__recruiter__middle_name__icontains=term) |
+                Q(daily_brief__recruiter__last_name__icontains=term) |
+                Q(daily_brief__recruiter__alias__icontains=term))
+    jd_search = (params.get('jd_search') or '').strip()
+    if jd_search:
+        details = details.filter(jd_number__icontains=jd_search)
+    briefs = DailyBrief.objects.filter(pk__in=details.values('daily_brief_id')).select_related(
+        'recruiter', 'recruiter__department').distinct()
+    return briefs, details.select_related('daily_brief__recruiter')
+
+
+def daily_brief_analytics(period, briefs, details):
+    """Aggregate exclusively from DailyBrief and DailyBriefJDDetail records."""
+    from employee_management.models import Employee
+
+    total_jds = details.count()
+    total_resumes = details.aggregate(total=Sum('total_resumes_submitted'))['total'] or 0
+    total_achieved = briefs.aggregate(total=Sum('achieved'))['total'] or 0
+    recruiter_count = details.values('daily_brief__recruiter_id').distinct().count()
+    brief_count = briefs.count()
+    average_resumes_per_jd = round(total_resumes / total_jds, 2) if total_jds else 0
+    average_jds_per_recruiter = round(total_jds / recruiter_count, 2) if recruiter_count else 0
+    kpis = [
+        ('Total JDs Submitted', total_jds), ('Total Resumes Submitted', total_resumes),
+        ('Recruiters Active', recruiter_count), ('Daily Briefs Submitted', brief_count),
+        ('Average Resumes per JD', average_resumes_per_jd),
+        ('Average JDs per Recruiter', average_jds_per_recruiter),
+        ('Selections Achieved', total_achieved),
+    ]
+
+    trend_rows = details.values('daily_brief__activity_date').annotate(
+        jds=Count('pk'), resumes=Sum('total_resumes_submitted'))
+    trend_map = {row['daily_brief__activity_date']: row for row in trend_rows}
+    labels, daily_jds, daily_resumes = [], [], []
+    current = period['start']
+    while current <= period['end']:
+        labels.append(current.strftime('%d %b'))
+        row = trend_map.get(current, {})
+        daily_jds.append(row.get('jds', 0))
+        daily_resumes.append(row.get('resumes', 0))
+        current += timedelta(days=1)
+
+    recruiter_rows = details.values('daily_brief__recruiter_id').annotate(
+        jds=Count('pk'), resumes=Sum('total_resumes_submitted')).order_by('daily_brief__recruiter_id')
+    achieved_by_recruiter = dict(briefs.values('recruiter_id').annotate(
+        achieved=Sum('achieved')).values_list('recruiter_id', 'achieved'))
+    ids = [row['daily_brief__recruiter_id'] for row in recruiter_rows]
+    employees = {employee.pk: employee for employee in Employee.objects.filter(pk__in=ids)}
+    comparison = []
+    for row in recruiter_rows:
+        employee = employees[row['daily_brief__recruiter_id']]
+        comparison.append({'employee': employee, 'label': employee.full_name,
+                           'jds': row['jds'], 'resumes': row['resumes'],
+                           'achieved': achieved_by_recruiter.get(row['daily_brief__recruiter_id'], 0),
+                           'average': round(row['resumes'] / row['jds'], 2) if row['jds'] else 0})
+    recruiter_labels = [row['label'] for row in comparison]
+    jds_by_recruiter = [row['jds'] for row in comparison]
+    resumes_by_recruiter = [row['resumes'] for row in comparison]
+    shares = [round(value / total_jds * 100, 2) if total_jds else 0 for value in jds_by_recruiter]
+
+    charts_data = [
+        ('Daily JD submission trend', charts.line(labels, [daily_jds], 'Daily JDs submitted', money=False), 'daily_jds'),
+        ('Daily resume submission trend', charts.line(labels, [daily_resumes], 'Daily resumes submitted', money=False), 'daily_resumes'),
+        ('Recruiter-wise JD submission', charts.hbars(list(zip(recruiter_labels, jds_by_recruiter)),
+                                                       'JDs by recruiter', money=False), 'recruiter_jds'),
+        ('Recruiter-wise resume submission', charts.hbars(list(zip(recruiter_labels, resumes_by_recruiter)),
+                                                           'Resumes by recruiter', money=False), 'recruiter_resumes'),
+        ('Recruiter productivity comparison', charts.bars(recruiter_labels,
+            [jds_by_recruiter, resumes_by_recruiter], 'Recruiter JD and resume totals',
+            legend=['JDs', 'Resumes'], money=False), 'productivity'),
+        ('JD submission distribution', charts.bars(recruiter_labels, [shares],
+            'Share of reported JD rows by recruiter (%)', legend=['Share of JDs (%)'], money=False), 'jd_distribution'),
+        ('Average resumes per JD', charts.bars(recruiter_labels, [[row['average'] for row in comparison]],
+            'Average resumes per JD by recruiter', legend=['Average resumes / JD'], money=False), 'average_resumes'),
+    ]
+    return {'kpis': kpis, 'comparison': comparison, 'charts': charts_data,
+            'total_jds': total_jds, 'total_resumes': total_resumes, 'total_achieved': total_achieved,
+            'average_resumes_per_jd': average_resumes_per_jd,
+            'average_jds_per_recruiter': average_jds_per_recruiter}

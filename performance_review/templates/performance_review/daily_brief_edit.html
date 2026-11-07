@@ -1,0 +1,6 @@
+{% extends 'invoice_app/base.html' %}{% load static %}{% block title %}Edit Daily Brief{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'performance_review/performance.css' %}">{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">PERFORMANCE REVIEW · DAILY BRIEF</p><h1>Edit Daily Brief</h1><p class="muted">Correct {{ brief.recruiter.full_name }}’s report for {{ brief.activity_date|date:'d-m-Y' }}. Changes are retained in the record history.</p></div><div class="heading-actions"><a class="button secondary" href="{% url 'performance_review:daily_brief_detail' brief.pk %}">View record</a><a class="button secondary" href="{% url 'performance_review:daily_brief_records' %}">Back to records</a></div></div>
+{% include 'performance_review/_daily_brief_entry_form.html' with form_title='Correct Daily Brief' submit_label='Save Corrections' %}
+{% endblock %}

@@ -1,0 +1,109 @@
+<section class="panel pr-section daily-brief-entry">
+  <div class="panel-head"><h2>{{ form_title|default:'Daily Brief Entry' }}</h2>{% if brief %}<a class="button secondary" href="{% url 'performance_review:daily_brief_detail' brief.pk %}">View record</a>{% endif %}</div>
+  <form method="post" novalidate id="daily-brief-entry-form">
+    {% csrf_token %}
+    {{ entry_form.non_field_errors }}
+    <div class="daily-brief-main-fields">
+      <label>{{ entry_form.recruiter.label }} <span class="required-mark">*</span>{{ entry_form.recruiter }}{{ entry_form.recruiter.errors }}</label>
+      <label>{{ entry_form.activity_date.label }} <span class="required-mark">*</span>{{ entry_form.activity_date }}{{ entry_form.activity_date.errors }}</label>
+      <label>{{ entry_form.achieved.label }}{{ entry_form.achieved }}{{ entry_form.achieved.errors }}</label>
+      <div class="daily-brief-calculated"><span>Total Number of JDs Submitted</span><strong data-jd-count aria-live="polite">{{ brief.total_jds_submitted|default:0 }}</strong><small>Calculated from complete, valid detail rows</small></div>
+      <div class="daily-brief-calculated"><span>Total Resumes Submitted</span><strong data-resume-count aria-live="polite">{{ brief.total_resumes_submitted|default:0 }}</strong><small>Calculated from the row counts</small></div>
+    </div>
+
+    <fieldset class="daily-brief-details-fieldset">
+      <legend>JD Submission Details</legend>
+      <p class="muted">Each row records one reported JD and its resume count. JD Numbers are text, for example 07-01.</p>
+      {{ detail_formset.management_form }}
+      {% if detail_formset.non_form_errors %}<div class="errorlist" role="alert">{{ detail_formset.non_form_errors }}</div>{% endif %}
+      <div class="daily-brief-rows" data-brief-rows>
+        {% for row in detail_formset.forms %}
+          <div class="daily-brief-row" data-brief-row>
+            {% for hidden in row.hidden_fields %}<span class="daily-brief-hidden">{{ hidden }}</span>{% endfor %}
+            <span class="daily-brief-hidden daily-brief-delete-field"><input type="hidden" name="{{ row.DELETE.html_name }}" value="{% if row.DELETE.value %}1{% endif %}" data-delete-flag></span>
+            <label><span>JD Number <b class="required-mark">*</b></span>{{ row.jd_number }}{{ row.jd_number.errors }}</label>
+            <label><span>Total Resumes Submitted <b class="required-mark">*</b></span>{{ row.total_resumes_submitted }}{{ row.total_resumes_submitted.errors }}</label>
+            <div class="daily-brief-row-actions"><button type="button" class="button secondary" data-add-brief-row title="Add another JD row">+</button><button type="button" class="button secondary" data-remove-brief-row title="Delete this JD row">−</button></div>
+          </div>
+        {% endfor %}
+      </div>
+      <template id="daily-brief-empty-row">
+        <div class="daily-brief-row" data-brief-row>
+          {% for hidden in detail_formset.empty_form.hidden_fields %}<span class="daily-brief-hidden">{{ hidden }}</span>{% endfor %}
+          <span class="daily-brief-hidden daily-brief-delete-field"><input type="hidden" name="{{ detail_formset.empty_form.DELETE.html_name }}" value="0" data-delete-flag></span>
+          <label><span>JD Number <b class="required-mark">*</b></span>{{ detail_formset.empty_form.jd_number }}</label>
+          <label><span>Total Resumes Submitted <b class="required-mark">*</b></span>{{ detail_formset.empty_form.total_resumes_submitted }}</label>
+          <div class="daily-brief-row-actions"><button type="button" class="button secondary" data-add-brief-row title="Add another JD row">+</button><button type="button" class="button secondary" data-remove-brief-row title="Delete this JD row">−</button></div>
+        </div>
+      </template>
+    </fieldset>
+    {% if duplicate_record %}<div class="daily-brief-duplicate" role="alert">This recruiter already has a Daily Brief for this date. <a href="{% url 'performance_review:daily_brief_detail' duplicate_record.pk %}">Review the existing record</a> or <a href="{% url 'performance_review:daily_brief_edit' duplicate_record.pk %}">edit it</a>.</div>{% endif %}
+    <div class="daily-brief-form-actions"><button class="button primary" type="submit">{{ submit_label|default:'Save Daily Brief' }}</button><a class="button secondary" href="{% url 'performance_review:daily_brief_records' %}">Clear / Reset</a></div>
+  </form>
+</section>
+<script>
+(() => {
+  const root = document.getElementById('daily-brief-entry-form');
+  if (!root) return;
+  const rows = root.querySelector('[data-brief-rows]');
+  const total = root.querySelector('[name$="-TOTAL_FORMS"]');
+  const template = root.querySelector('#daily-brief-empty-row');
+  const update = () => {
+    let active = [...rows.querySelectorAll('[data-brief-row]')].filter((row) => row.style.display !== 'none');
+    if (!active.length) {
+      const last = rows.querySelector('[data-brief-row]:last-child');
+      if (last) {
+        const deletion = last.querySelector('[data-delete-flag]');
+        if (deletion) deletion.value = '';
+        last.style.display = '';
+        active = [last];
+      }
+    }
+    let jds = 0; let resumes = 0; const seenJds = new Set();
+    active.forEach((row) => {
+      const number = row.querySelector('input[name$="-jd_number"]');
+      const count = row.querySelector('input[name$="-total_resumes_submitted"]');
+      const value = Number(count?.value);
+      const validCount = count?.value !== '' && Number.isInteger(value) && value >= 0;
+      const jdKey = number?.value.trim().toLocaleLowerCase();
+      if (jdKey && validCount && !seenJds.has(jdKey)) { jds += 1; resumes += value; seenJds.add(jdKey); }
+    });
+    root.querySelector('[data-jd-count]').textContent = jds;
+    root.querySelector('[data-resume-count]').textContent = resumes;
+    active.forEach((row) => { const remove = row.querySelector('[data-remove-brief-row]'); if (remove) remove.disabled = active.length <= 1; });
+  };
+  root.addEventListener('input', update);
+  rows.querySelectorAll('[data-delete-flag][value="1"]').forEach((deletion) => { deletion.closest('[data-brief-row]').style.display = 'none'; });
+  rows.querySelectorAll('[data-brief-row]').forEach((row) => {
+    row.querySelectorAll('input[name$="-jd_number"], input[name$="-total_resumes_submitted"]').forEach((field) => { field.required = true; });
+  });
+  root.addEventListener('click', (event) => {
+    const add = event.target.closest('[data-add-brief-row]');
+    const remove = event.target.closest('[data-remove-brief-row]');
+    if (add) {
+      const index = Number(total.value);
+      const fragment = template.content.cloneNode(true);
+      fragment.querySelectorAll('*').forEach((node) => {
+        for (const attr of [...node.attributes]) node.setAttribute(attr.name, attr.value.replaceAll('__prefix__', index));
+      });
+      const newRow = fragment.querySelector('[data-brief-row]');
+      const activeField = newRow.querySelector('input[name$="-row_active"]');
+      if (activeField) activeField.value = '1';
+      rows.append(fragment);
+      total.value = index + 1;
+      update();
+    }
+    if (remove) {
+      const row = remove.closest('[data-brief-row]');
+      const active = [...rows.querySelectorAll('[data-brief-row]')].filter((item) => item.style.display !== 'none');
+      if (active.length > 1) {
+        const deletion = row.querySelector('[data-delete-flag]');
+        if (deletion) deletion.value = '1';
+        row.style.display = 'none';
+        update();
+      }
+    }
+  });
+  update();
+})();
+</script>

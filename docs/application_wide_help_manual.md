@@ -80,6 +80,10 @@ The table lists each user-facing page route pattern with a contextual guide. Dyn
 | Performance Review | Performance reports (`/performance/reports/`) | Yes | Yes |
 | Performance Review | Performance settings (`/performance/settings/`) | Yes | Yes |
 | Performance Review | Edit configured stage or reason (`/performance/settings/stages/<int:pk>/edit/`) | Yes | Yes |
+| Performance Review | Daily Brief entry and records (`/performance/daily-brief/`) | Yes | Yes |
+| Performance Review | Daily Brief details (`/performance/daily-brief/<int:pk>/`) | Yes | Yes |
+| Performance Review | Edit Daily Brief (`/performance/daily-brief/<int:pk>/edit/`) | Yes | Yes |
+| Performance Review | Daily Brief Analytics (`/performance/daily-brief/analytics/`) | Yes | Yes |
 | Invoice / Shared | Add or review candidate placement (`/recruitment/placements/add/`) | Yes | Yes |
 | Invoice / Shared | Add or edit client requisition (`/recruitment/requisitions/<int:pk>/edit/`) | Yes | Yes |
 | Invoice / Shared | Add or edit client requisition (`/recruitment/requisitions/add/`) | Yes | Yes |
@@ -318,3 +322,13 @@ Only help templates, styles, JavaScript, route help configuration, context wirin
 The separate recruiter performance implementation adds page-help guides for dashboard, activity, records, reports, settings and their edit screens. All nine HTML routes are listed in the coverage table above and were checked with the Django test client. The central manual for this module is [recruiter_performance_user_manual.md](recruiter_performance_user_manual.md). Unlike the original help-system change summarized above, this feature adds an Employee recruiter flag and performance tracking models; it does not alter payroll, accounting or financial records. Its pre-implementation database and employee private-file backup is `backups/recruiter_performance_preimplementation_20261107_151328/`. See [recruiter_performance_implementation.md](recruiter_performance_implementation.md) for the migration and test result.
 
 The home page module cards also include Performance Review, Asset Management, and Document & Agreement Management shortcuts. The document card summarizes generated documents, active templates and indexed private documents; the home-page guide includes the module links.
+
+### Daily Brief module (7 November 2026)
+
+Daily Brief is linked under the existing Performance Review menu. The Entry & Records page stores manually entered recruiter/date reports and plain-text JD Number/resume-count rows; Analytics aggregates only these two Daily Brief tables. The only external business foreign key is to the existing Employee recruiter record. JD details and correction history link internally to the Daily Brief parent. It does not connect to operational JD, candidate, client, placement, invoice, payroll, expense or accounting records. The entry, detail and edit screens retain before/after JSON snapshots when corrections are saved.
+
+The user-facing pages are `/performance/daily-brief/` and `/performance/daily-brief/analytics/`; both use the shared page-help dialog and have page-specific instructions. Detail and Edit records also have contextual guides. The standalone [Daily Brief User Manual](daily_brief_user_manual.md) documents weekly, trailing-15-day, calendar month/year, configured financial quarter/half/year and inclusive custom-date semantics, the six KPIs and seven charts. The existing [Recruiter Performance Review manual](recruiter_performance_user_manual.md) links to it.
+
+The additive migration `performance_review.0005_dailybrief_dailybriefhistory_dailybriefjddetail_and_more` was first applied to the isolated database snapshot and then to the active database. Pre-migration backup archive: `backups/backup-20261107-181335.zip`; verified working snapshot and manifest: `backups/daily_brief_preimplementation_20261107/`. The SQLite backup passed `integrity_check` with zero foreign-key violations and included 28 private-media and 16 media files. The isolated migration left existing business-table row counts unchanged; the expected additions were three empty Daily Brief tables plus Django content-type, permission and migration metadata.
+
+Verification: focused Daily Brief tests **14 passed**; full Performance Review tests **26 passed**; `manage.py check` and `makemigrations --check --dry-run` passed. The repository-wide run executed 671 tests: 670 passed and the known unrelated `invoice_app.tests.IconActionTests.test_customer_row_actions_are_accessible_icons` failed because it expects a Delete icon instead of the existing Deactivate/Edit actions. No live QA records were created. Browser verification returned HTTP 200 with no JavaScript errors at 1440px for the records page and 390px for analytics; the entry form also fit a 390px viewport with no horizontal overflow. The mobile breakpoints stack form controls and preserve horizontal scrolling for wide data tables.

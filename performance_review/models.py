@@ -245,3 +245,71 @@ class RecruiterActivityHistory(models.Model):
     class Meta:
         ordering = ['-recorded_at', '-id']
 
+
+class DailyBrief(models.Model):
+    """Manual recruiter daily report, kept independent of operational recruitment records."""
+    recruiter = models.ForeignKey('employee_management.Employee', on_delete=models.PROTECT,
+                                  related_name='daily_briefs')
+    activity_date = models.DateField(default=timezone.localdate, db_index=True)
+    achieved = models.PositiveIntegerField('Selections Achieved', default=0)
+    total_jds_submitted = models.PositiveIntegerField(default=0, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-activity_date', '-id']
+        constraints = [models.UniqueConstraint(fields=['recruiter', 'activity_date'],
+                                                name='daily_brief_recruiter_date_uniq')]
+        indexes = [models.Index(fields=['activity_date', 'recruiter'], name='daily_brief_date_rec_idx')]
+
+    def __str__(self):
+        return f'{self.activity_date:%d-%m-%Y} · {self.recruiter.full_name}'
+
+    @property
+    def total_resumes_submitted(self):
+        if 'jd_details' in getattr(self, '_prefetched_objects_cache', {}):
+            return sum(detail.total_resumes_submitted for detail in self.jd_details.all())
+        return self.jd_details.aggregate(total=models.Sum('total_resumes_submitted'))['total'] or 0
+
+    def refresh_jd_count(self):
+        if not self.pk:
+            return
+        count = self.jd_details.count()
+        type(self).objects.filter(pk=self.pk).update(total_jds_submitted=count)
+        self.total_jds_submitted = count
+
+
+class DailyBriefJDDetail(models.Model):
+    daily_brief = models.ForeignKey(DailyBrief, on_delete=models.CASCADE, related_name='jd_details')
+    jd_number = models.CharField(max_length=80)
+    total_resumes_submitted = models.PositiveIntegerField()
+    row_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_order', 'id']
+        constraints = [models.UniqueConstraint(fields=['daily_brief', 'jd_number'],
+                                                name='daily_brief_jd_number_uniq')]
+
+    def __str__(self):
+        return f'{self.jd_number}: {self.total_resumes_submitted}'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.daily_brief.refresh_jd_count()
+
+    def delete(self, *args, **kwargs):
+        parent = self.daily_brief
+        result = super().delete(*args, **kwargs)
+        parent.refresh_jd_count()
+        return result
+
+
+class DailyBriefHistory(models.Model):
+    daily_brief = models.ForeignKey(DailyBrief, on_delete=models.PROTECT, related_name='history')
+    previous_values = models.JSONField()
+    current_values = models.JSONField()
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-recorded_at', '-id']
+

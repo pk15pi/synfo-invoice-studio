@@ -7,11 +7,19 @@ from .core import inr
 PALETTE = ['#2F6FDE', '#E8743B', '#19A979', '#945ECF', '#ED4A7B', '#13A4B4', '#BF399E', '#F4B400']
 
 
-def _short(v):
+def _short(v, precise=False):
     v = float(v)
     a = abs(v)
     s = f'{v / 1e7:.2f} Cr' if a >= 1e7 else f'{v / 1e5:.2f} L' if a >= 1e5 else f'{v / 1e3:.1f} K' if a >= 1e3 else f'{v:.0f}'
+    if precise and a < 1e3:
+        s = f'{v:,.2f}'.rstrip('0').rstrip('.')
     return s
+
+
+def _value_label(value, money):
+    if money:
+        return inr(Decimal(str(round(float(value or 0), 2))))
+    return f'{float(value or 0):,.2f}'.rstrip('0').rstrip('.')
 
 
 def _empty(title):
@@ -19,7 +27,7 @@ def _empty(title):
             f'<text x="260" y="110" text-anchor="middle" fill="#888" font-size="13">No data for this period</text></svg>')
 
 
-def bars(labels, series, title='', w=520, h=240, legend=None):
+def bars(labels, series, title='', w=520, h=240, legend=None, money=True):
     """Vertical grouped bars. series: list of lists (same length as labels). Supports negatives."""
     vals = [float(v or 0) for s in series for v in s]
     if not labels or not any(vals):
@@ -35,7 +43,7 @@ def bars(labels, series, title='', w=520, h=240, legend=None):
     for i in range(5):
         v = bot + rng * i / 4
         out.append(f'<line x1="{L}" x2="{w - R}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="#eee"/>'
-                   f'<text x="{L - 4}" y="{y(v) + 3:.1f}" text-anchor="end" font-size="9" fill="#666">{_short(v)}</text>')
+                   f'<text x="{L - 4}" y="{y(v) + 3:.1f}" text-anchor="end" font-size="9" fill="#666">{_short(v, precise=not money)}</text>')
     out.append(f'<line x1="{L}" x2="{w - R}" y1="{y(0):.1f}" y2="{y(0):.1f}" stroke="#999"/>')
     step = max(1, len(labels) // 12)
     for i, lab in enumerate(labels):
@@ -45,7 +53,7 @@ def bars(labels, series, title='', w=520, h=240, legend=None):
             y1, y2 = sorted((y(v), y(0)))
             col = PALETTE[j % 8] if v >= 0 or len(series) > 1 else '#D64545'
             out.append(f'<rect x="{x0 + j * bw:.1f}" y="{y1:.1f}" width="{bw - 1:.1f}" height="{max(y2 - y1, 0.5):.1f}" '
-                       f'fill="{col}"><title>{escape(str(lab))}: {inr(Decimal(str(round(v, 2))))}</title></rect>')
+                       f'fill="{col}"><title>{escape(str(lab))}: {_value_label(v, money)}</title></rect>')
         if i % step == 0:
             out.append(f'<text x="{L + i * gw + gw / 2:.1f}" y="{h - B + 13}" text-anchor="middle" font-size="9" '
                        f'fill="#444">{escape(str(lab))}</text>')
@@ -57,7 +65,7 @@ def bars(labels, series, title='', w=520, h=240, legend=None):
     return ''.join(out)
 
 
-def line(labels, series, title='', w=520, h=240, legend=None):
+def line(labels, series, title='', w=520, h=240, legend=None, money=True):
     vals = [float(v or 0) for s in series for v in s]
     if not labels or not any(vals):
         return _empty(title)
@@ -71,13 +79,13 @@ def line(labels, series, title='', w=520, h=240, legend=None):
     for i in range(5):
         v = bot + rng * i / 4
         out.append(f'<line x1="{L}" x2="{w - R}" y1="{y(v):.1f}" y2="{y(v):.1f}" stroke="#eee"/>'
-                   f'<text x="{L - 4}" y="{y(v) + 3:.1f}" text-anchor="end" font-size="9" fill="#666">{_short(v)}</text>')
+                   f'<text x="{L - 4}" y="{y(v) + 3:.1f}" text-anchor="end" font-size="9" fill="#666">{_short(v, precise=not money)}</text>')
     for j, s in enumerate(series):
         pts = ' '.join(f'{x(i):.1f},{y(float(v or 0)):.1f}' for i, v in enumerate(s))
         out.append(f'<polyline points="{pts}" fill="none" stroke="{PALETTE[j % 8]}" stroke-width="2"/>')
         for i, v in enumerate(s):
             out.append(f'<circle cx="{x(i):.1f}" cy="{y(float(v or 0)):.1f}" r="2.5" fill="{PALETTE[j % 8]}">'
-                       f'<title>{escape(str(labels[i]))}: {inr(Decimal(str(v or 0)))}</title></circle>')
+                       f'<title>{escape(str(labels[i]))}: {_value_label(v, money)}</title></circle>')
     step = max(1, len(labels) // 12)
     for i, lab in enumerate(labels):
         if i % step == 0:
