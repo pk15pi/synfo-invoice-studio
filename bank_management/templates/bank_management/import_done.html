@@ -1,4 +1,8 @@
-{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Import{% endblock %}{% block bk %}
-<div class="page-heading"><p class="eyebrow">{{ batch.bank_account }}</p><h1>Import: {{ batch.file_name }}</h1></div>
-<div class="panel"><p>Imported {{ batch.imported_at|date:"d-m-Y H:i" }}: <strong>{{ batch.total_rows }}</strong> rows, <strong>{{ batch.imported }}</strong> imported, <strong>{{ batch.duplicates }}</strong> duplicates skipped, <strong>{{ batch.errors }}</strong> errors.</p>
-{% if batch.error_notes %}<pre>{{ batch.error_notes }}</pre>{% endif %}<p><a href="{% url 'bank:transactions' batch.bank_account.pk %}">View statement lines</a></p></div>{% endblock %}
+{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Import results{% endblock %}{% block bk %}
+<div class="bk-import-page">
+  <div class="page-heading"><p class="eyebrow">{{ batch.bank_account.name }} · Draft v{{ batch.version_number }}</p><h1>Import results</h1><p class="muted">{{ batch.file_name }}</p></div>
+  <section class="panel"><p>Imported {{ batch.imported_at|date:'d-m-Y H:i' }}: <strong>{{ batch.total_rows }}</strong> rows, <strong>{{ batch.imported }}</strong> imported, <strong>{{ batch.duplicates }}</strong> duplicates skipped, <strong>{{ batch.errors }}</strong> errors.</p>
+    {% if batch.error_notes %}<details><summary>Read import messages</summary><pre class="bk-full-text">{{ batch.error_notes }}</pre></details>{% endif %}
+    <div class="button-row"><a class="button primary" href="{% url 'bank:transactions' batch.bank_account.pk %}">View statement lines</a><a class="button secondary" href="{% url 'bank:import_review' batch.pk %}">View draft history</a><a class="button secondary" href="{% url 'bank:imports' %}">Import history</a></div>
+  </section>
+</div>{% endblock %}

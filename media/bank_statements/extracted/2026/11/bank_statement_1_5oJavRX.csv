@@ -1,0 +1,5 @@
+﻿Bank Account,Statement Start Date,Statement End Date,Transaction Date,Value Date,Narration,Reference Number,Debit,Credit,Running Balance,Transaction Type,Extraction Confidence,Source Page,Classification,Justification
+XXXX5678,2026-04-01,2026-04-02,2026-04-01,,Opening deposit,R1,0.00,10000.00,10000.00,Credit,100.00,,New transaction - entry required,No existing bank transaction matched this account/date/direction/amount/reference combination; a new entry is proposed.
+XXXX5678,2026-04-01,2026-04-02,2026-04-02,,Bank charges,,59.00,0.00,9941.00,Debit,100.00,,New transaction - entry required,No existing bank transaction matched this account/date/direction/amount/reference combination; a new entry is proposed.
+XXXX5678,2026-04-01,2026-04-02,2026-04-02,,Bank charges,,59.00,0.00,9882.00,Debit,100.00,,Possible duplicate - review,A second identical row appears within this statement. Confirm that it is a separate bank transaction before importing.
+XXXX5678,2026-04-01,2026-04-02,,,,,0.00,0.00,,,0.00,,Extraction uncertain,"Date, narration or debit/credit direction could not be reliably extracted."

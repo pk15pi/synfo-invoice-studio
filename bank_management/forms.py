@@ -2,7 +2,7 @@ from django import forms
 
 from accounting.models import Account
 
-from .models import BankAccount
+from .models import BankAccount, ImportDraftRow
 
 
 def _style(form):
@@ -77,4 +77,43 @@ class ManualEntryForm(forms.Form):
 
 
 class UploadForm(forms.Form):
-    file = forms.FileField(help_text='.csv or .xlsx bank statement')
+    file = forms.FileField(help_text='PDF, CSV/TXT or XLSX bank statement (maximum 20 MB). PDFs are extracted locally.')
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields['file'].widget.attrs.update({'class': 'field', 'accept': '.pdf,.csv,.txt,.xlsx'})
+
+    def clean_file(self):
+        f = self.cleaned_data['file']
+        name = (f.name or '').lower()
+        if name.endswith('.pdf'):
+            if f.size > 20 * 1024 * 1024:
+                raise forms.ValidationError('PDF exceeds the 20 MB upload limit.')
+            head = f.read(5)
+            f.seek(0)
+            if head != b'%PDF-':
+                raise forms.ValidationError('The file content is not a valid PDF.')
+        elif not (name.endswith('.csv') or name.endswith('.txt') or name.endswith('.xlsx')):
+            raise forms.ValidationError('Upload a PDF, CSV, TXT or XLSX statement file.')
+        elif f.size > 20 * 1024 * 1024:
+            raise forms.ValidationError('File exceeds the 20 MB upload limit.')
+        return f
+
+
+class DraftRowForm(forms.ModelForm):
+    class Meta:
+        model = ImportDraftRow
+        fields = ('transaction_date', 'value_date', 'description', 'reference', 'debit', 'credit', 'balance')
+        widgets = {
+            'transaction_date': forms.DateInput(attrs={'type': 'date'}),
+            'value_date': forms.DateInput(attrs={'type': 'date'}),
+            'description': forms.TextInput(attrs={'maxlength': 500}),
+            'reference': forms.TextInput(attrs={'maxlength': 120}),
+        }
+
+    def clean(self):
+        cleaned = super().clean()
+        debit, credit = cleaned.get('debit') or 0, cleaned.get('credit') or 0
+        if (debit > 0) == (credit > 0):
+            raise forms.ValidationError('Enter exactly one positive debit or credit amount.')
+        return cleaned

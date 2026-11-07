@@ -1,6 +1,7 @@
 """CSV / XLSX statement import: read raw rows, apply a column mapping, preview, and import idempotently."""
 import csv
 import io
+import zipfile
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
@@ -37,11 +38,18 @@ def read_rows(upload):
     data = upload.read()
     if name.endswith('.xlsx'):
         import openpyxl
+        if not zipfile.is_zipfile(io.BytesIO(data)):
+            raise ValueError('The XLSX file content is not a valid Excel workbook.')
         wb = openpyxl.load_workbook(io.BytesIO(data), read_only=True, data_only=True)
         ws = wb.worksheets[0]
+        if (ws.max_row or 0) > MAX_ROWS + 20 or (ws.max_column or 0) > 200:
+            wb.close()
+            raise ValueError(f'Workbook exceeds the import limit of {MAX_ROWS} rows or 200 columns.')
         rows = [[_cell(v) for v in r] for r in ws.iter_rows(values_only=True)]
         wb.close()
     elif name.endswith('.csv') or name.endswith('.txt'):
+        if data.startswith(b'%PDF-') or b'\x00' in data[:4096]:
+            raise ValueError('The file content is not a readable CSV/TXT statement.')
         text = data.decode('utf-8-sig', errors='replace')
         try:
             dialect = csv.Sniffer().sniff(text[:4096], delimiters=',;\t|')
@@ -181,3 +189,99 @@ def confirm(batch, mapping):
         batch.raw_rows = []
         batch.save()
     return batch
+
+
+def _norm(value):
+    import re
+    return ' '.join(re.sub(r'[^a-z0-9 ]+', ' ', (value or '').lower()).split())
+
+
+def classify_draft_row(bank, data):
+    """Return a conservative comparison classification and its evidence."""
+    from .models import BankTransaction, ImportDraftRow
+    if data.get('non_transaction'):
+        return ImportDraftRow.NON_TRANSACTION, None, {}, 'This is a statement opening/closing balance, page total or summary row, not an individual bank transaction.'
+    if data.get('extraction_error') or not data.get('transaction_date') or bool(data.get('debit')) == bool(data.get('credit')):
+        return ImportDraftRow.UNCERTAIN, None, {}, 'Date, narration or debit/credit direction could not be reliably extracted.'
+    if data.get('confidence') is not None and data['confidence'] < 80:
+        return ImportDraftRow.UNCERTAIN, None, {}, 'Extraction confidence is low; verify the source PDF before import.'
+    amount = q2(data.get('credit', 0) - data.get('debit', 0))
+    date_value = data['transaction_date']
+    ref = (data.get('reference') or '').strip().casefold()
+    description = _norm(data.get('description'))
+    candidates = BankTransaction.objects.filter(bank_account=bank)
+    if ref:
+        strong = list(candidates.filter(reference__iexact=ref)[:5])
+        if len(strong) == 1:
+            old = strong[0]
+            changes = {}
+            pairs = [('date', old.date, date_value), ('value_date', old.value_date, data.get('value_date')),
+                     ('description', old.description, data.get('description') or ''),
+                     ('debit', old.debit, q2(data.get('debit') or 0)), ('credit', old.credit, q2(data.get('credit') or 0)),
+                     ('balance', old.balance, data.get('balance'))]
+            for name, before, after in pairs:
+                if before != after:
+                    changes[name] = {'existing': str(before) if before is not None else '',
+                                     'statement': str(after) if after is not None else ''}
+            if not changes:
+                if old.status == BankTransaction.IGNORED:
+                    return ImportDraftRow.POSSIBLE, old, {}, 'An exact-looking transaction was previously marked ignored; review the ignore reason before considering a new entry.'
+                return (ImportDraftRow.ACCOUNTING if old.matches.filter(active=True).exists() else ImportDraftRow.EXACT,
+                        old, {}, 'The bank reference and transaction fields exactly match an existing row.' +
+                        (' An active accounting match is already linked.' if old.matches.filter(active=True).exists() else ''))
+            return ImportDraftRow.MODIFY, old, changes, 'The bank reference identifies an existing row, but one or more statement fields differ; approve each correction explicitly.'
+        if len(strong) > 1:
+            return ImportDraftRow.POSSIBLE, strong[0], {}, 'Multiple existing rows use this bank reference; choose the correct record before importing.'
+    same_amount = list(candidates.filter(date=date_value, debit=q2(data.get('debit') or 0), credit=q2(data.get('credit') or 0))[:8])
+    for old in same_amount:
+        if old.reference.strip().casefold() == ref and _norm(old.description) == description:
+            return (ImportDraftRow.ACCOUNTING if old.matches.filter(active=True).exists() else ImportDraftRow.EXACT,
+                    old, {}, 'Bank account, date, direction, exact amount, reference and normalized narration match an existing row.' +
+                    (' An accounting journal match is already linked.' if old.matches.filter(active=True).exists() else ''))
+    if same_amount:
+        return ImportDraftRow.POSSIBLE, same_amount[0], {}, 'An existing row has the same bank account, date and debit/credit amount, but its reference or narration differs.'
+    if ref:
+        by_ref = candidates.filter(reference__iexact=ref).first()
+        if by_ref:
+            return ImportDraftRow.POSSIBLE, by_ref, {}, 'The reference exists on another date or amount; manual duplicate review is required.'
+    # A source row may have been ignored after an earlier import; surface a possible duplicate rather than reinsert it.
+    ignored = candidates.filter(date=date_value, debit=q2(data.get('debit') or 0), credit=q2(data.get('credit') or 0), status=BankTransaction.IGNORED).first()
+    if ignored:
+        return ImportDraftRow.POSSIBLE, ignored, {}, 'A similar transaction was previously marked ignored; review its reason before retrying.'
+    return ImportDraftRow.NEW, None, {}, 'No existing bank transaction matched this account/date/direction/amount/reference combination; a new entry is proposed.'
+
+
+def create_draft_rows(batch, parsed_rows):
+    """Persist parsed source rows and comparison evidence without writing bank transactions."""
+    from decimal import Decimal
+    from .models import ImportDraftRow
+    batch.draft_rows.all().delete()
+    created = []
+    seen_in_batch = {}
+    for index, data in enumerate(parsed_rows, 1):
+        data = dict(data)
+        data.setdefault('row_number', index)
+        data['debit'] = q2(data.get('debit') or 0)
+        data['credit'] = q2(data.get('credit') or 0)
+        data['balance'] = q2(data['balance']) if data.get('balance') not in (None, '') else None
+        confidence = data.get('confidence')
+        if confidence is not None and not isinstance(confidence, Decimal):
+            confidence = Decimal(str(confidence))
+        classification, existing, changes, justification = classify_draft_row(batch.bank_account, data)
+        fingerprint = (data.get('transaction_date'), data['debit'], data['credit'],
+                       (data.get('reference') or '').strip().casefold(), _norm(data.get('description')))
+        occurrence = seen_in_batch.get(fingerprint, 0)
+        if occurrence and classification == ImportDraftRow.NEW:
+            classification = ImportDraftRow.POSSIBLE
+            justification = 'A second identical row appears within this statement. Confirm that it is a separate bank transaction before importing.'
+        seen_in_batch[fingerprint] = occurrence + 1
+        row = ImportDraftRow.objects.create(
+            batch=batch, row_number=data['row_number'], fingerprint_occurrence=occurrence, source_page=data.get('source_page'),
+            transaction_date=data.get('transaction_date'), value_date=data.get('value_date'),
+            description=(data.get('description') or '')[:500], normalized_description=_norm(data.get('description'))[:500],
+            reference=(data.get('reference') or '')[:120], debit=data['debit'], credit=data['credit'], balance=data['balance'],
+            confidence=confidence, raw_source=data.get('raw_source') or {},
+            extraction_error=(data.get('extraction_error') or '')[:500], classification=classification,
+            justification=justification, existing_transaction=existing, proposed_changes=changes)
+        created.append(row)
+    return created

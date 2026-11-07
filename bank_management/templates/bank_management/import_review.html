@@ -1,0 +1,117 @@
+{% extends 'bank_management/base_bank.html' %}{% load static %}{% block bk_title %}Review import #{{ batch.pk }}{% endblock %}{% block bk %}
+<div class="bk-import-page">
+  <div class="page-heading">
+    <p class="eyebrow">Bank statement import · Batch #{{ batch.pk }} · Draft Version {{ batch.version_number }} · {{ batch.get_status_display|default:batch.status|title }}</p>
+    <h1>Review statement draft</h1>
+    <p class="muted">{{ batch.file_name }} · {{ batch.bank_account.name }}</p>
+    <p class="muted">Extraction and review are separate from the bank register. Nothing reaches the bank transactions or accounting tables until you approve and import rows.</p>
+  </div>
+
+  <section class="panel" aria-labelledby="bk-import-actions-title">
+    <h2 id="bk-import-actions-title">Statement actions</h2>
+    <div class="bk-import-actions">
+      {% if batch.original_file %}<a class="button secondary" href="{% url 'bank:import_source_download' batch.pk %}" target="_blank" rel="noopener">View original statement</a>{% endif %}
+      {% if batch.generated_csv %}<a class="button secondary" href="{% url 'bank:import_csv_download' batch.pk %}">Download extracted CSV</a>{% endif %}
+      <a class="button secondary" href="{% url 'bank:imports' %}">Import history</a>
+      {% if can_regenerate %}
+        <form method="post" action="{% url 'bank:import_regenerate' batch.pk %}" data-submit-lock>{% csrf_token %}<button class="button secondary" type="submit" data-loading-text="Regenerating…">Regenerate Draft</button></form>
+      {% else %}
+        <button class="button secondary" type="button" disabled title="{% if batch.status == 'importing' %}Wait for the current import to finish.{% else %}The retained original upload is unavailable.{% endif %}">Regenerate Draft</button>
+      {% endif %}
+      {% if batch.status == 'imported' or batch.status == 'verification_failed' or batch.status == 'completed' %}<a class="button secondary" href="#bk-transaction-comparison-title">Verify Imported Transactions</a>{% endif %}
+      {% if batch.status == 'imported' or batch.status == 'verification_failed' or batch.status == 'completed' %}<a class="button primary" href="{% url 'bank:import_migration' batch.pk %}">Proceed to accounting review</a>{% endif %}
+      {% if can_cancel %}<button class="button danger" type="button" data-open-dialog="#bk-cancel-dialog">Cancel Draft</button>{% endif %}
+    </div>
+    {% if not source_available %}<p class="bk-status-note error">The original upload is unavailable. This draft remains reviewable, but it cannot be regenerated until the source file is restored.</p>{% endif %}
+    {% if cancel_block_reason and batch.status != 'cancelled' %}<p class="bk-status-note warning">{{ cancel_block_reason }}</p>{% endif %}
+    {% if batch.status == 'cancelled' %}
+      <div class="bk-status-note warning"><b>Draft cancelled</b> on {{ batch.cancelled_at|date:'d-m-Y H:i' }} by {% if batch.cancelled_by_label %}{{ batch.cancelled_by_label }}{% elif batch.cancelled_by %}{{ batch.cancelled_by }}{% else %}Local user{% endif %}. Previous status: {{ batch.cancelled_from_status|title }}. Reason: {{ batch.cancellation_reason }}. The source upload, extracted rows and review decisions are retained. Regenerate a new version to resume review.</div>
+    {% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="bk-versions-title">
+    <h2 id="bk-versions-title">Uploaded statement and draft history</h2>
+    <p class="muted">Regeneration reads this statement's retained original file and creates a separate draft version. Previous decisions and imported bank rows stay with their original version.</p>
+    <ul class="bk-version-list">
+      {% for version in versions %}
+        <li>{% if version.pk == batch.pk %}<span aria-current="page">Draft v{{ version.version_number }} · {{ version.get_status_display|default:version.status|title }} · Current</span>{% else %}<a href="{% url 'bank:import_review' version.pk %}">Draft v{{ version.version_number }} · {{ version.get_status_display|default:version.status|title }} · {{ version.created_at|date:'d-m-Y H:i' }}</a>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="panel" aria-labelledby="bk-statement-details-title">
+    <h2 id="bk-statement-details-title">Statement details</h2>
+    <div class="bk-review-summary">
+      <div><small>Account</small><b>{{ batch.bank_account.name }}{% if batch.masked_account %} · {{ batch.masked_account }}{% endif %}</b></div>
+      <div><small>Bank identified</small><b>{{ batch.bank_name|default:'Not detected' }}</b></div>
+      <div><small>Transactions</small><b>{{ batch.extracted_transactions }}</b><small>{{ batch.total_rows }} source/review rows</small></div>
+      <div><small>Debit total</small><b>{{ summary.debits|floatformat:2 }}</b></div>
+      <div><small>Credit total</small><b>{{ summary.credits|floatformat:2 }}</b></div>
+      <div><small>Opening / closing</small><b>{{ batch.opening_balance|default:'Not detected' }} / {{ batch.closing_balance|default:'Not detected' }}</b></div>
+      <div><small>Draft approved</small><b>{{ summary.approved }}</b></div>
+      <div><small>Read-back verified</small><b>{{ summary.verified }}</b></div>
+      <div><small>Failed</small><b>{{ summary.failed }}</b></div>
+    </div>
+    {% if batch.regeneration_summary %}
+      <div class="bk-status-note"><b>Regeneration comparison · previous version #{{ batch.regeneration_summary.previous_batch_id }}</b>
+        <p>Previous transactions: {{ batch.regeneration_summary.original_transaction_count }} · Newly extracted: {{ batch.regeneration_summary.newly_extracted_count }} · Existing matches: {{ batch.regeneration_summary.existing_matches }} · New: {{ batch.regeneration_summary.new_transactions }} · Possible duplicates: {{ batch.regeneration_summary.possible_duplicates }} · Proposed modifications: {{ batch.regeneration_summary.proposed_modifications }} · Extraction failures: {{ batch.regeneration_summary.extraction_failures }} · New exclusions: {{ batch.regeneration_summary.excluded_rows }} · Previous exclusions: {{ batch.regeneration_summary.previous_excluded_rows }}</p>
+        <p>Compared rows: {{ batch.regeneration_summary.unchanged_rows }} unchanged, {{ batch.regeneration_summary.changed_rows }} changed, {{ batch.regeneration_summary.new_rows }} new, {{ batch.regeneration_summary.removed_rows }} no longer extracted.</p>
+      </div>
+    {% endif %}
+    {% if batch.statement_warnings %}<div class="bk-status-note warning"><b>Review required</b><ul>{% for warning in batch.statement_warnings %}<li>{{ warning }}</li>{% endfor %}</ul></div>{% endif %}
+    {% if can_review %}
+      <form method="post" class="bk-period-form" data-submit-lock>{% csrf_token %}<input type="hidden" name="action" value="confirm_period"><label>From date <input class="field" type="date" name="from_date" value="{{ batch.confirmed_start_date|date:'Y-m-d' }}" required></label><label>To date <input class="field" type="date" name="to_date" value="{{ batch.confirmed_end_date|date:'Y-m-d' }}" required></label><label class="bk-ack"><input type="checkbox" name="acknowledge_period" value="1"> I reviewed the dates and statement warnings, including any transactions outside this period.</label><button class="button secondary" data-loading-text="Saving…">Save confirmed period</button></form>
+    {% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="bk-transaction-comparison-title">
+    <h2 id="bk-transaction-comparison-title">Transaction comparison</h2>
+    <div class="bk-review-filters"><label>Search <input class="field" id="bk-row-search" type="search" placeholder="Narration, reference, record ID"></label><label>Classification <select class="field" id="bk-class-filter"><option value="">All</option>{% for key,label,count in classification_options %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label><label>Review status <select class="field" id="bk-status-filter"><option value="">All</option>{% for value,label in review_statuses %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><label>From date <input class="field" id="bk-from-filter" type="date"></label><label>To date <input class="field" id="bk-to-filter" type="date"></label></div>
+    <div class="bk-class-counts">{% for key,label,count in classification_options %}<span>{{ label }}: <b>{{ count }}</b></span>{% endfor %}</div>
+    {% if can_review %}
+      <div class="bk-import-actions">
+        <form method="post" id="bk-bulk-review" data-submit-lock>{% csrf_token %}<input type="hidden" name="action" value="approve_selected"><button class="button secondary" data-loading-text="Approving…">Approve selected straightforward rows</button></form>
+        <form method="post" id="bk-import-approved" data-submit-lock>{% csrf_token %}<input type="hidden" name="action" value="import_approved"><button class="button primary" data-loading-text="Importing and verifying…">Import approved rows and verify</button></form>
+      </div>
+    {% endif %}
+    <div class="bk-table-scroll" role="region" aria-label="Statement transaction comparison table" tabindex="0">
+      <table class="bk-review-table" id="bk-draft-table"><colgroup><col style="width:42px"><col style="width:60px"><col style="width:105px"><col style="width:105px"><col style="width:330px"><col style="width:125px"><col style="width:125px"><col style="width:135px"><col style="width:190px"><col style="width:280px"><col style="width:140px"><col style="width:310px"></colgroup>
+        <thead><tr><th>Select</th><th data-sort-key="row_number" data-sort-type="number">Row</th><th data-sort-key="transaction_date" data-sort-type="date">Transaction date</th><th>Value date</th><th>Narration / reference</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th>Existing record / source</th><th>Proposed action and reason</th><th>Status</th><th>Review action</th></tr></thead>
+        <tbody>
+        {% for row in rows %}<tr data-classification="{{ row.classification }}" data-status="{{ row.review_status }}" data-date="{{ row.transaction_date|date:'Y-m-d' }}" data-search="{{ row.description|lower }} {{ row.reference|lower }} {{ row.existing_transaction_id|default:'' }} {{ row.justification|lower }}">
+          <td>{% if can_review %}<input form="bk-bulk-review" type="checkbox" name="row_ids" value="{{ row.pk }}" {% if row.review_status == 'verified' or row.review_status == 'excluded' or row.classification == 'non_transaction' %}disabled{% endif %} aria-label="Select row {{ row.row_number }}">{% endif %}</td>
+          <td>{{ row.row_number }}{% if row.source_page %}<small>PDF p.{{ row.source_page }}</small>{% endif %}{% if row.regeneration_change %}<small>{{ row.get_regeneration_change_display }}</small>{% endif %}</td>
+          <td>{{ row.transaction_date|date:'d-m-Y'|default:'Uncertain' }}</td><td>{{ row.value_date|date:'d-m-Y'|default:'-' }}</td>
+          <td><details><summary>{{ row.description|default:'No narration extracted'|truncatechars:150 }}</summary><div class="bk-full-text">{{ row.description|default:'No narration extracted' }}</div></details>{% if row.reference %}<details><summary>Reference: {{ row.reference|truncatechars:24 }}</summary><div class="bk-full-text">{{ row.reference }}</div></details>{% endif %}{% if row.extraction_error %}<span class="bk-row-error">{{ row.extraction_error }}</span>{% endif %}</td>
+          <td class="num">{{ row.debit|floatformat:2 }}</td><td class="num">{{ row.credit|floatformat:2 }}</td><td class="num">{{ row.balance|floatformat:2|default:'-' }}</td>
+          <td>{% if row.existing_transaction %}<a href="{% url 'bank:txn_detail' row.existing_transaction.pk %}">Bank row #{{ row.existing_transaction_id }}</a>{% else %}No exact bank row found{% endif %}<small>Confidence: {{ row.confidence|default:'-' }}{% if row.confidence %}%{% endif %}</small>{% if row.source_page and batch.source_kind == 'pdf' %}<a href="{% url 'bank:import_source_download' batch.pk %}#page={{ row.source_page }}">Open source PDF · page {{ row.source_page }}</a>{% endif %}</td>
+          <td><b>{{ row.get_classification_display }}</b><details><summary>Read justification</summary><div class="bk-full-text">{{ row.justification|default:'No additional reason recorded.' }}</div></details>{% if row.proposed_changes %}<details><summary>Compare proposed changes</summary><dl>{% for field, values in row.proposed_changes.items %}<dt>{{ field }}</dt><dd>Existing: {{ values.existing }} · Statement: {{ values.statement }}</dd>{% endfor %}</dl></details>{% endif %}</td>
+          <td>{{ row.get_review_status_display }}{% if row.verification_status == 'failed' %}<span class="bk-row-error">{{ row.verification_note }}</span>{% elif row.verification_status == 'verified' %}<small>{{ row.verification_note }}</small>{% endif %}</td>
+          <td>
+            {% if can_review %}<details><summary>Edit / review</summary><form method="post" class="bk-row-form" data-submit-lock>{% csrf_token %}<input type="hidden" name="row_id" value="{{ row.pk }}"><label>Date <input class="field" type="date" name="transaction_date" value="{{ row.transaction_date|date:'Y-m-d' }}"></label><label>Value date <input class="field" type="date" name="value_date" value="{{ row.value_date|date:'Y-m-d' }}"></label><label>Narration <input class="field" name="description" value="{{ row.description }}" maxlength="500"></label><label>Reference <input class="field" name="reference" value="{{ row.reference }}" maxlength="120"></label><label>Debit <input class="field" name="debit" type="number" step="0.01" min="0" value="{{ row.debit }}"></label><label>Credit <input class="field" name="credit" type="number" step="0.01" min="0" value="{{ row.credit }}"></label><label>Balance <input class="field" name="balance" type="number" step="0.01" value="{{ row.balance|default_if_none:'' }}"></label><button class="button secondary" name="action" value="save_row" data-loading-text="Saving…">Save edited draft</button></form>
+              <div class="bk-row-actions"><form method="post" data-submit-lock>{% csrf_token %}<input type="hidden" name="row_id" value="{{ row.pk }}"><button class="button primary" name="action" value="approve_row" {% if row.classification == 'possible_duplicate' or row.classification == 'uncertain' or row.classification == 'modification_required' or row.classification == 'non_transaction' %}disabled{% endif %}>Approve match / new row</button></form>
+                {% if row.classification == 'possible_duplicate' or row.classification == 'uncertain' %}<form method="post" data-submit-lock>{% csrf_token %}<input type="hidden" name="row_id" value="{{ row.pk }}"><button class="button secondary" name="action" value="new_and_approve">Review as a new transaction</button></form>{% endif %}
+                {% if row.classification == 'modification_required' %}<form method="post" data-submit-lock>{% csrf_token %}<input type="hidden" name="row_id" value="{{ row.pk }}"><button class="button secondary" name="action" value="approve_change">Approve proposed correction</button></form>{% endif %}
+                <form method="post" data-submit-lock>{% csrf_token %}<input type="hidden" name="row_id" value="{{ row.pk }}"><button class="button secondary" name="action" value="exclude_row">Exclude row</button></form></div></details>
+            {% else %}<span class="muted">Review is closed for this batch status.</span>{% endif %}
+          </td>
+        </tr>{% empty %}<tr><td colspan="12" class="bk-empty">No transaction rows were extracted. Review the PDF/OCR warning and use CSV/Excel fallback.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <nav class="bk-pagination" aria-label="Draft rows pagination">{% if rows.has_previous %}<a class="button secondary" href="?page={{ rows.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ rows.number }} of {{ rows.paginator.num_pages }} · {{ rows.paginator.count }} rows</span>{% if rows.has_next %}<a class="button secondary" href="?page={{ rows.next_page_number }}">Next</a>{% endif %}</nav>
+  </section>
+
+  <section class="panel"><h2>Accounting step</h2><p>Importing a bank transaction does not create an expense, payment, receipt, payroll record or journal. After bank rows are verified, use the separate accounting review or existing bank reconciliation workflow to link them to accounting journal lines. No accounting migration is automatic.</p></section>
+
+  {% if can_cancel %}
+    <dialog class="bk-confirm-dialog" id="bk-cancel-dialog" aria-labelledby="bk-cancel-title" aria-describedby="bk-cancel-description">
+      <header><h2 id="bk-cancel-title">Cancel this draft?</h2><button class="button secondary" type="button" data-close-dialog>Close</button></header>
+      <div class="dialog-body"><p id="bk-cancel-description">Batch #{{ batch.pk }} · Draft Version {{ batch.version_number }} · {{ batch.confirmed_start_date|default:batch.detected_start_date|date:'d-m-Y'|default:'Period not detected' }} to {{ batch.confirmed_end_date|default:batch.detected_end_date|date:'d-m-Y'|default:'Period not detected' }}.</p><p>Cancellation stops further processing of this draft. The original upload, generated CSV, extracted transactions and review decisions remain available. It does not remove bank transactions or reverse accounting entries.</p>
+        <form method="post" data-submit-lock>{% csrf_token %}<input type="hidden" name="action" value="cancel_batch"><label for="bk-cancel-reason">Cancellation reason</label><textarea class="field" id="bk-cancel-reason" name="cancellation_reason" maxlength="500" required></textarea><footer><button class="button secondary" type="button" data-close-dialog>Keep draft</button><button class="button danger" type="submit" data-loading-text="Cancelling…">Confirm cancellation</button></footer></form>
+      </div>
+    </dialog>
+  {% endif %}
+</div>
+<script src="{% static 'bank_management/import_statement.js' %}" defer></script>
+{% endblock %}

@@ -1,16 +1,24 @@
 import io
+import shutil
+import tempfile
 from datetime import date
 from decimal import Decimal as D
+from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.core.files.base import ContentFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from accounting import services as A
 from accounting.models import Account, JournalEntry
 
 from . import importer, services as S
-from .models import BankAccount, BankTransaction, ImportBatch, mask_number
+from .models import BankAccount, BankTransaction, ImportBatch, ImportDraftRow, mask_number
+
+PDF_MEDIA_ROOT = Path(tempfile.mkdtemp(prefix='qb-bank-import-tests-'))
+UI_MEDIA_ROOT = Path(tempfile.mkdtemp(prefix='qb-bank-ui-tests-'))
+DRAFT_MEDIA_ROOT = Path(tempfile.mkdtemp(prefix='qb-bank-draft-tests-'))
 
 
 def make_bank(name='HDFC Current', kind='bank', opening=D('0'), od=None, number='50100012345678'):
@@ -150,6 +158,363 @@ class ImportTests(TestCase):
         with self.assertRaises(ValueError):
             importer.parse_date('31/31/2026')
 
+    def test_transaction_comparison_uses_reference_and_marks_ambiguous_rows(self):
+        from .models import ImportDraftRow
+        old, _ = S.add_transaction(self.b, date(2026, 4, 7), 'Supplier payment', debit=D('500'), reference='UTR-77')
+        exact = {'transaction_date': old.date, 'description': old.description, 'reference': old.reference,
+                 'debit': old.debit, 'credit': old.credit, 'confidence': D('100')}
+        self.assertEqual(importer.classify_draft_row(self.b, exact)[0], ImportDraftRow.EXACT)
+        changed = dict(exact, debit=D('550'))
+        self.assertEqual(importer.classify_draft_row(self.b, changed)[0], ImportDraftRow.MODIFY)
+        similar = dict(exact, reference='OTHER-UTR', description='Different payment')
+        self.assertEqual(importer.classify_draft_row(self.b, similar)[0], ImportDraftRow.POSSIBLE)
+
+
+def text_statement_pdf():
+    import pymupdf as fitz
+    doc = fitz.open()
+    doc.set_metadata({'creationDate': 'D:20260401000000', 'modDate': 'D:20260401000000'})
+    page = doc.new_page(width=800, height=600)
+    for text, y in [('HDFC Bank', 30), ('Statement Period: 01/04/2026 to 30/04/2026', 55),
+                    ('Account No: 50100012345678', 75), ('Opening Balance: 1000.00', 92),
+                    ('Closing Balance: 1075.00', 102)]:
+        page.insert_text((30, y), text)
+    for label, x in [('Date', 30), ('Value Date', 105), ('Narration', 205), ('Reference', 390),
+                     ('Debit', 500), ('Credit', 585), ('Balance', 670)]:
+        page.insert_text((x, 125), label)
+    rows = [
+        [('01/04/2026', 30), ('01/04/2026', 105), ('Bank charges', 205), ('TXN001', 390), ('25.00', 500), ('0.00', 585), ('975.00', 670)],
+        [('02-Apr-2026', 30), ('02-Apr-2026', 105), ('Client NEFT', 205), ('TXN002', 390), ('0.00', 500), ('100.00', 585), ('1075.00', 670)],
+    ]
+    for entries, y in zip(rows, (150, 175)):
+        for text, x in entries:
+            page.insert_text((x, y), text)
+    page.insert_text((205, 157), 'monthly service')
+    page2 = doc.new_page(width=800, height=600)
+    page2.insert_text((30, 40), 'Continuation page - no additional transactions')
+    data = doc.tobytes()
+    doc.close()
+    return SimpleUploadedFile('statement.pdf', data, content_type='application/pdf')
+
+
+@override_settings(MEDIA_ROOT=PDF_MEDIA_ROOT)
+class PDFImportReviewTests(TestCase):
+    def setUp(self):
+        self.bank = make_bank()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(PDF_MEDIA_ROOT, ignore_errors=True)
+
+    def test_pdf_extracts_metadata_rows_and_csv_without_live_financial_records(self):
+        from .pdf_import import extract_pdf
+        extracted = extract_pdf(text_statement_pdf())
+        self.assertEqual(extracted['metadata']['bank_name'], 'HDFC Bank')
+        self.assertEqual(extracted['metadata']['masked_account'], 'XXXX5678')
+        self.assertEqual(extracted['metadata']['start'], date(2026, 4, 1))
+        self.assertEqual(extracted['metadata']['end'], date(2026, 4, 30))
+        self.assertEqual(extracted['metadata']['page_count'], 2)
+        transactions = [row for row in extracted['rows'] if not row.get('non_transaction')]
+        self.assertEqual(len(transactions), 2)
+        self.assertEqual(sum(1 for row in extracted['rows'] if row.get('non_transaction')), 2)
+        self.assertEqual((transactions[0]['debit'], transactions[0]['credit']), (D('25.00'), D('0.00')))
+        self.assertEqual((transactions[1]['debit'], transactions[1]['credit']), (D('0.00'), D('100.00')))
+        self.assertEqual(transactions[0]['description'], 'Bank charges monthly service')
+        self.assertEqual(transactions[1]['transaction_date'], date(2026, 4, 2))
+        self.assertEqual(BankTransaction.objects.count(), 0)
+
+    def test_pdf_upload_creates_separate_review_draft_and_downloadable_csv(self):
+        response = self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': text_statement_pdf()})
+        batch = ImportBatch.objects.get()
+        self.assertRedirects(response, reverse('bank:import_review', args=[batch.pk]))
+        self.assertEqual(batch.status, 'draft_ready')
+        self.assertEqual(batch.draft_rows.count(), 4)
+        self.assertEqual(batch.extracted_transactions, 2)
+        self.assertTrue(batch.original_file.name)
+        self.assertTrue(batch.generated_csv.name)
+        self.assertEqual(BankTransaction.objects.count(), 0)
+        self.assertContains(self.client.get(reverse('bank:import_review', args=[batch.pk])), 'Nothing reaches the bank transactions or accounting tables')
+        csv_response = self.client.get(reverse('bank:import_csv_download', args=[batch.pk]))
+        self.assertEqual(csv_response.status_code, 200)
+        self.assertIn(b'Extraction Confidence', b''.join(csv_response.streaming_content))
+
+    def test_exact_pdf_reupload_reopens_batch_without_creating_second_batch(self):
+        upload = text_statement_pdf()
+        data = upload.read()
+        upload.seek(0)
+        first = self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': upload})
+        batch = ImportBatch.objects.get()
+        self.assertEqual(first.url, reverse('bank:import_review', args=[batch.pk]))
+        second = self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {
+            'file': SimpleUploadedFile('statement.pdf', data, content_type='application/pdf'),
+        })
+        self.assertEqual(ImportBatch.objects.count(), 1)
+        self.assertEqual(second.url, reverse('bank:import_review', args=[batch.pk]))
+        self.assertEqual(BankTransaction.objects.count(), 0)
+
+    def test_only_approved_rows_are_imported_and_read_back_verified(self):
+        response = self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': text_statement_pdf()})
+        batch = ImportBatch.objects.get()
+        rows = list(batch.draft_rows.filter(transaction_date__isnull=False))
+        before_journals = JournalEntry.objects.count()
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {
+            'action': 'confirm_period', 'from_date': '2026-04-01', 'to_date': '2026-04-30',
+        })
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'approve_row', 'row_id': rows[0].pk})
+        self.assertEqual(BankTransaction.objects.count(), 0)
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {
+            'action': 'approve_selected', 'row_ids': [str(rows[1].pk)],
+        })
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'import_approved'})
+        batch.refresh_from_db()
+        self.assertEqual(BankTransaction.objects.count(), 2)
+        self.assertEqual(batch.status, 'imported')
+        self.assertEqual((batch.imported, batch.verified), (2, 2))
+        self.assertEqual(batch.draft_rows.filter(verification_status='verified').count(), 2)
+        self.assertEqual(JournalEntry.objects.count(), before_journals)
+
+    def test_explicit_modification_is_logged_and_accounting_review_does_not_post(self):
+        existing, _ = S.add_transaction(self.bank, date(2026, 4, 1), 'Old charges', debit=D('25'),
+                                        reference='TXN001', balance=D('975'))
+        before_journals = JournalEntry.objects.count()
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': text_statement_pdf()})
+        batch = ImportBatch.objects.get()
+        row = batch.draft_rows.get(row_number=3)
+        self.assertEqual(row.classification, ImportDraftRow.MODIFY)
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {
+            'action': 'confirm_period', 'from_date': '2026-04-01', 'to_date': '2026-04-30',
+        })
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'approve_change', 'row_id': row.pk})
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'import_approved'})
+        row.refresh_from_db()
+        existing.refresh_from_db()
+        batch.refresh_from_db()
+        self.assertEqual(existing.description, 'Bank charges monthly service')
+        self.assertEqual(row.before_values['description'], 'Old charges')
+        self.assertEqual((row.verification_status, batch.modified, batch.verified), ('verified', 1, 1))
+        response = self.client.get(reverse('bank:import_migration', args=[batch.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.client.post(reverse('bank:import_migration', args=[batch.pk]), {
+            'action': 'save_classification', f'class_{row.pk}': 'expense',
+        })
+        row.refresh_from_db()
+        self.assertEqual(row.migration_status, 'classified')
+        self.assertEqual(JournalEntry.objects.count(), before_journals)
+
+    def test_date_outside_extracted_period_requires_acknowledgement(self):
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': text_statement_pdf()})
+        batch = ImportBatch.objects.get()
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {
+            'action': 'confirm_period', 'from_date': '2026-04-02', 'to_date': '2026-04-30',
+        })
+        batch.refresh_from_db()
+        self.assertEqual(batch.confirmed_start_date, date(2026, 4, 1))
+        response = self.client.post(reverse('bank:import_review', args=[batch.pk]), {
+            'action': 'confirm_period', 'from_date': '2026-04-02', 'to_date': '2026-04-30',
+            'acknowledge_period': '1',
+        })
+        self.assertEqual(response.status_code, 302)
+        batch.refresh_from_db()
+        self.assertEqual(batch.confirmed_start_date, date(2026, 4, 2))
+        self.assertTrue(batch.extraction_metadata['date_range_acknowledged'])
+
+    def test_invalid_pdf_is_rejected_with_fallback_guidance(self):
+        upload = SimpleUploadedFile('bad.pdf', b'not a PDF', content_type='application/pdf')
+        response = self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': upload})
+        self.assertContains(response, 'not a valid PDF')
+        self.assertEqual(ImportBatch.objects.count(), 0)
+        self.assertEqual(BankTransaction.objects.count(), 0)
+
+    def test_scanned_pdf_without_local_ocr_gets_clear_manual_fallback(self):
+        import pymupdf as fitz
+        doc = fitz.open()
+        doc.new_page()
+        data = doc.tobytes()
+        doc.close()
+        upload = SimpleUploadedFile('scan.pdf', data, content_type='application/pdf')
+        with self.assertRaisesRegex(ValueError, 'Tesseract OCR configured'):
+            from .pdf_import import extract_pdf
+            extract_pdf(upload)
+
+    def test_password_protected_pdf_is_rejected(self):
+        import pymupdf as fitz
+        doc = fitz.open()
+        doc.new_page().insert_text((30, 30), 'Private statement')
+        data = doc.tobytes(encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw='owner', user_pw='locked')
+        doc.close()
+        from .pdf_import import extract_pdf
+        with self.assertRaisesRegex(ValueError, 'password-protected'):
+            extract_pdf(SimpleUploadedFile('locked.pdf', data, content_type='application/pdf'))
+
+
+@override_settings(MEDIA_ROOT=DRAFT_MEDIA_ROOT)
+class DraftLifecycleTests(TestCase):
+    def setUp(self):
+        self.bank = make_bank()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(DRAFT_MEDIA_ROOT, ignore_errors=True)
+
+    def _upload_pdf(self):
+        response = self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': text_statement_pdf()})
+        self.assertEqual(response.status_code, 302)
+        return ImportBatch.objects.get()
+
+    def _create_csv_draft(self, upload):
+        response = self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': upload})
+        batch = ImportBatch.objects.latest('id')
+        self.assertEqual(response.url, reverse('bank:import_batch', args=[batch.pk]))
+        response = self.client.post(reverse('bank:import_batch', args=[batch.pk]), dict(MAP, action='create_draft'))
+        self.assertEqual(response.url, reverse('bank:import_review', args=[batch.pk]))
+        batch.refresh_from_db()
+        return batch
+
+    def test_cancel_preserves_source_rows_approved_decision_and_audit(self):
+        batch = self._upload_pdf()
+        approved = batch.draft_rows.filter(classification=ImportDraftRow.NEW).first()
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'approve_row', 'row_id': approved.pk})
+        batch.refresh_from_db()
+        old_rows = list(batch.draft_rows.values_list('pk', 'review_status', 'decision'))
+        source_name, csv_name = batch.original_file.name, batch.generated_csv.name
+        before_transactions = BankTransaction.objects.count()
+        response = self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Statement uploaded to the wrong account.'})
+        self.assertEqual(response.url, reverse('bank:import_review', args=[batch.pk]))
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'cancelled')
+        self.assertEqual(batch.cancelled_from_status, 'partially_approved')
+        self.assertIsNotNone(batch.cancelled_at)
+        self.assertEqual(batch.cancelled_by_label, 'Local user')
+        self.assertEqual(batch.cancellation_reason, 'Statement uploaded to the wrong account.')
+        self.assertEqual(list(batch.draft_rows.values_list('pk', 'review_status', 'decision')), old_rows)
+        self.assertTrue(batch.original_file.storage.exists(source_name))
+        self.assertTrue(batch.generated_csv.storage.exists(csv_name))
+        self.assertEqual(BankTransaction.objects.count(), before_transactions)
+        self.assertEqual(self.client.get(reverse('bank:import_csv_download', args=[batch.pk])).status_code, 200)
+        review = self.client.get(reverse('bank:import_review', args=[batch.pk]))
+        self.assertContains(review, 'Draft cancelled')
+        self.assertContains(review, 'wrong account')
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'import_approved'})
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'cancelled')
+        self.assertEqual(BankTransaction.objects.count(), before_transactions)
+        self.assertEqual(self.client.get(reverse('bank:import_migration', args=[batch.pk])).url, reverse('bank:import_review', args=[batch.pk]))
+
+    def test_cancel_requires_a_reason_and_is_idempotently_blocked_after_cancel(self):
+        batch = self._upload_pdf()
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': ''})
+        batch.refresh_from_db()
+        self.assertNotEqual(batch.status, 'cancelled')
+        self.assertFalse(batch.cancelled_at)
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Wrong test file.'})
+        cancelled_at = ImportBatch.objects.get(pk=batch.pk).cancelled_at
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Retry cancellation.'})
+        batch.refresh_from_db()
+        self.assertEqual(batch.cancelled_at, cancelled_at)
+        self.assertEqual(batch.cancellation_reason, 'Wrong test file.')
+
+    def test_imported_and_importing_batches_cannot_be_cancelled(self):
+        batch = self._upload_pdf()
+        txn, _ = S.add_transaction(self.bank, date(2026, 4, 1), 'Already imported', credit=D('10'), batch=batch)
+        batch.status, batch.imported = 'imported', 1
+        batch.save(update_fields=['status', 'imported'])
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Mistake.'})
+        batch.refresh_from_db()
+        txn.refresh_from_db()
+        self.assertEqual(batch.status, 'imported')
+        self.assertTrue(BankTransaction.objects.filter(pk=txn.pk).exists())
+        batch.status = 'importing'
+        batch.save(update_fields=['status'])
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Mistake.'})
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'importing')
+
+    def test_pdf_regeneration_creates_a_new_version_and_rechecks_existing_rows(self):
+        existing, _ = S.add_transaction(self.bank, date(2026, 4, 1), 'Bank charges monthly service',
+                                        debit=D('25'), reference='TXN001', value_date=date(2026, 4, 1), balance=D('975'))
+        batch = self._upload_pdf()
+        previous_rows = list(batch.draft_rows.values_list('pk', 'classification', 'justification'))
+        source_name, csv_name = batch.original_file.name, batch.generated_csv.name
+        before_txns = BankTransaction.objects.count()
+        response = self.client.post(reverse('bank:import_regenerate', args=[batch.pk]))
+        version = ImportBatch.objects.latest('id')
+        self.assertRedirects(response, reverse('bank:import_review', args=[version.pk]))
+        batch.refresh_from_db()
+        self.assertEqual(version.source_batch_id, batch.pk)
+        self.assertEqual(version.version_number, 2)
+        self.assertEqual(version.original_file.name, source_name)
+        self.assertNotEqual(version.generated_csv.name, csv_name)
+        self.assertTrue(version.original_file.storage.exists(source_name))
+        self.assertTrue(batch.generated_csv.storage.exists(csv_name))
+        self.assertEqual(list(batch.draft_rows.values_list('pk', 'classification', 'justification')), previous_rows)
+        self.assertEqual(version.draft_rows.get(reference='TXN001').classification, ImportDraftRow.EXACT)
+        self.assertEqual(version.regeneration_summary['existing_matches'], 1)
+        self.assertGreaterEqual(version.regeneration_summary['newly_extracted_count'], 2)
+        self.assertEqual(BankTransaction.objects.count(), before_txns)
+        self.assertEqual(existing.pk, version.draft_rows.get(reference='TXN001').existing_transaction_id)
+        self.assertContains(self.client.get(reverse('bank:import_review', args=[version.pk])), 'Regeneration comparison')
+        self.assertContains(self.client.get(reverse('bank:import_review', args=[version.pk])), 'Draft v1')
+
+    def test_csv_and_xlsx_regeneration_use_the_selected_retained_upload(self):
+        csv_batch = self._create_csv_draft(csv_upload(name='source.csv'))
+        self.client.post(reverse('bank:import_regenerate', args=[csv_batch.pk]))
+        csv_version = ImportBatch.objects.latest('id')
+        self.assertEqual(csv_version.version_number, 2)
+        self.assertEqual(csv_version.source_kind, 'csv')
+        self.assertEqual(csv_version.extracted_transactions, csv_batch.extracted_transactions)
+        self.assertEqual(BankTransaction.objects.count(), 0)
+
+        import openpyxl
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.append(['Date', 'Narration', 'Reference', 'Withdrawal', 'Deposit', 'Balance'])
+        sheet.append(['01/04/2026', 'Office supplies', 'X-22', '50.00', '', '950.00'])
+        content = io.BytesIO()
+        workbook.save(content)
+        workbook.close()
+        xlsx_batch = self._create_csv_draft(SimpleUploadedFile('source.xlsx', content.getvalue(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'))
+        self.client.post(reverse('bank:import_regenerate', args=[xlsx_batch.pk]))
+        xlsx_version = ImportBatch.objects.latest('id')
+        self.assertEqual(xlsx_version.version_number, 2)
+        self.assertEqual(xlsx_version.source_kind, 'xlsx')
+        self.assertEqual(xlsx_version.draft_rows.get().description, 'Office supplies')
+        self.assertEqual(BankTransaction.objects.count(), 0)
+
+    def test_cancelled_version_can_regenerate_without_changing_its_history(self):
+        batch = self._upload_pdf()
+        old_rows = list(batch.draft_rows.values_list('pk', 'review_status'))
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Wrong period.'})
+        self.client.post(reverse('bank:import_regenerate', args=[batch.pk]))
+        batch.refresh_from_db()
+        version = ImportBatch.objects.latest('id')
+        self.assertEqual(batch.status, 'cancelled')
+        self.assertEqual(list(batch.draft_rows.values_list('pk', 'review_status')), old_rows)
+        self.assertEqual((version.source_batch_id, version.version_number), (batch.pk, 2))
+        self.assertEqual(version.status, 'draft_ready')
+
+    def test_regeneration_rejects_missing_or_modified_original_source(self):
+        batch = ImportBatch.objects.create(bank_account=self.bank, file_name='missing.csv', source_kind='csv',
+                                           status='draft_ready', file_sha256='expected')
+        missing = self.client.post(reverse('bank:import_regenerate', args=[batch.pk]))
+        self.assertEqual(missing.status_code, 302)
+        self.assertEqual(ImportBatch.objects.count(), 1)
+        batch.original_file.save('source.csv', ContentFile(b'Date,Narration,Amount\n01/04/2026,Test,1\n'), save=True)
+        batch.file_sha256 = 'not-the-source-hash'
+        batch.save(update_fields=['file_sha256'])
+        self.client.post(reverse('bank:import_regenerate', args=[batch.pk]))
+        self.assertEqual(ImportBatch.objects.count(), 1)
+
+    def test_review_ui_has_cancel_dialog_full_text_and_scrolling_table(self):
+        batch = self._upload_pdf()
+        response = self.client.get(reverse('bank:import_review', args=[batch.pk]))
+        self.assertContains(response, 'data-open-dialog="#bk-cancel-dialog"')
+        self.assertContains(response, 'Cancellation reason')
+        self.assertContains(response, 'Bank charges monthly service')
+        self.assertContains(response, 'aria-label="Statement transaction comparison table"')
+        self.assertContains(response, 'Draft v1')
+
 
 class MatchingTests(TestCase):
     def setUp(self):
@@ -262,10 +627,16 @@ class SummaryTests(TestCase):
         self.assertEqual(S.summary(b, date(2026, 4, 30))['statement_balance'], D('5009.00'))
 
 
+@override_settings(MEDIA_ROOT=UI_MEDIA_ROOT)
 class UISmokeTests(TestCase):
     def setUp(self):
         self.b = make_bank(opening=D('100'), od=date(2026, 4, 1))
         self.t, _ = S.add_transaction(self.b, date(2026, 4, 2), 'NEFT', credit=D('5'))
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(UI_MEDIA_ROOT, ignore_errors=True)
 
     def test_pages(self):
         for name, args in [('bank:accounts', []), ('bank:account_new', []), ('bank:account_detail', [self.b.pk]),
@@ -300,9 +671,22 @@ class UISmokeTests(TestCase):
         r = self.client.post(reverse('bank:import_batch', args=[bt.pk]), dict(MAP, action='preview'))
         self.assertContains(r, 'Duplicate - skip', count=0)
         self.assertContains(r, 'Error:')
-        self.client.post(reverse('bank:import_batch', args=[bt.pk]), dict(MAP, action='confirm'))
+        r = self.client.post(reverse('bank:import_batch', args=[bt.pk]), dict(MAP, action='create_draft'))
+        self.assertRedirects(r, reverse('bank:import_review', args=[bt.pk]))
+        bt.refresh_from_db()
+        self.assertEqual(bt.status, 'draft_ready')
+        self.assertEqual(BankTransaction.objects.count(), 1)  # The test fixture transaction remains untouched.
+        self.client.post(reverse('bank:import_review', args=[bt.pk]), {
+            'action': 'confirm_period', 'from_date': '2026-04-01', 'to_date': '2026-04-02',
+        })
+        straightforward = list(bt.draft_rows.filter(classification=ImportDraftRow.NEW).values_list('pk', flat=True))
+        self.client.post(reverse('bank:import_review', args=[bt.pk]), {'action': 'approve_selected', 'row_ids': straightforward})
+        possible = bt.draft_rows.get(classification=ImportDraftRow.POSSIBLE)
+        self.client.post(reverse('bank:import_review', args=[bt.pk]), {'action': 'new_and_approve', 'row_id': possible.pk})
+        self.client.post(reverse('bank:import_review', args=[bt.pk]), {'action': 'import_approved'})
         bt.refresh_from_db()
         self.assertEqual((bt.status, bt.imported), ('imported', 3))
+        self.assertEqual(bt.draft_rows.filter(verification_status='verified').count(), 3)
 
     def test_match_unmatch_via_ui(self):
         e = A.create_and_post(date(2026, 4, 2), 'r', [{'account': self.b.ledger_account, 'debit': D('5')},

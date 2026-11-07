@@ -1,1 +1,39 @@
+<style>
+/* Keep Attendance & Leave split headings locked to the main content width. */
+.page-heading.split:has(+ .form-actions a[href^="/attendance/"]) {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: start;
+}
+.page-heading.split:has(+ .form-actions a[href^="/attendance/"]) > div,
+.page-heading.split:has(+ .form-actions a[href^="/attendance/"]) h1,
+.page-heading.split:has(+ .form-actions a[href^="/attendance/"]) .muted {
+  min-width: 0;
+  max-width: 100%;
+}
+.page-heading.split:has(+ .form-actions a[href^="/attendance/"]) h1,
+.page-heading.split:has(+ .form-actions a[href^="/attendance/"]) .muted {
+  overflow-wrap: anywhere;
+}
+.page-heading.split:has(+ .form-actions a[href^="/attendance/"]) > div:last-child {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 850px) {
+  .page-heading.split:has(+ .form-actions a[href^="/attendance/"]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .page-heading.split:has(+ .form-actions a[href^="/attendance/"]) > div:last-child {
+    justify-content: flex-start;
+  }
+}
+</style>
 <div class="form-actions"><a class="button secondary" href="{% url 'att:daily' %}">Daily</a> <a class="button secondary" href="{% url 'att:summary' %}">Monthly summary</a> <a class="button secondary" href="{% url 'att:import' %}">Import CSV</a> <a class="button secondary" href="{% url 'att:holidays' %}">Holidays</a> <a class="button secondary" href="{% url 'att:leave_types' %}">Leave types</a> <a class="button secondary" href="{% url 'att:applications' %}">Leave applications</a> <a class="button secondary" href="{% url 'att:balances' %}">Leave balances</a> <a class="button secondary" href="{% url 'att:reports' %}">Reports</a> <a class="button secondary" href="{% url 'att:corrections' %}">Correction history</a></div>

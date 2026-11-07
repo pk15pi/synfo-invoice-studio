@@ -1,0 +1,154 @@
+{% verbatim %}
+(() => {
+  const payload = document.getElementById('qb-page-help-data');
+  const dialog = document.getElementById('qb-page-help');
+  const content = document.getElementById('qb-page-help-content');
+  const main = document.querySelector('main, #content');
+  if (!payload || !dialog || !content || !main) return;
+
+  let guide = null;
+  try { guide = JSON.parse(payload.textContent || 'null'); } catch (_) { guide = null; }
+  if (!guide) {
+    console.warn('Page help is not registered for this route.');
+    guide = {
+      title: 'Help content unavailable',
+      overview: 'A manual for this screen has not been added yet. Please contact your application administrator.',
+      purpose: '', steps: [], rules: [], related: [], notes: []
+    };
+  }
+
+  const pageHeading = main.querySelector('.page-heading, .hero') ||
+    (main.querySelector('h1') && main.querySelector('h1').parentElement);
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'qb-help-trigger';
+  trigger.textContent = '?';
+  trigger.title = 'Help - Current Page';
+  trigger.setAttribute('aria-label', `Help - ${guide.title || 'Current Page'}`);
+  trigger.setAttribute('aria-haspopup', 'dialog');
+
+  if (pageHeading) {
+    const isFlex = getComputedStyle(pageHeading).display.includes('flex');
+    if (isFlex) {
+      pageHeading.classList.add('qb-help-heading-flex');
+      pageHeading.append(trigger);
+    } else {
+      pageHeading.classList.add('qb-help-heading-anchor');
+      pageHeading.append(trigger);
+    }
+  } else {
+    const slot = document.createElement('div');
+    slot.className = 'qb-help-fallback-slot';
+    slot.append(trigger);
+    main.prepend(slot);
+  }
+
+  const h1 = main.querySelector('h1');
+  const currentPageName = h1 && h1.textContent.trim() || guide.title || document.title;
+  document.getElementById('qb-page-help-title').textContent = currentPageName;
+
+  const addSection = (title, text, id) => {
+    if (!text) return;
+    const section = document.createElement('section');
+    section.className = 'qb-help-section';
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    const paragraph = document.createElement('p');
+    paragraph.textContent = text;
+    if (id) paragraph.id = id;
+    section.append(heading, paragraph);
+    content.append(section);
+  };
+  const addList = (title, items) => {
+    if (!Array.isArray(items) || !items.length) return;
+    const section = document.createElement('section');
+    section.className = 'qb-help-section';
+    const heading = document.createElement('h3');
+    heading.textContent = title;
+    const list = document.createElement('ul');
+    items.forEach(item => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      list.append(li);
+    });
+    section.append(heading, list);
+    content.append(section);
+  };
+
+  addSection('Page overview', guide.overview, 'qb-page-help-overview');
+  addSection('Purpose of this page', guide.purpose);
+  addList('Step-by-step instructions', guide.steps);
+  addList('Business rules and validations', guide.rules);
+  addList('Related modules and workflows', guide.related);
+  addList('Important notes', guide.notes);
+
+  const controls = [...main.querySelectorAll('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea')];
+  const fields = [];
+  const seenFields = new Set();
+  controls.forEach(control => {
+    if (control.closest('dialog') || control.type === 'checkbox' && control.name === 'csrfmiddlewaretoken') return;
+    let label = '';
+    if (control.id) {
+      const linked = main.querySelector(`label[for="${CSS.escape(control.id)}"]`);
+      if (linked) label = linked.textContent.trim();
+    }
+    if (!label) {
+      const wrapping = control.closest('label');
+      if (wrapping) label = wrapping.textContent.trim();
+    }
+    if (!label) label = control.getAttribute('aria-label') || control.getAttribute('placeholder') || control.name || '';
+    label = label.replace(/\s+/g, ' ').trim();
+    if (!label || seenFields.has(label.toLowerCase())) return;
+    seenFields.add(label.toLowerCase());
+    const required = control.required ? 'Required' : 'Optional';
+    let details = `${required} Â· ${control.tagName.toLowerCase() === 'select' ? 'selection' : (control.type || control.tagName.toLowerCase())}`;
+    if (control.tagName === 'SELECT' && control.options.length && control.options.length <= 9) {
+      const choices = [...control.options].map(option => option.textContent.trim()).filter(Boolean);
+      if (choices.length) details += ` Â· Choices: ${choices.join(', ')}`;
+    }
+    const describedBy = control.getAttribute('aria-describedby');
+    if (describedBy) {
+      const help = describedBy.split(/\s+/).map(id => document.getElementById(id)?.textContent.trim()).filter(Boolean).join(' ');
+      if (help) details += ` Â· ${help}`;
+    }
+    fields.push({label, details});
+  });
+  if (fields.length) {
+    const section = document.createElement('section');
+    section.className = 'qb-help-section';
+    const heading = document.createElement('h3');
+    heading.textContent = 'Fields on this page';
+    const list = document.createElement('dl');
+    list.className = 'qb-help-fields';
+    fields.forEach(field => {
+      const term = document.createElement('dt');
+      term.textContent = field.label;
+      const description = document.createElement('dd');
+      description.textContent = field.details;
+      list.append(term, description);
+    });
+    section.append(heading, list);
+    content.append(section);
+  }
+
+  const actions = [...main.querySelectorAll('button:not(.qb-help-trigger), a.button, a.icon-btn, [role="button"]')]
+    .filter(action => !action.closest('dialog'))
+    .map(action => {
+      const label = (action.getAttribute('aria-label') || action.textContent || action.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
+      const description = (action.getAttribute('title') || '').replace(/\s+/g, ' ').trim();
+      return label && description && description.toLowerCase() !== label.toLowerCase()
+        ? `${label}: ${description}` : label || description;
+    })
+    .filter(Boolean);
+  const uniqueActions = [...new Set(actions)];
+  addList('Available buttons and actions', uniqueActions);
+
+  trigger.addEventListener('click', () => {
+    if (!dialog.open) dialog.showModal();
+  });
+  dialog.addEventListener('click', event => {
+    if (event.target === dialog) dialog.close();
+  });
+})();
+
+{% endverbatim %}

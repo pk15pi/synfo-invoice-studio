@@ -1,4 +1,4 @@
-{% extends 'invoice_app/base.html' %}{% block title %}{% block bk_title %}Bank{% endblock %} &middot; QuantBud{% endblock %}
-{% block content %}<style>.bk-sub a{margin-right:14px}.num{text-align:right;font-variant-numeric:tabular-nums}.bk-warn{color:#b3261e;font-weight:600}</style>
+{% extends 'invoice_app/base.html' %}{% load static %}{% block title %}{% block bk_title %}Bank{% endblock %} &middot; QuantBud{% endblock %}
+{% block content %}<link rel="stylesheet" href="{% static 'bank_management/import_statement.css' %}"><style>.bk-sub a{margin-right:14px}.num{text-align:right;font-variant-numeric:tabular-nums}.bk-warn{color:#b3261e;font-weight:600}</style>
 <p class="bk-sub muted"><a href="{% url 'bank:accounts' %}">Bank &amp; cash accounts</a><a href="{% url 'bank:transfers' %}">Transfers</a><a href="{% url 'bank:imports' %}">Statement imports</a><a href="{% url 'bank:book' 'bank' %}">Bank book</a><a href="{% url 'bank:book' 'cash' %}">Cash book</a><a href="{% url 'bank:legacy_preview' %}">Legacy bank text preview</a></p>
 {% block bk %}{% endblock %}{% endblock %}

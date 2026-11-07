@@ -1,0 +1,87 @@
+.bk-import-page{width:100%;max-width:100%;min-width:0;color:#172b3a}
+@media(min-width:1200px){.container:has(>.bk-import-page){max-width:1680px;width:100%}}
+.bk-import-page .page-heading{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+.bk-import-page .page-heading h1,.bk-import-page .page-heading .muted{min-width:0;overflow-wrap:anywhere}
+.bk-import-page .panel{min-width:0;padding:clamp(15px,2vw,22px)}
+.bk-import-page .panel>h2{margin:0 0 12px;color:#243b4e;font-size:18px}
+.bk-import-page .panel>h3{margin:0 0 10px;color:#243b4e;font-size:15px}
+.bk-import-page .button-row,.bk-import-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.bk-import-page .button-row form,.bk-import-actions form{margin:0}
+.bk-import-page .button{min-height:38px}
+.bk-import-page .button:disabled{opacity:.55;cursor:not-allowed}
+.bk-import-page .bk-status-note{margin:12px 0 0;padding:11px 14px;border:1px solid #d7e3ec;border-radius:8px;background:#f5f9fc;color:#3b5364}
+.bk-import-page .bk-status-note.warning{border-color:#f0d3aa;background:#fff9ef;color:#6d4b18}
+.bk-import-page .bk-status-note.error{border-color:#e7bcbc;background:#fff5f5;color:#832f2f}
+.bk-import-page .bk-version-list{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;padding:0;list-style:none}
+.bk-import-page .bk-version-list a,.bk-import-page .bk-version-list span{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid #d9e3ea;border-radius:7px;background:#f8fafc;color:#29465a;font-size:12px;text-decoration:none}
+.bk-import-page .bk-version-list [aria-current=page]{border-color:#91b5cf;background:#eaf3f9;font-weight:700}
+.bk-import-page .bk-review-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr));gap:10px;margin:14px 0}
+.bk-import-page .bk-review-summary>div{min-width:0;padding:11px 12px;border:1px solid #e1e8ee;border-radius:8px;background:#fbfcfd}
+.bk-import-page .bk-review-summary small,.bk-import-page .bk-review-summary b{display:block;overflow-wrap:anywhere}
+.bk-import-page .bk-review-summary small{color:#71808c;font-size:11px}
+.bk-import-page .bk-review-summary b{margin-top:3px;color:#174f7c;font-size:17px;font-variant-numeric:tabular-nums}
+.bk-import-page .bk-period-form,.bk-import-page .bk-review-filters{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px;margin-top:14px}
+.bk-import-page .bk-period-form label,.bk-import-page .bk-review-filters label{display:flex;flex-direction:column;gap:4px;min-width:135px;font-size:12px;font-weight:700;color:#435462}
+.bk-import-page .bk-period-form .field,.bk-import-page .bk-review-filters .field{width:100%;min-width:0;min-height:38px}
+.bk-import-page .bk-period-form .bk-ack{flex:1 1 100%;display:flex;flex-direction:row;align-items:center;min-width:0}
+.bk-import-page .bk-period-form .bk-ack input{width:auto;min-height:0}
+.bk-import-page .bk-class-counts{display:flex;flex-wrap:wrap;gap:7px 10px;padding:12px 0}
+.bk-import-page .bk-class-counts span{padding:5px 8px;border-radius:999px;background:#f1f5f8;color:#405565;font-size:11px}
+.bk-import-page .bk-table-scroll{width:100%;max-width:100%;overflow:auto;overscroll-behavior-inline:contain;border:1px solid #e1e8ee;border-radius:9px;background:#fff;scrollbar-gutter:stable}
+.bk-import-page .bk-table-scroll:focus-visible{outline:3px solid #9cc7e3;outline-offset:2px}
+.bk-import-page .bk-review-table{width:100%;min-width:1840px;table-layout:fixed;border-collapse:collapse}
+.bk-import-page .bk-review-table th{position:sticky;top:0;z-index:1;padding:10px 9px;background:#eef3f7;color:#526879;vertical-align:bottom}
+.bk-import-page .bk-review-table td{padding:10px 9px;vertical-align:top;overflow-wrap:anywhere;word-break:normal;line-height:1.45}
+.bk-import-page .bk-review-table td.num,.bk-import-page .bk-review-table th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.bk-import-page .bk-review-table small{display:block;margin-top:4px;color:#687b89;font-size:11px;overflow-wrap:anywhere;word-break:break-word}
+.bk-import-page .bk-review-table details>summary{cursor:pointer;color:#244d6a;font-weight:650}
+.bk-import-page .bk-review-table details[open]{min-width:0}
+.bk-import-page .bk-full-text{margin:7px 0 0;padding:8px 9px;border-left:3px solid #b7d0e2;border-radius:4px;background:#f6f9fb;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.bk-import-page .bk-row-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.bk-import-page .bk-row-form label{min-width:0;font-size:11px;font-weight:700}
+.bk-import-page .bk-row-form .field{width:100%;min-width:0;min-height:36px;padding:6px 8px}
+.bk-import-page .bk-row-form label:nth-child(3),.bk-import-page .bk-row-form .button{grid-column:1/-1}
+.bk-import-page .bk-row-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.bk-import-page .bk-row-actions .button,.bk-import-page .bk-row-form .button{min-height:34px;padding:6px 9px;font-size:11px}
+.bk-import-page .bk-row-error{display:block;margin-top:5px;color:#a32626;font-weight:650}
+.bk-import-page .bk-pagination{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:14px}
+.bk-import-page .bk-import-footer-actions{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px}
+.bk-import-page .bk-import-footer-actions>.panel{flex:1 1 360px;margin:0}
+.bk-import-page .bk-cancel-form{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:12px}
+.bk-import-page .bk-cancel-form label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.bk-import-page .bk-cancel-form textarea{min-height:72px;resize:vertical}
+.bk-import-page .bk-confirm-dialog{width:min(560px,calc(100vw - 24px));max-width:560px;max-height:calc(100dvh - 24px);padding:0;border:1px solid #d7e1e9;border-radius:12px;background:#fff;color:#172b3a;box-shadow:0 18px 60px #102b3e40;overflow:auto}
+.bk-import-page .bk-confirm-dialog::backdrop{background:#10233480;backdrop-filter:blur(2px)}
+.bk-import-page .bk-confirm-dialog header,.bk-import-page .bk-confirm-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #e1e8ee}
+.bk-import-page .bk-confirm-dialog footer{justify-content:flex-end;border-top:1px solid #e1e8ee;border-bottom:0}
+.bk-import-page .bk-confirm-dialog h2{margin:0;font-size:18px}
+.bk-import-page .bk-confirm-dialog .dialog-body{padding:16px 18px}
+.bk-import-page .bk-confirm-dialog .dialog-body p{margin:0 0 10px}
+.bk-import-page .bk-upload-form{display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1.4fr);align-items:end;gap:16px}
+.bk-import-page .bk-upload-form .helptext{grid-column:1/-1;color:#667887;font-size:12px}
+.bk-import-page .bk-map-form{display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:12px 18px}
+.bk-import-page .bk-map-form label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.bk-import-page .bk-map-form .bk-map-help,.bk-import-page .bk-map-form .form-actions{grid-column:1/-1}
+.bk-import-page .bk-mapping-table,.bk-import-page .bk-history-table,.bk-import-page .bk-accounting-table{min-width:900px}
+.bk-import-page .bk-preview-table{min-width:1120px}
+.bk-import-page .bk-empty{padding:24px;text-align:center;color:#647684;background:#f8fafb}
+@media(max-width:760px){
+ .bk-import-page .bk-period-form,.bk-import-page .bk-review-filters{align-items:stretch}
+ .bk-import-page .bk-period-form label,.bk-import-page .bk-review-filters label{flex:1 1 145px}
+ .bk-import-page .bk-upload-form,.bk-import-page .bk-map-form{grid-template-columns:minmax(0,1fr)}
+ .bk-import-page .bk-upload-form>*{grid-column:1}
+ .bk-import-page .bk-map-form>*{grid-column:1}
+ .bk-import-page .bk-row-form{grid-template-columns:minmax(0,1fr)}
+ .bk-import-page .bk-row-form label:nth-child(3),.bk-import-page .bk-row-form .button{grid-column:1}
+ .bk-import-page .bk-cancel-form{grid-template-columns:minmax(0,1fr)}
+ .bk-import-page .bk-cancel-form .button{justify-self:start}
+ .bk-import-page .bk-pagination span{flex:1 1 100%;text-align:center}
+}
+@media(max-width:420px){
+ .bk-import-page .panel{padding:14px}
+ .bk-import-page .button-row .button,.bk-import-page .bk-import-actions .button{width:100%}
+ .bk-import-page .bk-import-actions form{width:100%}
+ .bk-import-page .bk-import-actions form .button{width:100%}
+ .bk-import-page .bk-review-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .bk-import-page .bk-review-summary>div{padding:9px}
+}

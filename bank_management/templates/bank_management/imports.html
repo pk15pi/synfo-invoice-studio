@@ -1,12 +1,16 @@
 {% extends 'bank_management/base_bank.html' %}{% block bk_title %}Imports{% endblock %}{% block bk %}
-<div class="page-heading"><p class="eyebrow">Bank Management</p><h1>Statement imports</h1></div>
-<section class="panel">
-  <h2>Import a statement</h2>
-  <p class="muted">Choose the bank or cash account the statement belongs to. You’ll upload the file, map its columns, review a preview, then confirm the import. Duplicate rows are skipped.</p>
-  {% if accounts %}<div class="button-row">
-    {% for account in accounts %}<a class="button primary" href="{% url 'bank:import_upload' account.pk %}">Import to {{ account.name }}</a>{% endfor %}
-  </div>{% else %}<p>No bank or cash accounts are set up yet. <a href="{% url 'bank:account_new' %}">Create an account</a> before importing a statement.</p>{% endif %}
-</section>
-<div class="panel"><table data-server-sort="orm"><thead><tr><th data-sort-key="when" data-sort-type="date">When</th><th data-sort-key="account">Account</th><th data-sort-key="file">File</th><th data-sort-key="status" data-sort-type="status">Status</th><th class="num" data-sort-key="rows" data-sort-type="number">Rows</th><th class="num" data-sort-key="imported" data-sort-type="number">Imported</th><th class="num" data-sort-key="duplicates" data-sort-type="number">Duplicates</th><th class="num" data-sort-key="errors" data-sort-type="number">Errors</th></tr></thead><tbody>
-{% for x in rows %}<tr><td>{{ x.created_at|date:"d-m-Y H:i" }}</td><td>{{ x.bank_account }}</td><td><a href="{% url 'bank:import_batch' x.pk %}">{{ x.file_name }}</a></td><td>{{ x.status }}</td><td class="num">{{ x.total_rows }}</td><td class="num">{{ x.imported }}</td><td class="num">{{ x.duplicates }}</td><td class="num">{{ x.errors }}</td></tr>
-{% empty %}<tr><td colspan="8" class="empty">No imports yet.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+<div class="bk-import-page">
+  <div class="page-heading"><p class="eyebrow">Bank Management</p><h1>Statement imports</h1><p class="muted">Choose a bank or cash account, retain its original statement, then review and approve bank register changes.</p></div>
+  <section class="panel" aria-labelledby="bk-import-start-title">
+    <h2 id="bk-import-start-title">Import a statement</h2>
+    <p class="muted">PDF, CSV/TXT or XLSX uploads become review drafts. Bank transactions require explicit approval, and accounting entries are never created automatically.</p>
+    {% if accounts %}<div class="button-row">{% for account in accounts %}<a class="button primary" href="{% url 'bank:import_upload' account.pk %}">Import to {{ account.name }}</a>{% endfor %}</div>{% else %}<p>No bank or cash accounts are set up yet. <a href="{% url 'bank:account_new' %}">Create an account</a> before importing.</p>{% endif %}
+  </section>
+  <section class="panel" aria-labelledby="bk-import-history-title"><h2 id="bk-import-history-title">Import history</h2>
+    <div class="bk-table-scroll" role="region" aria-label="Statement import history" tabindex="0"><table class="bk-history-table" data-server-sort="orm"><thead><tr><th data-sort-key="when" data-sort-type="date">When</th><th data-sort-key="account">Account</th><th data-sort-key="file">Source file / period</th><th data-sort-key="status" data-sort-type="status">Status</th><th class="num" data-sort-key="rows" data-sort-type="number">Rows</th><th>Comparison</th><th>Imported / verified</th></tr></thead><tbody>
+      {% for batch in rows %}<tr><td>{{ batch.created_at|date:'d-m-Y H:i' }}</td><td>{{ batch.bank_account }}</td><td>{% if batch.status == 'pending' %}<a href="{% url 'bank:import_batch' batch.pk %}">{{ batch.file_name }}</a>{% else %}<a href="{% url 'bank:import_review' batch.pk %}">{{ batch.file_name }}</a>{% endif %}<small>Draft v{{ batch.version_number }}{% if batch.source_batch_id %} · regenerated from #{{ batch.source_batch_id }}{% endif %}</small><small>{{ batch.detected_start_date|date:'d-m-Y'|default:'Period pending' }} – {{ batch.detected_end_date|date:'d-m-Y'|default:'' }}</small></td><td>{{ batch.get_status_display|default:batch.status }}</td><td class="num">{{ batch.total_rows }}</td><td>Exact {{ batch.matched }} · New {{ batch.new_transactions }}<small>Possible duplicate {{ batch.possible_duplicates }} · Changes {{ batch.proposed_modifications }}</small></td><td>{{ batch.imported }} / {{ batch.verified }}<small>Failed {{ batch.errors|add:batch.failed_extractions }}</small></td></tr>
+      {% empty %}<tr><td colspan="7" class="bk-empty">No imports yet.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section>
+</div>
+{% endblock %}

@@ -1,3 +1,14 @@
 {% extends 'bank_management/base_bank.html' %}{% block bk_title %}Import statement{% endblock %}{% block bk %}
-<div class="page-heading"><p class="eyebrow">{{ b }}</p><h1>Import bank statement</h1></div>
-<form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}{{ form.as_p }}<p class="muted">Step 1 of 3: upload. Next you map columns, preview, then confirm. Rows already imported are skipped.</p><button class="button primary">Upload</button></form>{% endblock %}
+<div class="bk-import-page">
+  <div class="page-heading"><p class="eyebrow">{{ b.name }} · {{ b.bank_name|default:'Bank or cash account' }}</p><h1>Import bank statement</h1><p class="muted">Select the original statement for {{ b.name }}. The upload is retained and staged for review before any bank register changes.</p></div>
+  <section class="panel" aria-labelledby="bk-upload-title">
+    <h2 id="bk-upload-title">Upload statement</h2>
+    <form method="post" enctype="multipart/form-data" class="bk-upload-form" data-submit-lock>{% csrf_token %}
+      <label for="id_file">Statement file</label>
+      <div>{{ form.file }}{% if form.file.errors %}<div class="bk-row-error">{{ form.file.errors }}</div>{% endif %}<small class="helptext">{{ form.file.help_text }}</small></div>
+      <p class="helptext">PDF text is extracted locally. Scanned PDFs need local Tesseract OCR. CSV/Excel statements use column mapping. No transaction is inserted until you review and approve the draft.</p>
+      <div class="form-actions"><button class="button primary" type="submit" data-loading-text="Uploading and extracting…">Upload Statement</button><a class="button secondary" href="{% url 'bank:imports' %}">Back to imports</a></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

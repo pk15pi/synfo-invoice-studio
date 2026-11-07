@@ -1,0 +1,5 @@
+﻿Date,Narration,Chq/Ref,Withdrawal,Deposit,Balance
+01/04/2026,Opening deposit,R1,,"10,000.00","10,000.00"
+02/04/2026,Bank charges,,59.00,,9941.00
+02/04/2026,Bank charges,,59.00,,9882.00
+bad-date,oops,,1,,

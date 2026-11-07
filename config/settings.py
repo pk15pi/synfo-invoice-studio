@@ -58,12 +58,13 @@ CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://127.0.0.1:8000']
 ROOT_URLCONF = 'config.urls'
 TEMPLATES = [{
     'BACKEND': 'django.template.backends.django.DjangoTemplates',
-    'DIRS': [], 'APP_DIRS': True,
+    'DIRS': [BASE_DIR / 'templates'], 'APP_DIRS': True,
     'OPTIONS': {'context_processors': [
         'django.contrib.auth.context_processors.auth',
         'django.template.context_processors.request',
         'django.contrib.messages.context_processors.messages',
         'invoice_app.context_processors.brand_name',
+        'invoice_app.context_processors.page_help',
     ]},
 }]
 WSGI_APPLICATION = 'config.wsgi.application'
