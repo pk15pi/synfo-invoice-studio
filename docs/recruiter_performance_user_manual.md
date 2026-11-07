@@ -1,6 +1,6 @@
 # Recruiter Performance Review - User Manual
 
-The module is available from **Performance Review** in the main navigation. It uses the existing Employee and candidate records. It is management-only under the current local-only application architecture; the app does not have recruiter logins or individual user roles.
+The module is available from the **Performance Review** navigation menu and the Performance Review card on the home page. It uses the existing Employee and candidate records. It is management-only under the current local-only application architecture; the app does not have recruiter logins or individual user roles.
 
 ## Performance Dashboard
 

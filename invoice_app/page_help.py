@@ -27,7 +27,7 @@ def _add(keys, title, overview, purpose, steps, rules=(), related=(), notes=()):
 _add("home", "Application home", "Use the home page to open the main business modules.",
      "It provides the starting point for day-to-day work.",
      ["Choose the module that matches the work you need to do.", "Use the navigation menu to return to another module."],
-     related=["Customer, invoice, employee, expense, bank, accounting and reporting pages are available from the main navigation."])
+     related=["Customer, invoice, employee, payroll, attendance, performance review, asset management, document and agreement management, and reporting pages are available from the main navigation and module cards."])
 _add("dashboard", "Invoice management dashboard", "Review invoice activity and open the main billing workflows.",
      "This dashboard links customer, project, manpower and invoice work.",
      ["Review the dashboard summaries and recent records.", "Open the relevant list or use the page action to begin a workflow."],
