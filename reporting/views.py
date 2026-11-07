@@ -1,7 +1,9 @@
 from django.core.paginator import Paginator
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils.text import slugify
+from urllib.parse import urlencode
 
 from employee_management.models import Department, Employee
 from employee_management.security import local_only
@@ -114,14 +116,29 @@ def dashboard(request):
     with PR.scope(PR.mode(request.GET)):
         ex = executive(period)
     if request.GET.get('format') == 'xlsx':
-        r = HttpResponse(exports.fy_workbook(P.fy_start_year(period.start)),
+        r = HttpResponse(exports.period_workbook(period),
                          content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        r['Content-Disposition'] = f'attachment; filename="fy-report-{P.fy_label(P.fy_start_year(period.start))}.xlsx"'
+        r['Content-Disposition'] = f'attachment; filename="financial-analytics-{slugify(period.label)}.xlsx"'
+        return r
+    if request.GET.get('format') == 'pdf':
+        with PR.scope(PR.mode(request.GET)):
+            rep = R.build('pnl', period.params)
+            data = exports.report_pdf(rep)
+        r = HttpResponse(data, content_type='application/pdf')
+        r['Content-Disposition'] = f'attachment; filename="management-pnl-{slugify(period.label)}.pdf"'
         return r
     for c in ex['cards']:
         c['text'] = text(c['value'], c['kind']) if c['value'] is not None else 'Not tracked'
         c['prev_text'] = text(c['prev'], c['kind']) if c.get('prev') is not None else ''
-    return render(request, 'reporting/dashboard.html', _ctx(request, period=period, ex=ex))
+        c['delta_text'] = text(c['delta'], 'money' if c['kind'] == 'money' else 'text') \
+            if c.get('delta') is not None else ''
+    export_params = period.params.copy()
+    export_qs = urlencode(export_params)
+    base = reverse('reporting:dashboard')
+    return render(request, 'reporting/dashboard.html', _ctx(
+        request, period=period, ex=ex, workbook_sheets=len(exports.FY_SHEETS),
+        dashboard_xlsx_url=f'{base}?{export_qs}&format=xlsx',
+        dashboard_pdf_url=f'{base}?{export_qs}&format=pdf'))
 
 
 @local_only

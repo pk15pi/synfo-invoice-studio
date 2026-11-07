@@ -235,13 +235,16 @@ def report_xlsx(rep):
     return buf.getvalue()
 
 
-FY_SHEETS = [('Executive Summary', 'pnl'), ('Revenue Details', 'invoice_register'), ('Payroll Details', 'payroll_register'),
-             ('Employee Claims', 'employee_claims'), ('Company Expenses', 'company_expenses'),
-             ('Monthly Financial Summary', 'monthly_perf'), ('Outstanding Amounts', 'outstanding')]
+FY_SHEETS = [('Executive Summary', 'pnl'), ('Monthly Financial Summary', 'monthly_perf'),
+             ('Salary Analysis', 'payroll_summary'), ('Expense Analysis', 'exp_summary'),
+             ('Revenue Analysis', 'rev_summary'), ('Profit and Loss Trend', 'rev_vs_exp'),
+             ('Cash Flow', 'cash_flow'), ('Department Cost', 'payroll_department'),
+             ('Vendor Expense', 'exp_vendor'), ('Customer Revenue', 'rev_customer'),
+             ('Outstanding Amounts', 'outstanding')]
 
 
 def period_workbook(period):
-    """Seven-sheet financial workbook covering the selected reporting period."""
+    """Multi-sheet financial workbook covering the exact selected reporting period."""
     from openpyxl import Workbook
     from . import reports
     from .dashboard import executive

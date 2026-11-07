@@ -22,6 +22,14 @@ Clicking the button opens a native modal dialog without navigating away. It has 
 
 The page title and written guidance come from the route guide. The field list is read from the visible form: label, required/optional state, input type, short select choices, and inline help text where present. The action list is read from visible page buttons and action links, including their existing tooltip descriptions where available. This keeps labels, required status and available actions aligned with the current template.
 
+### Executive dashboard guide
+
+The Reports & Analytics dashboard uses the shared period selector for month, quarter, half-year, financial-year, calendar-year and custom views. Cards compare the selected range with the previous equivalent range and show the absolute difference and relative change. If the comparison period has no value, the indicator is `New` or `n/a` rather than a misleading percentage.
+
+Revenue is taxable invoice value excluding GST on invoice date; receipts and recorded payments follow their actual cash dates. The dashboard P&L is a mixed accrual management view. Payroll trends include finalized current payroll only: deductions are part of gross salary, employer contributions are additional employee cost, net salary is not another expense, and salary payments are cash movement. Vendor, customer, employee, department, expense, payroll, cash-flow and profitability details remain available from chart/card drill-downs and report navigation.
+
+The selected-period workbook includes 11 sheets sourced from existing reports. The dashboard PDF button exports the selected-period management P&L. Use the workbook and linked reports for detailed salary, expense, revenue, cash-flow and balance analysis.
+
 ## Coverage report
 
 The table lists each user-facing page route pattern with a contextual guide. Dynamic detail/edit routes require an existing record; report and placeholder routes use their route parameters. Create/edit screens using the same Django form intentionally share instructions while the dialog still reflects the current page title, fields and actions.
@@ -75,7 +83,7 @@ The table lists each user-facing page route pattern with a contextual guide. Dyn
 | Invoice / Shared | Add or review candidate placement (`/recruitment/placements/add/`) | Yes | Yes |
 | Invoice / Shared | Add or edit client requisition (`/recruitment/requisitions/<int:pk>/edit/`) | Yes | Yes |
 | Invoice / Shared | Add or edit client requisition (`/recruitment/requisitions/add/`) | Yes | Yes |
-| Reports & Analytics | Reports and analytics dashboard (`/reports/`) | Yes | Yes |
+| Reports & Analytics | Executive dashboard (`/reports/`) | Yes | Yes |
 | Reports & Analytics | Custom report builder (`/reports/custom/`) | Yes | Yes |
 | Reports & Analytics | Business report (`/reports/r/<slug:key>/`) | Yes | Yes |
 | Reports & Analytics | Report section (`/reports/section/<slug:slug>/`) | Yes | Yes |

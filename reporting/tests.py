@@ -267,7 +267,7 @@ class ReportTests(Base):
         from openpyxl import load_workbook
         wb = load_workbook(BytesIO(exports.fy_workbook(2025)))
         self.assertEqual(wb.sheetnames, [n for n, _ in exports.FY_SHEETS])
-        self.assertEqual(len(wb.sheetnames), 7)
+        self.assertEqual(len(wb.sheetnames), 11)
         ws = load_workbook(BytesIO(exports.report_xlsx(R.build('pnl', self.FY)))).active
         self.assertIn('Management Profit and Loss', [c.value for c in ws['B']])
 
@@ -293,10 +293,41 @@ class ViewTests(Base):
     def test_dashboard(self):
         r = self.client.get(reverse('reporting:dashboard') + '?period=fy&fy=2025')
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(len(r.context['ex']['cards']), 11)
-        self.assertEqual(len(r.context['ex']['charts']), 8)
+        self.assertEqual(len(r.context['ex']['cards']), 17)
+        self.assertEqual(len(r.context['ex']['charts']), 11)
+        cards = {c['label']: c['value'] for c in r.context['ex']['cards']}
+        self.assertEqual(cards['Gross Salary'], D('1000.00'))
+        self.assertEqual(cards['Employee Deductions'], D('100.00'))
+        self.assertEqual(cards['Employer Contributions'], D('60.00'))
+        self.assertEqual(cards['Net Salary Payable'], D('900.00'))
         self.assertContains(r, '<svg', count=None)
         self.assertNotContains(r, 'cdn.')
+        self.assertContains(r, 'Employee Deductions')
+        self.assertContains(r, 'Recorded Cash Inflow vs Outflow')
+        self.assertContains(r, 'difference')
+
+    def test_dashboard_all_period_shapes_render(self):
+        queries = [
+            '?period=this_month', '?month=2025-04', '?period=this_quarter', '?period=fy&fy=2025&fy_part=Q2',
+            '?period=h1', '?period=h2', '?period=current_fy', '?period=prev_fy', '?period=fy&fy=2025',
+            '?period=cal_year', '?date_from=2025-04-01&date_to=2025-06-30',
+        ]
+        for query in queries:
+            with self.subTest(query=query):
+                self.assertEqual(self.client.get(reverse('reporting:dashboard') + query).status_code, 200)
+
+    def test_dashboard_exports_respect_selected_month(self):
+        from openpyxl import load_workbook
+        url = reverse('reporting:dashboard') + '?month=2025-04&format=xlsx'
+        r = self.client.get(url)
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('april-2025.xlsx', r['Content-Disposition'])
+        wb = load_workbook(BytesIO(r.content), data_only=True)
+        ws = wb['Monthly Financial Summary']
+        values = [c.value for row in ws.iter_rows() for c in row if c.value is not None]
+        self.assertIn('Apr 2025', values)
+        self.assertNotIn('May 2025', values)
+        self.assertEqual(self.client.get(reverse('reporting:dashboard') + '?month=2025-04&format=pdf').status_code, 200)
 
     def test_all_report_pages_and_exports(self):
         for key in R.REGISTRY:

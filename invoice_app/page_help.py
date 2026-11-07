@@ -695,11 +695,17 @@ _add("document_generation:placeholder", "Document module page", "Review the docu
      rules=["A planned or placeholder section does not provide functionality until the page explicitly offers it."],
      related=["Document catalogue, generation and shared document index."])
 
-_add("reporting:dashboard", "Reports and analytics dashboard", "Open management reports and report groups.",
-     "The dashboard gives a central starting point for analytical views.",
-     ["Choose a report group or named report.", "Review the selected date/financial period before interpreting totals."],
-     rules=["Report totals depend on source data and filters; reconcile to underlying modules for decisions."],
-     related=["Revenue, employee, payroll, expense, financial, ledger and profitability reports."])
+_add("reporting:dashboard", "Executive dashboard", "Review period-based financial KPIs, payroll, expense, revenue and cash trends.",
+     "KPI cards compare the selected period with the previous equivalent period. Click a card or chart heading to open its detailed report.",
+     ["Select the period type and any year, month, financial-year part or custom dates, then Apply.",
+      "Compare revenue with receipts: revenue uses invoice-date taxable value excluding GST; receipts use actual receipt dates.",
+      "Review salary components by payroll month. Deductions are already included in gross salary; employer contributions add to employee cost; net salary is not a second expense.",
+      "Review recorded cash movement by payment date; the dashboard does not infer unrecorded cash sources.",
+      "Download the selected-period workbook for multiple existing report sheets, or the selected-period management P&L PDF."],
+     rules=["Dashboard P&L is a management mixed accrual view, not a statutory financial statement.",
+            "Payroll trends include finalized current payroll only; salary payments are cash movement and are not added again as expense.",
+            "The selected-period PDF is the management P&L report; use the workbook and linked reports for detailed analytics."],
+     related=["Revenue, employee, payroll, expense, financial, cash flow, ledger and profitability reports."])
 _add("reporting:section", "Report section", "Browse reports for the selected business area.",
      "Sections organize related analytics and drill-downs.",
      ["Review the available reports.", "Open a report and set its period/filter controls.", "Use the source links to investigate differences."],
