@@ -101,6 +101,51 @@ _add("recruitment_placement_add recruitment_placement_edit", "Add or review cand
      ["Select the customer, requisition, candidate and agreement.", "Enter finalized, client-approved compensation and trigger details.", "Review the fee calculation and save for the next billing step."],
      rules=["Expected or proposed compensation does not qualify as the percentage-fee basis.", "A placement record does not itself issue an invoice."],
      related=["Recruitment agreement and invoice creation."])
+_add("performance_review:dashboard", "Recruiter performance dashboard", "Review candidate-verified recruiter performance and separate summary-only activity for a selected reporting period.",
+     "This dashboard brings recruiter output, recruitment funnel, rejection patterns and ranking into one period-based view.",
+     ["Choose a reporting period and apply the filter.", "Read candidate-verified figures separately from summary-only reported figures.", "Review the ranking and its score method alongside the underlying recruiter measures.", "Open Record Recruiter Activity to enter new JD, assignment, summary or candidate records."],
+     rules=["Unique JDs count recruiter-JD assignments once; JD assignments are shown separately.", "Summary-only totals are never merged into candidate-verified outcomes.", "Recruiter ranking excludes pending outcomes from its quality conversion and requires at least one resolved candidate outcome."],
+     related=["Recruiter activity, records, reports and performance settings."])
+_add("performance_review:activity", "Record recruiter activity", "Create a job description, assign an employee recruiter, record summary activity or track a candidate outcome.",
+     "Use the existing Employee master and candidate records to maintain recruiter activity without duplicating people.",
+     ["Create or select a JD and save it.", "Assign one or more recruiters to the JD; the assignment is the recruiter-specific JD count.", "Use Summary-only activity only when individual candidates are not being recorded.", "For candidate-level tracking, select the existing candidate, JD assignment, submission date and current stage.", "When a candidate is rejected, choose the rejection stage; choose a configured reason if known.", "When status changes, update the candidate record with the effective date. The previous stage and outcome are retained in history."],
+     rules=["A candidate may be recorded against another JD, but only once per recruiter assignment.", "A selected candidate cannot be selected a second time for the same JD.", "Summary-only figures stay separate from candidate-level verified results.", "Add candidate records from the existing Recruitment placements page if no candidate exists yet."],
+     related=["Employee Management, Recruiter-wise Records and Performance Settings."])
+_add("performance_review:application_edit", "Edit candidate outcome", "Correct an existing candidate submission and its current recruitment stage, outcome or milestone dates.",
+     "Use this record to update the candidate once; stage and outcome transitions append to the history table.",
+     ["Confirm the candidate, JD and recruiter shown in the heading.", "Update the stage, outcome and effective date.", "When rejected, choose a rejection stage; provide a reason when available.", "Enter milestone dates required by the current outcome, then save."],
+     rules=["The same candidate cannot be added twice for one recruiter assignment.", "A candidate cannot be selected more than once for the same JD.", "The record's prior stage/outcome transitions remain in its history."],
+     related=["Activity Entry and Recruiter-wise Records."])
+_add("performance_review:activity_edit", "Edit summary-only activity", "Correct an aggregate recruiter activity record without adding candidate identities.",
+     "Summary-only figures are retained separately from candidate-verified reporting.",
+     ["Check the date, JD and recruiter before changing values.", "Save the corrected figures; the previous values are retained in the activity change history."],
+     rules=["Do not also enter the same activity as candidate-level records unless you reduce or correct the aggregate entry to avoid duplication.", "Summary-only entries are excluded from candidate-level selection rates and ranking."],
+     related=["Activity Entry, Records and Performance Reports."])
+_add("performance_review:jd_edit", "Edit job description", "Correct the JD ID, client, title, opening date, status or remarks.",
+     "Job descriptions supply the context used by one or more recruiter assignments.",
+     ["Confirm the JD reference and linked client.", "Update the role details and save."],
+     rules=["A JD is counted once per recruiter for unique-JD statistics; separate recruiter assignments remain visible."],
+     related=["Activity Entry and Recruiter-wise Records."])
+_add("performance_review:stage_edit", "Edit performance setting", "Rename or deactivate a configured recruitment stage, rejection stage or reason.",
+     "Configured values appear on new candidate records while historical records retain their links.",
+     ["Review the value type and ordering.", "Rename or deactivate the value and save."],
+     rules=["Deactivating a value hides it from new activity forms but preserves historical references."],
+     related=["Performance Settings and candidate outcome history."])
+_add("performance_review:records", "Recruiter-wise records", "Review JDs, assignments, candidate outcomes and summary-only activity for a selected period.",
+     "This page provides the auditable detail behind dashboard and report totals.",
+     ["Apply the period filter.", "Review JD assignments and summary-only records in separate tables.", "Open a candidate to correct its current stage, outcome, dates or rejection details.", "Open candidate history to see previously recorded transitions."],
+     rules=["Editing a candidate creates a history entry when stage or outcome details change.", "Historical recruiter records remain available if the employee later becomes inactive."],
+     related=["Performance Dashboard, Activity Entry and Reports."])
+_add("performance_review:reports", "Recruiter performance reports", "Compare recruiter and JD performance and export period-filtered monthly, quarterly, annual or custom reports.",
+     "The report tables and exports use the same selected date range and keep summary-only figures separate.",
+     ["Choose this month, previous month, a quarter, financial year, calendar year, selected month or custom dates.", "Review recruiter totals, monthly trend, JD assignments and rejection analysis.", "Use Export Excel for seven checkable worksheets or Export PDF for a printable summary.", "Review the top-performer score and the figures shown beside it."],
+     rules=["Selection Rate = candidate-verified selections in the period divided by unique candidates submitted in the period, multiplied by 100; zero denominator returns zero.", "Summary-only activity is not combined with candidate-verified records.", "Exports respect the selected period and include employee identifiers and recruiter activity; store them appropriately."],
+     related=["Performance Dashboard, Recruiter-wise Records and Performance Settings."])
+_add("performance_review:settings", "Recruiter performance settings", "Choose which existing employees are recruiters and maintain recruitment stages, rejection reasons and ranking weights.",
+     "Settings configure the names used in activity records and the transparent performance score.",
+     ["Select active employees from the Employee master to make them available for new recruiter assignments.", "Former employees and their historical assignments remain visible.", "Add or deactivate configured stages, rejection stages or rejection reasons.", "Set score weights; all weights must total 100%. Configure the reporting year start month."],
+     rules=["This application is local management-only and has no per-recruiter sign-in or record permissions.", "Existing employee records are reused; this page does not create a separate recruiter master."],
+     related=["Employee Management and Performance Reports."])
 _add("description_templates description_template_add description_template_edit", "Invoice description templates", "Manage reusable invoice descriptions for common work items.",
      "Templates speed up invoice entry while keeping line descriptions consistent.",
      ["Choose or create a description template.", "Edit the wording and any available classification fields.", "Save and select the template on an invoice when appropriate."],

@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'asset_management',
     'financial_reporting',
     'document_generation',
+    'performance_review',
 ]
 MIDDLEWARE = [
     'config.middleware.LocalOnlyMiddleware',

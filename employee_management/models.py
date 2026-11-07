@@ -170,6 +170,9 @@ class Employee(models.Model):
     # B. employment
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name='employees')
     designation = models.CharField(max_length=120, db_index=True)
+    is_recruiter = models.BooleanField(
+        'Works as a recruiter', default=False,
+        help_text='Makes this existing employee available for recruiter performance tracking.')
     reporting_manager = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
                                           related_name='reportees')
     employment_type = models.CharField(max_length=12, choices=TYPES, default='full_time')

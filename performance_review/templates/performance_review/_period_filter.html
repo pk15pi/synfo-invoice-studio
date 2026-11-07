@@ -1,0 +1,14 @@
+<form method="get" class="panel pr-filters">
+  <label>Period <select name="period" class="field">
+    {% for value,label in period_choices %}<option value="{{ value }}"{% if period.period == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+  </select></label>
+  <label>Calendar year <input class="field" type="number" name="year" value="{{ period.year }}" min="2000" max="2100"></label>
+  <label>Month <select name="month" class="field">{% for n,name in month_choices %}<option value="{{ n }}"{% if period.month == n %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+  <label>Quarter <select name="quarter" class="field">{% for n in quarter_choices %}<option value="{{ n }}"{% if period.quarter == n %} selected{% endif %}>Q{{ n }}</option>{% endfor %}</select></label>
+  <label>FY starting year <input class="field" type="number" name="fy_year" value="{{ period.fy_year }}" min="2000" max="2100"></label>
+  <label>From <input class="field" type="date" name="from_date" value="{{ period.from_date }}"></label>
+  <label>To <input class="field" type="date" name="to_date" value="{{ period.to_date }}"></label>
+  <button class="button primary">Apply</button>
+  {% if export_controls %}<button class="button secondary" name="export" value="xlsx">Export Excel</button><button class="button secondary" name="export" value="pdf">Export PDF</button>{% endif %}
+  <span class="muted">Showing {{ period.label }}</span>
+</form>

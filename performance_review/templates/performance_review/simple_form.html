@@ -1,0 +1,3 @@
+{% extends 'invoice_app/base.html' %}{% load static %}{% block title %}{{ title }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'performance_review/performance.css' %}">{% endblock %}
+{% block content %}<div class="page-heading"><p class="eyebrow">PERFORMANCE REVIEW</p><h1>{{ title }}</h1></div><form method="post" class="panel pr-edit-form">{% csrf_token %}{{ form.as_p }}<div class="form-actions"><a class="button secondary" href="{{ back_url }}">Cancel</a><button class="button primary">Save changes</button></div></form>{% endblock %}

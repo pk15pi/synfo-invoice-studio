@@ -2,7 +2,7 @@
 
 **Implementation date:** 7 November 2026  
 **Scope:** User-facing Django application screens and Django Admin pages.  
-**Data changes:** None; no schema migrations or business-data edits were made.
+**Initial help-system data changes:** None; the help component itself introduced no schema migrations or business-data edits.
 
 **Follow-up update (7 November 2026):** Bank statement import guidance now covers the staged PDF/CSV/XLSX workflow, explicit draft cancellation and versioned regeneration. Migrations `0003`-`0009` add review rows, source lineage and cancellation audit fields; they are additive and do not edit existing bank transaction records. See [bank_statement_import_upgrade.md](bank_statement_import_upgrade.md) and [bank_draft_management_gap_analysis.md](bank_draft_management_gap_analysis.md).
 
@@ -63,6 +63,15 @@ The table lists each user-facing page route pattern with a contextual guide. Dyn
 | Invoice / Shared | Add or edit recruitment candidate (`/recruitment/candidates/<int:pk>/edit/`) | Yes | Yes |
 | Invoice / Shared | Add or edit recruitment candidate (`/recruitment/candidates/add/`) | Yes | Yes |
 | Invoice / Shared | Add or review candidate placement (`/recruitment/placements/<int:pk>/edit/`) | Yes | Yes |
+| Performance Review | Dashboard (`/performance/`) | Yes | Yes |
+| Performance Review | Record recruiter activity (`/performance/activity/`) | Yes | Yes |
+| Performance Review | Edit candidate outcome (`/performance/applications/<int:pk>/edit/`) | Yes | Yes |
+| Performance Review | Edit summary-only activity (`/performance/activities/<int:pk>/edit/`) | Yes | Yes |
+| Performance Review | Edit job description (`/performance/jds/<int:pk>/edit/`) | Yes | Yes |
+| Performance Review | Recruiter-wise records (`/performance/records/`) | Yes | Yes |
+| Performance Review | Performance reports (`/performance/reports/`) | Yes | Yes |
+| Performance Review | Performance settings (`/performance/settings/`) | Yes | Yes |
+| Performance Review | Edit configured stage or reason (`/performance/settings/stages/<int:pk>/edit/`) | Yes | Yes |
 | Invoice / Shared | Add or review candidate placement (`/recruitment/placements/add/`) | Yes | Yes |
 | Invoice / Shared | Add or edit client requisition (`/recruitment/requisitions/<int:pk>/edit/`) | Yes | Yes |
 | Invoice / Shared | Add or edit client requisition (`/recruitment/requisitions/add/`) | Yes | Yes |
@@ -295,3 +304,7 @@ Admin uses the same button, dialog and live field/action discovery. Guides are g
 ## Data safety
 
 Only help templates, styles, JavaScript, route help configuration, context wiring, tests and this report were added or changed. No financial records, documents, model relationships, permissions or business rules were modified. No migration was created. The pre-implementation database snapshot is retained at the backup path above.
+
+### Recruiter Performance Review follow-up (7 November 2026)
+
+The separate recruiter performance implementation adds page-help guides for dashboard, activity, records, reports, settings and their edit screens. All nine HTML routes are listed in the coverage table above and were checked with the Django test client. The central manual for this module is [recruiter_performance_user_manual.md](recruiter_performance_user_manual.md). Unlike the original help-system change summarized above, this feature adds an Employee recruiter flag and performance tracking models; it does not alter payroll, accounting or financial records. Its pre-implementation database and employee private-file backup is `backups/recruiter_performance_preimplementation_20261107_151328/`. See [recruiter_performance_implementation.md](recruiter_performance_implementation.md) for the migration and test result.
