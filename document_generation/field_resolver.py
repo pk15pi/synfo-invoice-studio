@@ -59,6 +59,8 @@ FIELD_ADAPTERS = {
         'location': lambda obj: obj.current_location.name if obj.current_location_id else '',
     },
     'company': {
+        'name': lambda obj: obj.legal_entity_name,
+        'brand': lambda obj: obj.brand_name,
         'display_name': lambda obj: obj.contracting_party_display,
         'legal_entity_name': lambda obj: obj.legal_entity_name,
         'brand_name': lambda obj: obj.brand_name,
@@ -68,6 +70,8 @@ FIELD_ADAPTERS = {
         'email': lambda obj: obj.official_email,
         'phone': lambda obj: obj.contact_number,
         'gstin': lambda obj: obj.gstin,
+        'llpin': lambda obj: obj.llpin,
+        'pan': lambda obj: obj.pan,
         'jurisdiction': lambda obj: obj.jurisdiction,
     },
 }

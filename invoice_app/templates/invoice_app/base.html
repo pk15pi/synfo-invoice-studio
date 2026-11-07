@@ -18,6 +18,7 @@
 <div class="navgroup"><a href="{% url 'financial_reporting:dashboard' %}">Financial Reports &amp; Audit Centre &#9662;</a><div class="navmenu"><a href="{% url 'financial_reporting:dashboard' %}">Dashboard</a><a href="{% url 'financial_reporting:catalogue' %}">Report catalogue</a></div></div>
 <div class="navgroup"><a href="{% url 'document_generation:dashboard' %}">Document &amp; Agreement Management &#9662;</a><div class="navmenu">
 <a href="{% url 'document_generation:dashboard' %}">Dashboard</a>
+<a href="{% url 'document_generation:library' %}">Standard Document Library</a>
 <a href="{% url 'document_generation:catalogue' %}">Document Catalogue</a>
 <a href="{% url 'document_generation:generate' %}">Generate Document</a>
 <a href="{% url 'document_generation:placeholder' 'client-documents' %}">Client Documents</a>
@@ -26,9 +27,10 @@
 <a href="{% url 'document_generation:placeholder' 'employee-documents' %}">Employee Documents</a>
 <a href="{% url 'document_generation:placeholder' 'internal-documents' %}">Internal Documents</a>
 <a href="{% url 'document_generation:placeholder' 'vendors' %}">Vendor Documents</a>
-<a href="{% url 'document_generation:placeholder' 'templates' %}">Document Templates</a>
-<a href="{% url 'document_generation:placeholder' 'clauses' %}">Clause Library</a>
-<a href="{% url 'document_generation:placeholder' 'approvals' %}">Approval Centre</a>
+<a href="{% url 'document_generation:templates' %}">Document Templates</a>
+<a href="{% url 'document_generation:template_versions' %}">Template Versions</a>
+<a href="{% url 'document_generation:clauses' %}">Clause Library</a>
+<a href="{% url 'document_generation:templates' %}?status=review">Template Approval Queue</a>
 <a href="{% url 'document_generation:placeholder' 'acknowledgements' %}">Digital Acknowledgements</a>
 <a href="{% url 'document_generation:placeholder' 'signed' %}">Signed Documents</a>
 <a href="{% url 'document_generation:placeholder' 'expiring' %}">Expiring Agreements</a>

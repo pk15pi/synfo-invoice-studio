@@ -77,7 +77,7 @@ class DocumentGenerationViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'not included in the current document-generation release')
         self.assertContains(response, 'not a legally certified electronic signature')
-        self.assertEqual(DocumentCategory.objects.count(), 8)
+        self.assertEqual(DocumentCategory.objects.count(), 9)
         self.assertGreater(DocumentType.objects.count(), 100)
 
     def test_generation_requires_a_current_approved_template(self):

@@ -209,10 +209,40 @@ class DocumentType(models.Model):
 
 
 class DocumentTemplate(models.Model):
+    TEMPLATE_FORMATS = [('markdown', 'Structured text (Markdown headings)')]
+    STATUS_DRAFT = 'draft'
+    STATUS_REVIEW = 'review'
+    STATUS_APPROVED = 'approved'
+    STATUS_ACTIVE = 'active'
+    STATUS_INACTIVE = 'inactive'
+    STATUS_RETIRED = 'retired'
+    STATUSES = [
+        (STATUS_DRAFT, 'Draft'), (STATUS_REVIEW, 'Under review'),
+        (STATUS_APPROVED, 'Approved'), (STATUS_ACTIVE, 'Active'),
+        (STATUS_INACTIVE, 'Inactive'), (STATUS_RETIRED, 'Retired'),
+    ]
+    PARTY_TYPES = [
+        ('client', 'Client'), ('employee', 'Employee'), ('vendor', 'Vendor'),
+        ('consultant', 'Consultant'), ('candidate', 'Candidate'), ('internal', 'Internal'),
+        ('multiple', 'Multiple parties'),
+    ]
+    OUTPUT_FORMATS = [('docx', 'Word'), ('pdf', 'PDF'), ('both', 'Word and PDF')]
     document_type = models.ForeignKey(
         DocumentType, on_delete=models.PROTECT, related_name='templates',
     )
+    code = models.SlugField(max_length=100, blank=True)
     name = models.CharField(max_length=160)
+    category = models.ForeignKey(
+        DocumentCategory, null=True, blank=True, on_delete=models.PROTECT, related_name='templates',
+    )
+    description = models.TextField(blank=True)
+    applicable_party_type = models.CharField(max_length=20, choices=PARTY_TYPES, blank=True)
+    business_scenario = models.CharField(max_length=240, blank=True)
+    template_format = models.CharField(max_length=20, choices=TEMPLATE_FORMATS, default='markdown')
+    default_output_format = models.CharField(max_length=8, choices=OUTPUT_FORMATS, default='both')
+    effective_date = models.DateField(null=True, blank=True)
+    retirement_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUSES, default=STATUS_DRAFT, db_index=True)
     is_active = models.BooleanField(default=True, db_index=True)
     active_version = models.ForeignKey(
         'DocumentTemplateVersion', null=True, blank=True, on_delete=models.PROTECT,
@@ -225,6 +255,7 @@ class DocumentTemplate(models.Model):
         ordering = ['document_type__name', 'name']
         constraints = [
             models.UniqueConstraint(fields=['document_type', 'name'], name='dgen_template_name_uniq'),
+            models.UniqueConstraint(fields=['code'], condition=~models.Q(code=''), name='dgen_template_code_uniq'),
         ]
 
     def clean(self):
@@ -233,6 +264,12 @@ class DocumentTemplate(models.Model):
                 raise ValidationError({'active_version': 'The active version must belong to this template.'})
             if self.active_version.status != DocumentTemplateVersion.APPROVED:
                 raise ValidationError({'active_version': 'Only an approved version can be active.'})
+        if self.category_id and self.document_type_id and not self.document_type.categories.filter(
+            pk=self.category_id,
+        ).exists():
+            raise ValidationError({'category': 'Choose a category assigned to this document type.'})
+        if self.effective_date and self.retirement_date and self.retirement_date < self.effective_date:
+            raise ValidationError({'retirement_date': 'Retirement date cannot be before the effective date.'})
 
     def __str__(self):
         return f'{self.document_type.name}: {self.name}'
@@ -255,6 +292,9 @@ class DocumentTemplateVersion(models.Model):
     header_text = models.TextField(blank=True)
     body_template = models.TextField(blank=True)
     footer_text = models.TextField(blank=True)
+    change_description = models.TextField(blank=True)
+    effective_date = models.DateField(null=True, blank=True)
+    retirement_date = models.DateField(null=True, blank=True)
     output_formats = models.JSONField(default=default_template_output_formats, blank=True)
     signature_configuration = models.JSONField(default=dict, blank=True)
     approved_by = models.ForeignKey(
@@ -280,6 +320,8 @@ class DocumentTemplateVersion(models.Model):
         ]
 
     def clean(self):
+        if self.effective_date and self.retirement_date and self.retirement_date < self.effective_date:
+            raise ValidationError({'retirement_date': 'Retirement date cannot be before the effective date.'})
         if (not isinstance(self.output_formats, list)
                 or not self.output_formats
                 or any(item not in {'docx', 'pdf'} for item in self.output_formats)):
@@ -305,6 +347,7 @@ class DocumentTemplateVersion(models.Model):
                 immutable_fields = (
                     'template_id', 'version_number', 'header_text', 'body_template',
                     'footer_text', 'output_formats', 'signature_configuration',
+                    'change_description', 'effective_date',
                     'approved_by_id', 'approved_at',
                 )
                 if any(getattr(previous, field) != getattr(self, field) for field in immutable_fields):
@@ -331,6 +374,8 @@ class DocumentClause(models.Model):
     version = models.PositiveIntegerField(default=1)
     review_date = models.DateField(null=True, blank=True)
     admin_notes = models.TextField(blank=True)
+    is_mandatory = models.BooleanField(default=False)
+    default_inclusion = models.BooleanField(default=False)
     applicable_document_types = models.ManyToManyField(DocumentType, blank=True, related_name='clauses')
     approval_status = models.CharField(max_length=10, choices=APPROVAL_STATUSES, default=DRAFT, db_index=True)
     effective_date = models.DateField(null=True, blank=True)
@@ -353,6 +398,8 @@ class DocumentClause(models.Model):
     def clean(self):
         if self.approval_status == self.APPROVED and (not self.approved_by_id or not self.approved_at):
             raise ValidationError('An approved clause requires an approver and approval time.')
+        if self.effective_date and self.review_date and self.review_date < self.effective_date:
+            raise ValidationError({'review_date': 'Review date cannot be before the effective date.'})
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -360,7 +407,8 @@ class DocumentClause(models.Model):
             if previous and (previous.approval_status == self.APPROVED or previous.approved_at):
                 immutable_fields = (
                     'code', 'name', 'category', 'clause_text', 'version', 'effective_date',
-                    'review_date', 'admin_notes', 'approved_by_id', 'approved_at',
+                    'review_date', 'admin_notes', 'is_mandatory', 'default_inclusion',
+                    'approved_by_id', 'approved_at',
                 )
                 if any(getattr(previous, field) != getattr(self, field) for field in immutable_fields):
                     raise ValidationError('Approved clauses are immutable; create a new version.')

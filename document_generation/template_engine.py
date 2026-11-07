@@ -12,6 +12,7 @@ PLACEHOLDER = re.compile(r'\{\{\s*([a-z][a-z0-9_]*)\s*\}\}')
 CONDITIONAL = re.compile(r'\[\[if\s+([a-z][a-z0-9_]*)\]\](.*?)\[\[endif\]\]', re.DOTALL)
 BUILTIN_KEYS = {
     'company_legal_name', 'company_brand_name', 'company_display_name', 'company_address',
+    'company_name', 'company_brand', 'company_llpin', 'company_pan',
     'company_email', 'company_phone', 'company_website', 'company_gstin', 'company_jurisdiction',
     'document_number', 'document_date', 'effective_date', 'authorised_signatory',
     'authorised_signatory_designation',
@@ -89,19 +90,23 @@ def _render_placeholders(template_text, context, allowed, required_fields):
 
 def resolve_template(
     template_version, values, document_number, document_date, effective_date, signatory, profile,
-    allow_review_clauses=False,
+    allow_review_clauses=False, optional_clause_ids=None,
 ):
     company = company_snapshot(profile)
     context = {
         **values,
         'company_legal_name': company['legal_name'],
         'company_brand_name': company['brand_name'],
+        'company_name': company['legal_name'],
+        'company_brand': company['brand_name'],
         'company_display_name': company['display_name'],
         'company_address': company['address'],
         'company_email': company['email'],
         'company_phone': company['phone'],
         'company_website': company['website'],
         'company_gstin': company['gstin'],
+        'company_llpin': profile.llpin,
+        'company_pan': profile.pan,
         'company_jurisdiction': company['jurisdiction'],
         'document_number': document_number,
         'document_date': _format_value(document_date),
@@ -113,9 +118,12 @@ def resolve_template(
     configured_fields = set(definitions.values_list('field_key', flat=True))
     allowed = BUILTIN_KEYS | configured_fields
     required_keys = set(definitions.filter(is_required=True).values_list('field_key', flat=True))
-    for assignment in template_version.template_clauses.select_related('clause').order_by(
+    assignments = list(template_version.template_clauses.select_related('clause').order_by(
         'display_order', 'pk',
-    ):
+    ))
+    selected_optional = None if optional_clause_ids is None else {int(pk) for pk in optional_clause_ids}
+    included_assignments = []
+    for assignment in assignments:
         clause = assignment.clause
         if not clause.is_active:
             raise ValidationError(f'Clause "{clause.name}" is inactive.')
@@ -126,14 +134,15 @@ def resolve_template(
                     pk=template_version.template.document_type_id,
                 ).exists()):
             raise ValidationError(f'Clause "{clause.name}" is not applicable to this document type.')
+        mandatory = assignment.is_mandatory or clause.is_mandatory
+        if mandatory or selected_optional is None or assignment.pk in selected_optional:
+            included_assignments.append(assignment)
     body = template_version.body_template.strip()
     if not body:
         raise ValidationError('The approved template has no document content.')
     clause_text = '\n\n'.join(
         f'## {assignment.clause.name}\n{assignment.text_override or assignment.clause.clause_text}'
-        for assignment in template_version.template_clauses.select_related('clause').order_by(
-            'display_order', 'pk',
-        )
+        for assignment in included_assignments
     )
     if clause_text:
         body = f'{body}\n\n{clause_text}'
@@ -156,6 +165,17 @@ def resolve_template(
         'context': {key: _format_value(value) for key, value in context.items()},
         'company': company,
         'signature_configuration': template_version.signature_configuration,
+        'clauses': [
+            {
+                'id': assignment.clause_id,
+                'code': assignment.clause.code,
+                'name': assignment.clause.name,
+                'version': assignment.clause.version,
+                'text': assignment.text_override or assignment.clause.clause_text,
+                'mandatory': assignment.is_mandatory or assignment.clause.is_mandatory,
+            }
+            for assignment in included_assignments
+        ],
         'signatory': {
             'name': signatory.name,
             'designation': signatory.designation,

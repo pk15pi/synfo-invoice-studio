@@ -2,21 +2,26 @@ import hashlib
 
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, F, OuterRef, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from document_management.models import full_path
 from document_management.services import private_storage
 from employee_management.security import local_only
 from invoice_app.table_sorting import apply_queryset_sort
 
-from .forms import CompanyDocumentProfileForm
+from .forms import (
+    CompanyDocumentProfileForm, DocumentCategoryForm, DocumentClauseForm,
+    DocumentTemplateClauseFormSet, DocumentTemplateForm, DocumentTemplateVersionForm,
+    DocumentTypeForm,
+)
 from .generation import (
     available_output_formats,
     generate_document as generate_document_file,
@@ -33,9 +38,11 @@ from .models import (
     DocumentCategory,
     DocumentTemplate,
     DocumentTemplateVersion,
+    DocumentTemplateClause,
     DocumentType,
     GeneratedDocument,
 )
+from .services import create_clause_version, create_template_version, transition_clause, transition_template_version
 from .template_engine import html_document_content, resolve_template
 
 
@@ -49,6 +56,7 @@ def dashboard(request):
         'draft_count': GeneratedDocument.objects.filter(status='draft').count(),
         'pending_count': GeneratedDocument.objects.filter(status='pending_approval').count(),
         'template_count': DocumentTemplate.objects.count(),
+        'version_count': DocumentTemplateVersion.objects.count(),
         'approved_template_count': template_versions.filter(
             status=DocumentTemplateVersion.APPROVED,
             template__is_active=True,
@@ -425,3 +433,292 @@ def placeholder(request, section):
     if label is None:
         raise Http404
     return render(request, 'document_generation/placeholder.html', {'section_title': label})
+
+
+def _library_audit(request, obj, action, reason, changes=None):
+    from audit.models import AuditEvent
+    AuditEvent.objects.create(
+        app_label='document_generation', model=obj.__class__.__name__,
+        object_id=str(obj.pk or ''), object_repr=str(obj)[:300], action=action,
+        changes=changes or {}, reason=reason[:500], request_path=request.path, source='ui',
+    )
+
+
+@local_only
+def library(request):
+    return render(request, 'document_generation/library.html', {
+        'category_count': DocumentCategory.objects.count(),
+        'type_count': DocumentType.objects.count(),
+        'template_count': DocumentTemplate.objects.count(),
+        'version_count': DocumentTemplateVersion.objects.count(),
+        'clause_count': DocumentClause.objects.count(),
+    })
+
+
+@local_only
+def category_library(request):
+    obj = get_object_or_404(DocumentCategory, pk=request.GET.get('edit')) if request.GET.get('edit') else None
+    form = DocumentCategoryForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        created = obj is None
+        obj = form.save()
+        _library_audit(request, obj, 'create' if created else 'update', 'Document category saved')
+        messages.success(request, 'Document category saved.')
+        return redirect('document_generation:categories')
+    return render(request, 'document_generation/categories.html', {
+        'form': form, 'editing': obj, 'categories': DocumentCategory.objects.annotate(
+            type_count=Count('document_types', distinct=True),
+        ),
+    })
+
+
+@local_only
+def type_library(request):
+    obj = get_object_or_404(DocumentType, pk=request.GET.get('edit')) if request.GET.get('edit') else None
+    form = DocumentTypeForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        created = obj is None
+        obj = form.save()
+        _library_audit(request, obj, 'create' if created else 'update', 'Document type saved')
+        messages.success(request, 'Document type saved.')
+        return redirect('document_generation:types')
+    return render(request, 'document_generation/types.html', {
+        'form': form, 'editing': obj, 'types': DocumentType.objects.prefetch_related('categories'),
+    })
+
+
+@local_only
+def template_library(request):
+    query = request.GET.get('q', '').strip()[:100]
+    status = request.GET.get('status', '').strip()[:12]
+    templates = DocumentTemplate.objects.select_related('document_type', 'category', 'active_version')
+    if query:
+        templates = templates.filter(
+            Q(name__icontains=query) | Q(code__icontains=query)
+            | Q(description__icontains=query) | Q(document_type__name__icontains=query)
+        )
+    if status in dict(DocumentTemplate.STATUSES):
+        templates = templates.filter(status=status)
+    templates, _, _ = apply_queryset_sort(templates, request, {
+        'name': 'name', 'code': 'code', 'type': 'document_type__name',
+        'status': 'status', 'updated': 'updated_at',
+    })
+    return render(request, 'document_generation/templates.html', {
+        'templates': templates, 'query': query, 'selected_status': status,
+        'statuses': DocumentTemplate.STATUSES,
+    })
+
+
+@local_only
+def template_versions(request):
+    status = request.GET.get('status', '').strip()[:10]
+    versions = DocumentTemplateVersion.objects.select_related(
+        'template', 'template__document_type', 'template__category',
+    )
+    if status in dict(DocumentTemplateVersion.STATUSES):
+        versions = versions.filter(status=status)
+    versions, _, _ = apply_queryset_sort(versions, request, {
+        'template': 'template__name', 'version': 'version_number', 'status': 'status',
+        'created': 'created_at', 'type': 'template__document_type__name',
+    })
+    page = Paginator(versions, 50).get_page(request.GET.get('page'))
+    page_query = request.GET.copy()
+    page_query.pop('page', None)
+    return render(request, 'document_generation/template_versions.html', {
+        'page': page, 'statuses': DocumentTemplateVersion.STATUSES,
+        'selected_status': status, 'page_query': page_query.urlencode(),
+    })
+
+
+@local_only
+def template_edit(request, template_id=None):
+    obj = get_object_or_404(DocumentTemplate, pk=template_id) if template_id else None
+    if obj and obj.status == DocumentTemplate.STATUS_RETIRED:
+        messages.error(request, 'Retired templates cannot be edited. Create a new template instead.')
+        return redirect('document_generation:template_detail', template_id=obj.pk)
+    form = DocumentTemplateForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        created = obj is None
+        obj = form.save(commit=False)
+        if created:
+            obj.is_active = False
+            obj.status = DocumentTemplate.STATUS_DRAFT
+        obj.save()
+        form.save_m2m()
+        _library_audit(request, obj, 'create' if created else 'update', 'Template metadata saved')
+        messages.success(request, 'Template details saved.')
+        if created:
+            version = create_template_version(obj, request.user, 'Initial draft')
+            _library_audit(request, version, 'create', 'Initial template draft version created')
+            return redirect('document_generation:template_version_edit', version_id=version.pk)
+        return redirect('document_generation:template_detail', template_id=obj.pk)
+    return render(request, 'document_generation/template_form.html', {'form': form, 'template': obj})
+
+
+@local_only
+def template_detail(request, template_id):
+    template = get_object_or_404(
+        DocumentTemplate.objects.select_related('document_type', 'category', 'active_version'), pk=template_id,
+    )
+    return render(request, 'document_generation/template_detail.html', {
+        'template': template,
+        'versions': template.versions.prefetch_related('template_clauses__clause'),
+    })
+
+
+@local_only
+@require_POST
+def template_new_version(request, template_id):
+    template = get_object_or_404(DocumentTemplate, pk=template_id)
+    try:
+        version = create_template_version(template, request.user, request.POST.get('change_description', '').strip())
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+        return redirect('document_generation:template_detail', template_id=template.pk)
+    _library_audit(request, version, 'create', 'New template version created', {'version': version.version_number})
+    return redirect('document_generation:template_version_edit', version_id=version.pk)
+
+
+@local_only
+def template_version_edit(request, version_id):
+    version = get_object_or_404(DocumentTemplateVersion.objects.select_related('template'), pk=version_id)
+    if version.status not in {DocumentTemplateVersion.DRAFT, DocumentTemplateVersion.REVIEW}:
+        messages.error(request, 'Approved and retired versions are read-only. Create a new version to make changes.')
+        return redirect('document_generation:template_detail', template_id=version.template_id)
+    form = DocumentTemplateVersionForm(request.POST or None, instance=version)
+    formset = DocumentTemplateClauseFormSet(request.POST or None, instance=version, prefix='clauses')
+    if request.method == 'POST' and form.is_valid() and formset.is_valid():
+        was_under_review = version.status == DocumentTemplateVersion.REVIEW
+        with transaction.atomic():
+            version = form.save(commit=False)
+            if was_under_review:
+                version.status = DocumentTemplateVersion.DRAFT
+                if not version.template.active_version_id:
+                    version.template.status = DocumentTemplate.STATUS_DRAFT
+                    version.template.save(update_fields=('status', 'updated_at'))
+            version.save()
+            formset.instance = version
+            formset.save()
+        _library_audit(request, version, 'update', 'Template draft content and clause mapping saved')
+        messages.success(request, 'Template version saved as a draft.')
+        return redirect('document_generation:template_detail', template_id=version.template_id)
+    return render(request, 'document_generation/template_version_form.html', {
+        'version': version, 'form': form, 'formset': formset,
+        'preview_url': reverse('document_generation:template_preview', args=(version.pk,)),
+    })
+
+
+@local_only
+@require_POST
+def template_version_action(request, version_id, action):
+    version = get_object_or_404(DocumentTemplateVersion, pk=version_id)
+    try:
+        transition_template_version(version, action, request, request.user)
+    except PermissionDenied as error:
+        raise error
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+    else:
+        messages.success(request, f'Template version {action} completed.')
+    return redirect('document_generation:template_detail', template_id=version.template_id)
+
+
+@local_only
+@require_POST
+def template_duplicate(request, template_id):
+    source = get_object_or_404(DocumentTemplate, pk=template_id)
+    base = f'{source.code}-copy'
+    code, suffix = base[:100], 2
+    while DocumentTemplate.objects.filter(code=code).exists():
+        tail = f'-{suffix}'
+        code = f'{base[:100-len(tail)]}{tail}'
+        suffix += 1
+    duplicate_name = f'Copy of {source.name}'[:160]
+    name_suffix = 2
+    while DocumentTemplate.objects.filter(document_type=source.document_type, name=duplicate_name).exists():
+        duplicate_name = f'Copy of {source.name} ({name_suffix})'[:160]
+        name_suffix += 1
+    duplicate = DocumentTemplate.objects.create(
+        document_type=source.document_type, name=duplicate_name, code=code,
+        category=source.category, description=source.description,
+        applicable_party_type=source.applicable_party_type, business_scenario=source.business_scenario,
+        template_format=source.template_format, default_output_format=source.default_output_format,
+        effective_date=source.effective_date, is_active=False, status=DocumentTemplate.STATUS_DRAFT,
+    )
+    latest = source.versions.order_by('-version_number').first()
+    version = DocumentTemplateVersion.objects.create(
+        template=duplicate, version_number=1, status=DocumentTemplateVersion.DRAFT,
+        header_text=latest.header_text if latest else '', body_template=latest.body_template if latest else '',
+        footer_text=latest.footer_text if latest else '', output_formats=latest.output_formats if latest else ['docx', 'pdf'],
+        signature_configuration=latest.signature_configuration if latest else {},
+        created_by=request.user if getattr(request.user, 'is_authenticated', False) else None,
+        change_description=f'Duplicated from {source.code}',
+    )
+    if latest:
+        for assignment in latest.template_clauses.select_related('clause'):
+            DocumentTemplateClause.objects.create(
+                template_version=version, clause=assignment.clause,
+                display_order=assignment.display_order, is_mandatory=assignment.is_mandatory,
+                text_override=assignment.text_override,
+            )
+    _library_audit(request, duplicate, 'create', 'Template duplicated', {'source_template': source.pk})
+    _library_audit(request, version, 'create', 'Draft version created from duplicated template')
+    return redirect('document_generation:template_version_edit', version_id=version.pk)
+
+
+@local_only
+def clause_library(request):
+    query = request.GET.get('q', '').strip()[:100]
+    clauses = DocumentClause.objects.all()
+    if query:
+        clauses = clauses.filter(Q(name__icontains=query) | Q(code__icontains=query) | Q(category__icontains=query))
+    return render(request, 'document_generation/clauses.html', {'clauses': clauses, 'query': query})
+
+
+@local_only
+def clause_edit(request, clause_id=None):
+    obj = get_object_or_404(DocumentClause, pk=clause_id) if clause_id else None
+    if obj and (obj.approval_status == DocumentClause.APPROVED or obj.approved_at):
+        messages.error(request, 'Approved clause text is immutable. Create a new clause version to edit it.')
+        return redirect('document_generation:clause_library')
+    form = DocumentClauseForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        created = obj is None
+        clause = form.save(commit=False)
+        if created:
+            clause.version = 1
+            clause.approval_status = DocumentClause.DRAFT
+        clause.save()
+        form.save_m2m()
+        _library_audit(request, clause, 'create' if created else 'update', 'Clause draft saved')
+        messages.success(request, 'Clause saved as a draft for review.')
+        return redirect('document_generation:clause_library')
+    return render(request, 'document_generation/clause_form.html', {'form': form, 'clause': obj})
+
+
+@local_only
+@require_POST
+def clause_new_version(request, clause_id):
+    clause = get_object_or_404(DocumentClause, pk=clause_id)
+    try:
+        version = create_clause_version(clause, request.user)
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+        return redirect('document_generation:clause_library')
+    _library_audit(request, version, 'create', 'New clause version created', {'version': version.version})
+    return redirect('document_generation:clause_edit', clause_id=version.pk)
+
+
+@local_only
+@require_POST
+def clause_action(request, clause_id, action):
+    clause = get_object_or_404(DocumentClause, pk=clause_id)
+    try:
+        transition_clause(clause, action, request, request.user)
+    except PermissionDenied as error:
+        raise error
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+    else:
+        messages.success(request, f'Clause {action} completed.')
+    return redirect('document_generation:clause_library')

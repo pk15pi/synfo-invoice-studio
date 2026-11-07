@@ -38,7 +38,9 @@ class DocumentGenerationModelTests(TestCase):
         self.document_type = DocumentType.objects.get(code='non-disclosure-agreement-nda')
 
     def test_seeded_categories_and_document_types_are_configurable(self):
-        self.assertEqual(DocumentCategory.objects.count(), 8)
+        self.assertEqual(DocumentCategory.objects.count(), 9)
+        self.assertTrue(DocumentCategory.objects.filter(code='financial-administrative', is_active=True).exists())
+        self.assertTrue(DocumentType.objects.filter(code='resource-supply-agreement').exists())
         self.assertTrue(self.document_type.categories.filter(code='client').exists())
         self.assertEqual(self.document_type.number_prefix, 'QB-NDA')
 

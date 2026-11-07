@@ -133,6 +133,7 @@ def prepare_preview(form):
 
     profile = CompanyDocumentProfile.current()
     values = {key: _json_value(value) for key, value in form.field_values().items()}
+    optional_clause_ids = data.get('optional_clauses') if 'optional_clauses' in form.fields else None
     party_records = []
     for module, record in form.selected_records.items():
         snapshot = form.party_snapshot()['records'][module]
@@ -187,11 +188,13 @@ def prepare_preview(form):
     resolve_template(
         template_version, values, 'DOCUMENT-NUMBER', data['document_date'],
         data.get('effective_date'), signatory, profile,
+        optional_clause_ids=optional_clause_ids,
     )
     document_number = allocate_document_number(document_type, data['document_date'])
     resolved = resolve_template(
         template_version, values, document_number, data['document_date'],
         data.get('effective_date'), signatory, profile,
+        optional_clause_ids=optional_clause_ids,
     )
     return {
         'document_type_id': document_type.pk,
@@ -213,6 +216,8 @@ def prepare_preview(form):
         'header_text': resolved['header'],
         'footer_text': resolved['footer'],
         'signature_configuration': resolved['signature_configuration'],
+        'clause_snapshot': resolved['clauses'],
+        'selected_clause_ids': [int(pk) for pk in optional_clause_ids] if optional_clause_ids is not None else None,
         'context_snapshot': resolved['context'],
         'company_snapshot': resolved['company'],
         'signatory_snapshot': resolved['signatory'],
@@ -362,6 +367,13 @@ def generate_document(payload, output_format, user=None):
                 'header_text': payload.get('header_text', ''),
                 'footer_text': payload.get('footer_text', ''),
                 'signature_configuration': payload.get('signature_configuration', {}),
+                'template_snapshot': {
+                    'template_code': template_version.template.code,
+                    'template_name': template_version.template.name,
+                    'version_number': template_version.version_number,
+                    'change_description': template_version.change_description,
+                },
+                'clauses': payload.get('clause_snapshot', []),
                 'requested_output_format': output_format,
             },
             authorised_signatory_id=payload.get('signatory_id'),

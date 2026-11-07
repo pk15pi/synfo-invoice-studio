@@ -6,6 +6,7 @@
   <div class="heading-actions">
     <a class="button primary" href="{% url 'document_generation:generate' %}">Generate document</a>
     <a class="button secondary" href="{% url 'document_generation:catalogue' %}">Document catalogue</a>
+    <a class="button secondary" href="{% url 'document_generation:library' %}">Standard document library</a>
     <a class="button secondary" href="{% url 'document_generation:settings' %}">Company profile</a>
   </div>
 </div>
@@ -24,9 +25,9 @@
   <div class="card"><strong>{{ draft_count }}</strong><span>Draft documents</span></div>
   <div class="card"><strong>{{ pending_count }}</strong><span>Pending approval</span></div>
 </div>
-<p class="muted">Administration: <a href="/admin/document_generation/documenttemplate/">Manage templates</a> |
-   <a href="/admin/document_generation/documenttemplateversion/">Review template versions</a> |
-   <a href="/admin/document_generation/documentclause/">Manage clause library</a></p>
+<p class="muted">Library administration: <a href="{% url 'document_generation:templates' %}">Manage templates</a> |
+   <a href="{% url 'document_generation:templates' %}?status=review">Review queue</a> |
+   <a href="{% url 'document_generation:clauses' %}">Manage clause library</a></p>
 <h2>Categories</h2>
 <div class="table-wrap"><table class="table">
   <thead><tr><th>Category</th><th>Configured types</th></tr></thead>

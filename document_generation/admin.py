@@ -154,7 +154,16 @@ class DocumentTemplateVersionAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         if obj.status == DocumentTemplateVersion.APPROVED:
             obj.template.active_version = obj
-            obj.template.save(update_fields=('active_version', 'updated_at'))
+            obj.template.is_active = True
+            obj.template.status = DocumentTemplate.STATUS_ACTIVE
+            obj.template.save(update_fields=('active_version', 'is_active', 'status', 'updated_at'))
+        from audit.models import AuditEvent
+        AuditEvent.objects.create(
+            app_label='document_generation', model='DocumentTemplateVersion',
+            object_id=str(obj.pk), object_repr=str(obj)[:300], action='update' if change else 'create',
+            reason='Template version administered through Django Admin',
+            request_path=request.path, source='ui',
+        )
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -193,6 +202,13 @@ class DocumentClauseAdmin(admin.ModelAdmin):
             obj.approved_by = request.user
             obj.approved_at = timezone.now()
         super().save_model(request, obj, form, change)
+        from audit.models import AuditEvent
+        AuditEvent.objects.create(
+            app_label='document_generation', model='DocumentClause',
+            object_id=str(obj.pk), object_repr=str(obj)[:300], action='update' if change else 'create',
+            reason='Clause administered through Django Admin',
+            request_path=request.path, source='ui',
+        )
 
     def has_delete_permission(self, request, obj=None):
         return False

@@ -1,0 +1,7 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Document Categories{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Standard Document Library</p><h1>Document Categories</h1></div><div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:library' %}">Library home</a><a class="button secondary" href="{% url 'document_generation:types' %}">Document types</a></div></div>
+<div class="panel form-panel"><h2>{% if editing %}Edit category{% else %}Add category{% endif %}</h2><form method="post" class="form-grid">{% csrf_token %}{{ form.as_p }}<button class="button primary" type="submit">Save category</button>{% if editing %}<a class="button secondary" href="{% url 'document_generation:categories' %}">Cancel edit</a>{% endif %}</form></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>Category</th><th>Code</th><th>Document types</th><th>Status</th><th>Actions</th></tr></thead><tbody>{% for category in categories %}<tr><td>{{ category.name }}</td><td>{{ category.code }}</td><td>{{ category.type_count }}</td><td>{% if category.is_active %}Active{% else %}Inactive{% endif %}</td><td><a href="?edit={{ category.pk }}">Edit</a></td></tr>{% empty %}<tr><td colspan="5">No categories configured.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

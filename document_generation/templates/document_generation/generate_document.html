@@ -96,7 +96,7 @@
 
     <h2>Step 3: Complete document details</h2>
     {% for field in form %}
-      {% if field.name != "category" and field.name != "document_type" and field.name != "template_version" and field.name != "related_record" and field.name != "revision_of" %}
+      {% if field.name != "category" and field.name != "document_type" and field.name != "template_version" and field.name != "related_record" and field.name != "related_asset" and field.name != "revision_of" %}
         <div class="form-row" data-field-key="{{ field.name }}" data-condition="{{ field.field.condition|default:'{}' }}">
           <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-label="required">*</span>{% endif %}</label>
           {{ field }}

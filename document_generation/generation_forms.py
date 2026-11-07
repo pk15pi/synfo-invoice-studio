@@ -126,6 +126,22 @@ class UniversalDocumentForm(forms.Form):
                 related_record,
                 related_asset or self.data.get('related_asset') or self.initial.get('related_asset'),
             )
+        selected_version_id = self.data.get('template_version') or self.initial.get('template_version')
+        if selected_version_id and document_type:
+            version = self.fields['template_version'].queryset.filter(pk=selected_version_id).first()
+            if version:
+                assignments = version.template_clauses.select_related('clause').filter(
+                    clause__is_active=True, clause__approval_status='approved',
+                ).exclude(is_mandatory=True).exclude(clause__is_mandatory=True)
+                self.fields['optional_clauses'] = forms.MultipleChoiceField(
+                    label='Optional approved clauses', required=False,
+                    choices=[(str(item.pk), f'{item.clause.name} (v{item.clause.version})') for item in assignments],
+                    widget=forms.CheckboxSelectMultiple(),
+                )
+                if not self.is_bound:
+                    self.initial['optional_clauses'] = [
+                        str(item.pk) for item in assignments if item.clause.default_inclusion
+                    ]
         self.fields['authorised_signatory'].queryset = CompanyDocumentSignatory.objects.filter(
             is_active=True, is_authorized=True,
         )
@@ -279,6 +295,13 @@ class UniversalDocumentForm(forms.Form):
             self.add_error('document_type', 'Select a type in the selected category.')
         if template_version and document_type and template_version.template.document_type_id != document_type.pk:
             self.add_error('template_version', 'Select a template for the chosen document type.')
+        if template_version and 'optional_clauses' in self.fields:
+            allowed_assignments = set(template_version.template_clauses.exclude(
+                is_mandatory=True,
+            ).exclude(clause__is_mandatory=True).values_list('pk', flat=True))
+            selected = {int(value) for value in cleaned.get('optional_clauses', [])}
+            if not selected.issubset(allowed_assignments):
+                self.add_error('optional_clauses', 'Choose optional clauses assigned to this approved template.')
         revision_id = cleaned.get('revision_of')
         if revision_id:
             previous = GeneratedDocument.objects.filter(pk=revision_id).first()

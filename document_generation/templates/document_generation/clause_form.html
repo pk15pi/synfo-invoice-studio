@@ -1,0 +1,6 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}{% if clause %}Edit clause{% else %}New clause{% endif %}{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Standard Document Library</p><h1>{% if clause %}Edit clause draft v{{ clause.version }}{% else %}New clause draft{% endif %}</h1><p>Approved clauses are immutable. Create a new version to change approved wording.</p></div><div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:clauses' %}">Back to clauses</a></div></div>
+<form method="post" class="panel form-panel">{% csrf_token %}{{ form.as_p }}<button class="button primary" type="submit">Save clause draft</button></form>
+{% endblock %}

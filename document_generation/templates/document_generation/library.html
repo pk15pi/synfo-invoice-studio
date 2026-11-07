@@ -1,0 +1,15 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Standard Document Library{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Document Management</p><h1>Standard Document Library</h1></div><div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:dashboard' %}">Document dashboard</a><a class="button primary" href="{% url 'document_generation:generate' %}">Generate document</a></div></div>
+<p class="muted">Configure reusable document types, approved template versions and clauses. Only active approved templates appear in normal generation.</p>
+<div class="cards">
+  <a class="card" href="{% url 'document_generation:categories' %}"><strong>{{ category_count }}</strong><span>Document categories</span></a>
+  <a class="card" href="{% url 'document_generation:types' %}"><strong>{{ type_count }}</strong><span>Document types</span></a>
+  <a class="card" href="{% url 'document_generation:templates' %}"><strong>{{ template_count }}</strong><span>Template library</span></a>
+  <a class="card" href="{% url 'document_generation:template_versions' %}"><strong>{{ version_count }}</strong><span>Template versions</span></a>
+  <a class="card" href="{% url 'document_generation:clauses' %}"><strong>{{ clause_count }}</strong><span>Clause library</span></a>
+</div>
+<a class="card" href="{% url 'document_generation:settings' %}"><strong>Company Document Profile</strong><span>{{ profile.contracting_party_display }} &middot; Edit verified details</span></a>
+<p class="message warning">Templates and clauses are unapproved until reviewed by your organisation. This module does not determine legal validity.</p>
+{% endblock %}

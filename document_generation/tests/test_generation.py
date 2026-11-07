@@ -27,6 +27,7 @@ from document_generation.models import (
     DocumentType,
     GeneratedDocument,
 )
+from document_generation.services import create_clause_version
 from document_generation.standard_library import FIELD_SETS, TEMPLATES
 
 
@@ -188,6 +189,47 @@ class UniversalDocumentGenerationTests(TestCase):
             approval_status=DocumentClause.REVIEW,
         ).exists())
         self.assertGreater(DocumentTemplateClause.objects.count(), 0)
+
+    def test_generated_document_records_exact_clause_version_and_text(self):
+        document_type = DocumentType.objects.get(code='offer-letter')
+        template = DocumentTemplate.objects.create(document_type=document_type, name='Clause snapshot test')
+        version = DocumentTemplateVersion.objects.create(
+            template=template, version_number=1, body_template='Offer terms.',
+        )
+        clause = DocumentClause.objects.create(
+            code='snapshot-optional-clause', name='Optional clause', category='payment',
+            clause_text='Original clause wording.', version=1,
+            approval_status=DocumentClause.APPROVED, approved_by=self.user,
+            approved_at=timezone.now(), default_inclusion=False,
+        )
+        assignment = DocumentTemplateClause.objects.create(
+            template_version=version, clause=clause, display_order=1,
+        )
+        version.status = DocumentTemplateVersion.APPROVED
+        version.approved_by = self.user
+        version.approved_at = timezone.now()
+        version.save()
+        template.active_version = version
+        template.save(update_fields=('active_version', 'updated_at'))
+        data = self._form_data(document_type, version)
+        data['optional_clauses'] = [str(assignment.pk)]
+        form = UniversalDocumentForm(
+            data, document_type=document_type, related_record=data['related_record'],
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        payload = prepare_preview(form)
+        generated = generate_document(payload, 'docx', self.user)
+        snapshot = generated.content_snapshot['clauses']
+        self.assertEqual(snapshot[0]['version'], 1)
+        self.assertEqual(snapshot[0]['text'], 'Original clause wording.')
+        self.assertIn('Original clause wording.', generated.rendered_content)
+
+        next_clause = create_clause_version(clause, self.user)
+        next_clause.clause_text = 'Revised clause wording.'
+        next_clause.save()
+        generated.refresh_from_db()
+        self.assertEqual(generated.content_snapshot['clauses'][0]['text'], 'Original clause wording.')
+        self.assertIn('Original clause wording.', generated.rendered_content)
 
     def test_fifteen_standard_document_templates_generate_inspectable_outputs(self):
         reviewed_at = timezone.now()

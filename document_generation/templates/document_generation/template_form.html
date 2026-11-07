@@ -1,0 +1,6 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}{% if template %}Edit template{% else %}New template{% endif %}{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Standard Document Library</p><h1>{% if template %}Edit template details{% else %}New template{% endif %}</h1></div><div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:templates' %}">Back to templates</a></div></div>
+<form method="post" class="panel form-panel">{% csrf_token %}{{ form.as_p }}<button class="button primary" type="submit">{% if template %}Save details{% else %}Create draft and continue{% endif %}</button></form>
+{% endblock %}
