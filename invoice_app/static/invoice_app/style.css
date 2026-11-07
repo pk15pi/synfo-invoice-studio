@@ -141,6 +141,100 @@ a:hover{color:#0d3659}
  color:#fff;
  box-shadow:0 2px 5px rgba(23,75,120,.15);
 }
+
+/* Shared application layout tokens and common table, filter, and form rules. */
+:root{
+ --space-1:4px;
+ --space-2:8px;
+ --space-3:12px;
+ --space-4:16px;
+ --space-5:22px;
+ --control-height:38px;
+ --table-head-bg:#f1f5f8;
+ --table-zebra-bg:#f8fafc;
+ --table-hover-bg:#eef5fa;
+ --table-divider:#e8edf1;
+ --control-radius:7px;
+}
+
+/* Tables share one visual language; .table-wrap remains the scroll container. */
+main .table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
+main table:not(.pdfcols){width:100%;border-collapse:separate;border-spacing:0}
+main table:not(.pdfcols) thead th{
+ padding:9px 11px;background:var(--table-head-bg);color:#637687;
+ font-size:10px;font-weight:750;line-height:1.35;text-align:left;vertical-align:middle
+}
+main table:not(.pdfcols) tbody td{
+ padding:9px 11px;border-bottom:1px solid var(--table-divider);
+ font-size:13px;line-height:1.45;vertical-align:middle
+}
+main table:not(.pdfcols) tbody tr:nth-child(even) td{background:var(--table-zebra-bg)}
+main table:not(.pdfcols) tbody tr:hover td{background:var(--table-hover-bg)}
+main table:not(.pdfcols) tbody tr:last-child td{border-bottom:0}
+main table td.num,.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+main table td:has(.icon-btn),main table td:has(.button),main table td:has(form.inline){white-space:nowrap}
+main table td:has(.icon-btn){text-align:center}
+main .table-wrap .empty{margin:10px}
+
+/* Shared filter toolbar: controls wrap neatly while Apply/Search stays beside them. */
+.filter-toolbar,.compact-filters,.filters,form.filter-form{
+ display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2)
+}
+.filter-toolbar,.compact-filters,.filters{min-width:0}
+main form.panel[method="get"]:has(>.field){
+ display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2)
+}
+main form.panel[method="get"]:has(>.field)>.field{
+ flex:0 1 180px;width:auto;min-width:135px;min-height:var(--control-height)
+}
+main form.panel[method="get"]:has(>.field)>input[type="date"]{flex-basis:155px}
+main form.panel[method="get"]:has(>.field)>button,
+main form.panel[method="get"]:has(>.field)>.button{flex:0 0 auto;min-height:var(--control-height)}
+.compact-filters>.field,.compact-filter-label>.field{min-height:var(--control-height)}
+
+/* Form cards align to the content/header edges; grids keep controls bounded by columns. */
+.form-panel,.compact-entry-form{width:100%;max-width:none;margin-inline:0}
+.form-grid,.form-grid>*{min-width:0}
+.form-field>.field,.form-field>input,.form-field>select,.form-field>textarea{width:100%;max-width:100%;min-width:0}
+main form.panel>p:has(>label){
+ display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr);
+ align-items:center;gap:6px 12px;margin:0 0 var(--space-3)
+}
+main form.panel>p:has(>label)>label{font-size:12px;font-weight:700;color:#40576a}
+main form.panel>p:has(>label)>input,
+main form.panel>p:has(>label)>select,
+main form.panel>p:has(>label)>textarea{grid-column:2;max-width:520px}
+.form-actions{display:flex;align-items:center;flex-wrap:wrap;gap:var(--space-2)}
+
+/* Page-level actions stay in the header; filter controls remain with their toolbar. */
+.page-heading.split:has(>div:first-child){
+ grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--space-4)
+}
+.page-heading.split.payroll-heading:has(>div:first-child){
+ grid-template-columns:minmax(210px,.8fr) minmax(0,1.2fr)
+}
+.page-heading.split:has(>div:first-child)>div:last-child{max-width:100%}
+.page-heading.split:has(>div:first-child)>a.button{justify-self:end;width:auto;white-space:nowrap}
+.page-heading.split .heading-actions,.page-heading.split .page-actions{
+ display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:var(--space-2);min-width:0
+}
+
+@media(max-width:850px){
+ .page-heading.split:has(>div:first-child){grid-template-columns:minmax(0,1fr);align-items:start}
+ .page-heading.split .heading-actions,.page-heading.split .page-actions{justify-content:flex-start}
+ .form-grid.three{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:560px){
+ main form.panel[method="get"]:has(>.field)>.field{flex:1 1 135px;min-width:120px}
+ main form.panel[method="get"]:has(>.field)>button,
+ main form.panel[method="get"]:has(>.field)>.button{flex:0 0 auto}
+ main form.panel>p:has(>label){grid-template-columns:minmax(0,1fr);gap:4px}
+ main form.panel>p:has(>label)>input,
+ main form.panel>p:has(>label)>select,
+ main form.panel>p:has(>label)>textarea{grid-column:1}
+ .form-grid,.form-grid.three{grid-template-columns:minmax(0,1fr)}
+ .page-heading.split .heading-actions .button,.page-heading.split .page-actions .button{flex:0 1 auto}
+}
 .topbar nav .nav-cta:hover,.topbar nav .nav-cta:focus-visible{background:#103b62;color:#fff}
 .navgroup{flex:0 0 auto}
 .navmenu{
@@ -439,8 +533,10 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
 .invoice-filter-summary{padding-top:2px;font-size:12px}
 @media(max-width:560px){
  .invoice-list-filters{gap:10px}
- .invoice-filter-toolbar{margin-right:-4px}
- .invoice-list-filters .segmented{display:flex;grid-template-columns:none}
+ .invoice-filter-toolbar{flex-wrap:wrap;overflow:visible;margin-right:0}
+ .invoice-list-filters .segmented{display:flex;flex:1 1 100%;grid-template-columns:none;flex-wrap:wrap}
+ .invoice-period-form{flex:1 1 100%;flex-wrap:wrap;min-width:0}
+ .invoice-fy-form{flex:0 1 auto}
  .invoice-period-form,.invoice-fy-form{align-items:center}
  .invoice-period-form .button{flex:0 0 auto}
 }
@@ -589,9 +685,6 @@ th.table-sortable-header.table-sort-active .table-sort-indicator{opacity:1;color
 .navmenu a{white-space:normal}
 main{min-width:0}
 main>*{min-width:0}
-.fr-catalogue-table tbody td{vertical-align:middle;border-bottom:1px solid #edf1f4;line-height:1.45}
-.fr-catalogue-table tbody tr:last-child td{border-bottom:0}
-.fr-catalogue-table tbody tr:hover td{background:#f7fafc}
 .fr-report-summary strong,.fr-report-summary small,.fr-report-summary span{display:block}
 .fr-report-summary strong{font-size:13px;color:#253b4e}
 .fr-report-summary small{margin-top:2px;color:#71808c;font-size:10px}
