@@ -707,3 +707,5 @@ main>*{min-width:0}
  .page-heading:not(.back){padding:18px 16px}
  .table-wrap th,.table-wrap td{padding:8px 9px}
 }
+
+.global-back-row{display:flex;justify-content:flex-end;margin:10px 0 6px}.global-back-row .button{min-height:36px}

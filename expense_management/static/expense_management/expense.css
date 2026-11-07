@@ -62,3 +62,6 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .xm-section{grid-column:1/-1;margin:10px 0 0;font-size:14px;color:var(--navy,#0B5394);border-bottom:1px solid var(--line,#e1e8ee);padding-bottom:4px}
 tr.total td{font-weight:700;background:#f4f8fb}
 .xm-warn{background:#fff6e0;border:1px solid #f0dca8;color:#7a5a12;padding:8px 12px;border-radius:8px}
+
+/* Keep the dashboard action links below the shared Back and Help controls. */
+@media(min-width:851px){.expense-dashboard-heading>.heading-actions{padding-top:52px}}

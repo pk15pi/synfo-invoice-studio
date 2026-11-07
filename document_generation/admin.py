@@ -115,7 +115,7 @@ class DocumentTemplateVersionAdmin(admin.ModelAdmin):
 
     @admin.display(description='Administrative preview')
     def template_preview_link(self, obj):
-        if not obj:
+        if not obj or not obj.pk:
             return 'Save this version to preview it.'
         return format_html(
             '<a href="{}">Preview template with sample values</a>',

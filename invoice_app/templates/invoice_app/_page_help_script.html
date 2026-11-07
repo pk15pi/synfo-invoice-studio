@@ -27,19 +27,23 @@
   trigger.setAttribute('aria-label', `Help - ${guide.title || 'Current Page'}`);
   trigger.setAttribute('aria-haspopup', 'dialog');
 
+  const backLink = document.querySelector('[data-history-back]');
+  const headingControls = document.createElement('div');
+  headingControls.className = 'qb-header-controls';
+  if (backLink) {
+    headingControls.append(backLink);
+    backLink.closest('.global-back-row, .qb-admin-back-row')?.remove();
+    backLink.classList.add('qb-header-back');
+  }
+  headingControls.append(trigger);
+
   if (pageHeading) {
-    const isFlex = getComputedStyle(pageHeading).display.includes('flex');
-    if (isFlex) {
-      pageHeading.classList.add('qb-help-heading-flex');
-      pageHeading.append(trigger);
-    } else {
-      pageHeading.classList.add('qb-help-heading-anchor');
-      pageHeading.append(trigger);
-    }
+    pageHeading.classList.add('qb-help-heading-anchor');
+    pageHeading.append(headingControls);
   } else {
     const slot = document.createElement('div');
     slot.className = 'qb-help-fallback-slot';
-    slot.append(trigger);
+    slot.append(headingControls);
     main.prepend(slot);
   }
 
