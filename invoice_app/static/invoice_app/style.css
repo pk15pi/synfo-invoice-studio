@@ -264,6 +264,7 @@ td{font-variant-numeric:tabular-nums}
 .compact-date-range{display:inline-flex;align-items:center;gap:5px;flex:1 1 300px}
 .compact-date-range>.field{width:145px;min-width:125px;min-height:35px;padding:6px 8px;font-size:12px}
 .compact-entry-form{max-width:900px;margin-inline:auto}
+.compliance-payment-form{width:100%;max-width:none;margin-inline:0}
 .compact-entry-form p:has(>label){display:grid;grid-template-columns:minmax(140px,210px) minmax(0,1fr);align-items:center;gap:6px 12px;margin:0 0 12px}
 .compact-entry-form p:has(>label)>label{font-size:12px;font-weight:700;color:#435462}
 .compact-entry-form p:has(>label)>input,.compact-entry-form p:has(>label)>select,.compact-entry-form p:has(>label)>textarea{grid-column:2;width:100%;max-width:440px}
@@ -363,6 +364,31 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
 }
 @media(prefers-reduced-motion:reduce){
  *,*:before,*:after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}
+}
+
+/* Customer form: use the full content width and keep radio choices compact. */
+.customer-form-panel{width:100%;max-width:none}
+.customer-form-panel #id_billing_type,.customer-form-panel #id_terms_mode{
+ display:flex;flex-direction:column;align-items:stretch;gap:7px;
+ width:100%;min-height:0;margin:0;padding:0;border:0;border-radius:0;
+ background:transparent;box-shadow:none
+}
+.customer-form-panel #id_billing_type>div,.customer-form-panel #id_terms_mode>div{
+ display:flex;align-items:center;min-height:24px;margin:0;padding:0
+}
+.customer-form-panel #id_billing_type label,.customer-form-panel #id_terms_mode label{
+ display:inline-flex;align-items:center;gap:8px;margin:0;
+ font-size:13px;font-weight:500;line-height:1.4;color:var(--ink);cursor:pointer
+}
+.customer-form-panel #id_billing_type input[type=radio],
+.customer-form-panel #id_terms_mode input[type=radio]{
+ appearance:auto;flex:0 0 16px;width:16px!important;height:16px!important;min-height:16px!important;
+ margin:0!important;padding:0!important;border:0!important;border-radius:50%!important;
+ background:transparent!important;box-shadow:none;accent-color:var(--navy);vertical-align:middle
+}
+.customer-form-panel #id_billing_type input[type=radio]:focus-visible,
+.customer-form-panel #id_terms_mode input[type=radio]:focus-visible{
+ outline:2px solid #6e9fc2;outline-offset:2px
 }
 .payroll-heading{display:grid;grid-template-columns:minmax(210px,.8fr) minmax(0,1.2fr);align-items:center;gap:14px}
 .payroll-toolbar,.payroll-toolbar .filters,.payroll-refresh-form{display:flex;align-items:center;gap:6px;margin:0}
@@ -563,6 +589,13 @@ th.table-sortable-header.table-sort-active .table-sort-indicator{opacity:1;color
 .navmenu a{white-space:normal}
 main{min-width:0}
 main>*{min-width:0}
+.fr-catalogue-table tbody td{vertical-align:middle;border-bottom:1px solid #edf1f4;line-height:1.45}
+.fr-catalogue-table tbody tr:last-child td{border-bottom:0}
+.fr-catalogue-table tbody tr:hover td{background:#f7fafc}
+.fr-report-summary strong,.fr-report-summary small,.fr-report-summary span{display:block}
+.fr-report-summary strong{font-size:13px;color:#253b4e}
+.fr-report-summary small{margin-top:2px;color:#71808c;font-size:10px}
+.fr-report-summary span{display:-webkit-box;margin-top:4px;overflow:hidden;color:#687b8b;font-size:11px;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:2}
 @media(max-width:850px){
  .panel{padding:16px}
  .table-wrap{overscroll-behavior-inline:contain}

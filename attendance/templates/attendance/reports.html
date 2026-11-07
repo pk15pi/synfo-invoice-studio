@@ -1,7 +1,7 @@
 {% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
 <div class="page-heading"><p class="eyebrow">Attendance &amp; Leave</p><h1>Attendance &amp; leave reports</h1></div>
 {% include "attendance/_nav.html" %}
-<form method="get" class="panel"><select class="field" name="report"><option value="register" {% if kind == 'register' %}selected{% endif %}>Monthly attendance register</option><option value="balances" {% if kind == 'balances' %}selected{% endif %}>Leave balance report (year)</option><option value="history" {% if kind == 'history' %}selected{% endif %}>Leave history per employee</option></select>
+<form method="get" class="panel compact-filters attendance-report-filters"><select class="field" name="report"><option value="register" {% if kind == 'register' %}selected{% endif %}>Monthly attendance register</option><option value="balances" {% if kind == 'balances' %}selected{% endif %}>Leave balance report (year)</option><option value="history" {% if kind == 'history' %}selected{% endif %}>Leave history per employee</option></select>
 <select class="field" name="employee"><option value="">(employee for history)</option>{% for x in employees %}<option value="{{ x.pk }}" {% if x.pk|stringformat:"s" == eid %}selected{% endif %}>{{ x.employee_id }} {{ x.full_name }}</option>{% endfor %}</select>
 <select class="field" name="month">{% for n, l in months %}<option value="{{ n }}" {% if n == m %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
 <select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select> <button class="button secondary">Show</button></form>

@@ -23,12 +23,12 @@
 </form>
 {% if page.object_list %}
 <div class="table-wrap">
-  <table data-server-sort="orm">
+  <table class="fr-catalogue-table" data-server-sort="orm">
     <thead><tr><th data-sort-key="report">Report</th><th data-sort-key="category">Category</th><th data-sort-key="source">Source</th><th data-sort-key="formats">Formats</th><th>Availability</th><th></th></tr></thead>
     <tbody>
     {% for report in page.object_list %}
       <tr>
-        <td><strong>{{ report.report_name }}</strong><br><small>{{ report.report_code }}</small><br>{{ report.description }}</td>
+        <td class="fr-report-summary"><strong>{{ report.report_name }}</strong><small>{{ report.report_code }}</small><span>{{ report.description }}</span></td>
         <td>{{ report.category.name }}</td>
         <td>{{ report.source_application }}</td>
         <td>{{ report.supported_formats|join:", " }}</td>

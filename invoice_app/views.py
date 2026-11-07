@@ -243,7 +243,7 @@ def client_edit(request, pk=None):
         return redirect('client_detail', pk=client.pk)
     return render(request, 'invoice_app/form_page.html', {
         'form': form, 'title': 'Edit customer' if client else 'Add customer',
-        'back': 'clients'})
+        'back': 'clients', 'customer_form': True})
 
 
 
