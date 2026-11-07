@@ -43,6 +43,7 @@ ACCOUNTS = [
     ('3900', 'Retained Earnings', Q, '3000', False),
     ('4000', 'Income', I, None, True),
     ('4100', 'Service Revenue', I, '4000', False),
+    ('4150', 'Recruitment and Placement Revenue', I, '4000', False),
     ('4900', 'Other Income', I, '4000', False),
     ('5000', 'Expenses', X, None, True),
     ('5100', 'Salary and Wages', X, '5000', False),
@@ -60,9 +61,10 @@ ACCOUNTS = [
 ]
 SYSTEM = {'1000', '1100', '1200', '1300', '1400', '1410', '1420', '1430', '1500', '1700', '2000', '2100', '2200', '2210',
           '2300', '2310', '2320', '2330', '2400', '2410', '2420', '2430', '2440', '2600', '3000', '3900', '4000', '4100',
-          '5000', '5100'}
+          '4150', '5000', '5100'}
 MAPPINGS = [
     ('invoice.revenue', '4100', 'Invoice: service revenue'),
+    ('invoice.recruitment_revenue', '4150', 'Invoice: recruitment and candidate placement revenue'),
     ('invoice.ar', '1200', 'Invoice: accounts receivable'),
     ('invoice.receipt_bank', '1120', 'Invoice receipt: default bank'),
     ('invoice.tds_receivable', '1500', 'Invoice receipt: TDS deducted by customer'),

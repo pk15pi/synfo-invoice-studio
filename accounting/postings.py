@@ -152,8 +152,9 @@ def invoice_lines(inv):
     _check_inr(inv)
     who = (inv.client.name if inv.client_id else '')[:80]
     party = ('customer', inv.client_id)
+    revenue_key = 'invoice.recruitment_revenue' if getattr(inv, 'service_type', '') == 'recruitment_placement' else 'invoice.revenue'
     lines = [L(m('invoice.ar'), debit=inv.grand_total, description=f'Invoice {inv.invoice_number} {who}', party=party),
-             L(m('invoice.revenue'), credit=inv.taxable_value, description=f'Invoice {inv.invoice_number} taxable value')]
+             L(m(revenue_key), credit=inv.taxable_value, description=f'Invoice {inv.invoice_number} taxable value')]
     for f, key, lab in GST:
         amt = q2(getattr(inv, f) or 0)
         if amt:
@@ -208,7 +209,8 @@ def credit_note_key(cn):
 def credit_note_lines(cn):
     inv = cn.invoice
     party = ('customer', inv.client_id)
-    lines = [L(m('invoice.revenue'), debit=cn.taxable_amount, description=f'Credit note {cn.number} on {inv.invoice_number}')]
+    revenue_key = 'invoice.recruitment_revenue' if getattr(inv, 'service_type', '') == 'recruitment_placement' else 'invoice.revenue'
+    lines = [L(m(revenue_key), debit=cn.taxable_amount, description=f'Credit note {cn.number} on {inv.invoice_number}')]
     for f, key, lab in GST:
         amt = q2(getattr(cn, f) or 0)
         if amt:

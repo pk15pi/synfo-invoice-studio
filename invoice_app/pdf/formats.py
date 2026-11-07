@@ -171,7 +171,10 @@ class BaseEngine:
 
     @property
     def headers(self):
-        return [(self.s.get(k) or '').strip() or DEFAULT_HEADERS[i] for i, k in enumerate(COLUMN_KEYS)]
+        headers = [(self.s.get(k) or '').strip() or DEFAULT_HEADERS[i] for i, k in enumerate(COLUMN_KEYS)]
+        if self.d.service_type in ('general_manpower', 'recruitment_placement') and headers[0].lower().startswith('consultant'):
+            headers[0] = 'Recruitment Service' if self.d.service_type == 'recruitment_placement' else 'Resource / Service'
+        return headers
 
     def edges(self, left=None, right=None):
         left, right = left or self.L, right or self.R
@@ -186,6 +189,15 @@ class BaseEngine:
         d = self.d
         pairs = [('Invoice No.', d.number), ('Invoice Date', fmt_date(d.invoice_date)),
                  ('Terms', str(d.terms_days if d.terms_days is not None else '')), ('Due Date', fmt_date(d.due_date))]
+        if d.service_type == 'general_manpower':
+            pairs.append(('Service', 'General Manpower Supply'))
+            if d.billing_period_start or d.billing_period_end:
+                period = period_text(d.billing_period_start, d.billing_period_end)
+                pairs.append(('Billing Period', period))
+        elif d.service_type == 'recruitment_placement':
+            pairs.append(('Service', 'Recruitment and Candidate Placement'))
+            if d.recruitment_agreement_reference:
+                pairs.append(('Agreement Reference', d.recruitment_agreement_reference))
         if self.s.get('show_po_number', True) and self.x.po_number:
             pairs.append(('PO Number', self.x.po_number))
         if self.s.get('show_vendor_code', True) and self.x.vendor_code:

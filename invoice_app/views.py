@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import date, timedelta
 from calendar import month_name
+from decimal import Decimal
 import json
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -15,13 +16,193 @@ from django.views.decorators.http import require_POST
 from employee_management.security import local_only
 
 from . import billing, descriptions, gst, ledger, services
-from .forms import (BusinessProfileForm, ClientForm, CreditNoteForm, InvoiceDescriptionTemplateForm, InvoiceFormatTemplateForm, PaymentForm, PdfOverrideForm,
-                    ProjectTemplateForm)
-from .models import BusinessProfile, Client, CreditNote, Invoice, InvoiceDescriptionTemplate, InvoiceFormatTemplate, InvoicePayment, ProjectTemplate
+from .forms import (BusinessProfileForm, ClientForm, CreditNoteForm, InvoiceDescriptionTemplateForm, InvoiceFormatTemplateForm, ManpowerDeploymentForm, PaymentForm, PdfOverrideForm,
+                    ProjectTemplateForm, RecruitmentAgreementForm, RecruitmentCandidateForm,
+                    RecruitmentPlacementForm, RecruitmentRequisitionForm)
+from .models import (BusinessProfile, Client, CreditNote, Invoice, InvoiceDescriptionTemplate, InvoiceFormatTemplate,
+                     InvoicePayment, ManpowerBillingRecord, ManpowerDeployment, ManpowerRateRevision, ProjectTemplate,
+                     RecruitmentAgreement, RecruitmentCandidate, RecruitmentPlacement, RecruitmentRequisition)
 from .pdf import render_invoice_pdf
 from .pdf.from_models import build_invoice_data
 from .pdf.formats import render_for_invoice
 from reporting import periods as reporting_periods
+
+
+def recruitment_dashboard(request):
+    placements = RecruitmentPlacement.objects.select_related(
+        'client', 'candidate', 'requisition', 'agreement', 'invoice').order_by('-created_at')
+    client_id = request.GET.get('client', '')
+    status = request.GET.get('status', '')
+    candidate_id = request.GET.get('candidate', '')
+    invoice_status = request.GET.get('invoice_status', '')
+    designation = (request.GET.get('designation') or '').strip()
+    joining_from, joining_to = services._date(request.GET.get('joining_from')), services._date(request.GET.get('joining_to'))
+    recruitment_from, recruitment_to = services._date(request.GET.get('recruitment_from')), services._date(request.GET.get('recruitment_to'))
+    q = (request.GET.get('q') or '').strip()
+    if client_id.isdigit():
+        placements = placements.filter(client_id=client_id)
+    if candidate_id.isdigit():
+        placements = placements.filter(candidate_id=candidate_id)
+    if designation:
+        placements = placements.filter(designation=designation)
+    if joining_from:
+        placements = placements.filter(joining_date__gte=joining_from)
+    if joining_to:
+        placements = placements.filter(joining_date__lte=joining_to)
+    if recruitment_from:
+        placements = placements.filter(fee_approved_on__gte=recruitment_from)
+    if recruitment_to:
+        placements = placements.filter(fee_approved_on__lte=recruitment_to)
+    if status == 'pending':
+        placements = placements.filter(fee_approved=False)
+    elif status == 'approved':
+        placements = placements.filter(fee_approved=True)
+    elif status == 'invoiced':
+        placements = placements.filter(invoice__status=Invoice.FINALIZED)
+    if q:
+        from django.db.models import Q
+        placements = placements.filter(Q(candidate__candidate_name__icontains=q) |
+                                       Q(designation__icontains=q) |
+                                       Q(client__name__icontains=q) |
+                                       Q(requisition__title__icontains=q))
+    rows = list(placements[:500])
+    if status == 'eligible':
+        rows = [row for row in rows if not row.fee_approved and row.can_approve_fee]
+    for row in rows:
+        row.payment_summary = row.invoice.payment_summary() if row.invoice_id else None
+    if invoice_status == 'unbilled':
+        rows = [row for row in rows if row.fee_approved and not row.invoice_id]
+    elif invoice_status == 'draft':
+        rows = [row for row in rows if row.invoice_id and row.invoice.status == Invoice.DRAFT]
+    elif invoice_status == 'invoiced':
+        rows = [row for row in rows if row.invoice_id and row.invoice.status == Invoice.FINALIZED]
+    elif invoice_status == 'paid':
+        rows = [row for row in rows if row.payment_summary and row.payment_summary['status'] == 'Paid']
+    elif invoice_status == 'outstanding':
+        rows = [row for row in rows if row.payment_summary and row.payment_summary['outstanding'] > 0]
+    all_placements = RecruitmentPlacement.objects.select_related('invoice').filter(invoice__status=Invoice.FINALIZED)
+    invoices = {p.invoice_id: p.invoice for p in all_placements if p.invoice_id}.values()
+    outstanding = sum((p.payment_summary()['outstanding'] for p in invoices), Decimal('0.00'))
+    today = timezone.localdate()
+    return render(request, 'invoice_app/recruitment_dashboard.html', {
+        'placements': rows,
+        'clients': Client.objects.order_by('name'),
+        'candidates': RecruitmentCandidate.objects.order_by('candidate_name'),
+        'agreements': RecruitmentAgreement.objects.select_related('client').order_by('client__name', '-effective_start')[:200],
+        'selected_client': client_id, 'selected_candidate': candidate_id,
+        'selected_status': status, 'selected_invoice_status': invoice_status, 'q': q,
+        'pending_count': RecruitmentPlacement.objects.filter(fee_approved=False).count(),
+        'eligible_uninvoiced_count': sum(1 for p in RecruitmentPlacement.objects.select_related(
+            'agreement', 'client', 'candidate').filter(fee_approved=False) if p.can_approve_fee),
+        'invoiced_count': RecruitmentPlacement.objects.filter(invoice__status=Invoice.FINALIZED).count(),
+        'outstanding_total': outstanding,
+        'designations': RecruitmentPlacement.objects.order_by('designation').values_list('designation', flat=True).distinct(),
+        'selected_designation': designation, 'joining_from': joining_from, 'joining_to': joining_to,
+        'recruitment_from': recruitment_from, 'recruitment_to': recruitment_to,
+        'guarantees_expiring': RecruitmentPlacement.objects.filter(guarantee_end__gte=today,
+            guarantee_end__lte=today + timedelta(days=30)).count(),
+    })
+
+
+def recruitment_candidate_edit(request, pk=None):
+    candidate = get_object_or_404(RecruitmentCandidate, pk=pk) if pk else None
+    form = RecruitmentCandidateForm(request.POST or None, instance=candidate)
+    if request.method == 'POST' and form.is_valid():
+        obj = form.save()
+        messages.success(request, 'Candidate record saved. Personal contact and identity details remain in secure HR storage.')
+        return redirect('recruitment_dashboard')
+    return render(request, 'invoice_app/recruitment_candidate_form.html', {'form': form, 'candidate': candidate})
+
+
+def recruitment_requisition_edit(request, pk=None):
+    requisition = get_object_or_404(RecruitmentRequisition, pk=pk) if pk else None
+    form = RecruitmentRequisitionForm(request.POST or None, instance=requisition)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Recruitment requisition saved.')
+        return redirect('recruitment_dashboard')
+    return render(request, 'invoice_app/recruitment_requisition_form.html', {'form': form, 'requisition': requisition})
+
+
+def recruitment_agreement_edit(request, pk=None):
+    agreement = get_object_or_404(RecruitmentAgreement, pk=pk) if pk else None
+    if agreement and agreement.placements.filter(fee_approved=True).exists() and request.method == 'POST':
+        messages.error(request, 'This agreement has approved placement fee snapshots. Add a new agreement version to preserve its terms.')
+        return redirect('recruitment_agreement_add')
+    form = RecruitmentAgreementForm(request.POST or None, instance=agreement)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Recruitment agreement saved. Existing approved fee snapshots are unchanged.')
+        return redirect('recruitment_dashboard')
+    return render(request, 'invoice_app/recruitment_agreement_form.html', {'form': form, 'agreement': agreement})
+
+
+def recruitment_placement_edit(request, pk=None):
+    placement = get_object_or_404(RecruitmentPlacement.objects.select_related(
+        'client', 'candidate', 'agreement', 'invoice'), pk=pk) if pk else None
+    if request.method == 'POST' and placement and placement.fee_approved:
+        messages.error(request, 'The approved placement fee and its CTC/agreement snapshot are locked. Use the existing invoice credit-note workflow after billing.')
+        return redirect('recruitment_dashboard')
+    form = RecruitmentPlacementForm(request.POST or None, instance=placement,
+                                    initial={'client': request.GET.get('client', ''),
+                                             'designation': placement.candidate.default_designation if placement and placement.candidate_id else ''})
+    action = request.POST.get('action', 'save') if request.method == 'POST' else ''
+    if request.method == 'POST' and form.is_valid():
+        candidate, client, requisition = (form.cleaned_data.get('candidate'), form.cleaned_data.get('client'),
+                                           form.cleaned_data.get('requisition'))
+        duplicate = RecruitmentPlacement.objects.filter(client=client, candidate=candidate,
+            requisition=requisition).exclude(pk=placement.pk if placement else 0).first()
+        if duplicate:
+            form.add_error('candidate', f'This candidate already has a placement record for this client and requisition (#{duplicate.pk}).')
+        else:
+            obj = form.save(commit=False)
+            try:
+                with transaction.atomic():
+                    obj.full_clean()
+                    obj.save()
+                    if action == 'approve':
+                        from .recruitment_billing import approve_fee
+                        amount = form.cleaned_data.get('fee_override_amount')
+                        obj = approve_fee(obj, override_amount=amount,
+                                          override_reason=form.cleaned_data.get('fee_override_reason') or '')
+            except ValidationError as exc:
+                for error in getattr(exc, 'error_dict', {}).values():
+                    for item in error:
+                        form.add_error(None, item.message)
+                if not getattr(exc, 'error_dict', None):
+                    form.add_error(None, exc.messages[0])
+            else:
+                messages.success(request, 'Placement saved; fee approved and frozen.' if action == 'approve'
+                                 else 'Placement details saved. Fee remains pending explicit approval.')
+                return redirect('recruitment_placement_edit', pk=obj.pk)
+    fee_preview = None
+    trigger_date = None
+    can_approve = False
+    if form.is_bound and form.is_valid():
+        obj = form.save(commit=False)
+        try:
+            from .recruitment_billing import calculate_fee
+            fee_preview = calculate_fee(obj)[0]
+            trigger_date = obj.trigger_date
+            can_approve = obj.can_approve_fee
+        except (ValidationError, AttributeError, TypeError):
+            pass
+    elif placement:
+        fee_preview, trigger_date, can_approve = placement.fee_amount, placement.trigger_date, placement.can_approve_fee
+    if placement and placement.fee_approved:
+        for field in form.fields.values():
+            field.disabled = True
+    return render(request, 'invoice_app/recruitment_placement_form.html', {
+        'form': form, 'placement': placement, 'fee_preview': fee_preview,
+        'trigger_date': trigger_date, 'can_approve': can_approve,
+        'agreement_options_json': json.dumps([{'id': a.pk, 'client': a.client_id,
+            'label': f'{a.agreement_reference or "Agreement"} · {a.get_billing_method_display()} · {a.effective_start:%d-%m-%Y}'}
+            for a in RecruitmentAgreement.objects.exclude(status='draft').select_related('client')]),
+        'requisition_options_json': json.dumps([{'id': r.pk, 'client': r.client_id,
+            'label': f'{r.title}{" · " + r.reference if r.reference else ""}'}
+            for r in RecruitmentRequisition.objects.select_related('client')]),
+        'candidate_options_json': json.dumps([{'id': c.pk, 'designation': c.default_designation}
+            for c in RecruitmentCandidate.objects.all()])})
 
 
 def dashboard(request):
@@ -109,6 +290,84 @@ def projects_hub(request):
                                                          'clients': Client.objects.all()})
 
 
+def manpower_deployments(request):
+    qs = ManpowerDeployment.objects.select_related('client', 'project', 'employee').prefetch_related('rate_revisions')
+    client_id = request.GET.get('client', '')
+    status = request.GET.get('status', '')
+    method = request.GET.get('method', '')
+    q = (request.GET.get('q') or '').strip()
+    if client_id.isdigit():
+        qs = qs.filter(client_id=client_id)
+    if status in dict(ManpowerDeployment.STATUSES):
+        qs = qs.filter(status=status)
+    if method in dict(ManpowerDeployment.BILLING_METHODS):
+        qs = qs.filter(billing_method=method)
+    if q:
+        from django.db.models import Q
+        qs = qs.filter(Q(designation__icontains=q) | Q(resource_name__icontains=q) |
+                       Q(employee__first_name__icontains=q) | Q(employee__last_name__icontains=q) |
+                       Q(client__name__icontains=q) | Q(contract_reference__icontains=q))
+    period = services.previous_month(timezone.localdate())
+    report_year = request.GET.get('billing_year')
+    report_month = request.GET.get('billing_month')
+    try:
+        report_period = services.parse_month(f'{report_year}-{report_month}') if report_year and report_month else period
+    except ValueError:
+        report_period = period
+    billing_records = ManpowerBillingRecord.objects.select_related('deployment__client', 'deployment__project',
+                                                                  'invoice').filter(invoice__billing_month=report_period)
+    if client_id.isdigit():
+        billing_records = billing_records.filter(deployment__client_id=client_id)
+    return render(request, 'invoice_app/manpower_deployments.html', {
+        'rows': qs, 'clients': Client.objects.order_by('name'), 'selected_client': client_id,
+        'selected_status': status, 'selected_method': method, 'q': q,
+        'statuses': ManpowerDeployment.STATUSES, 'methods': ManpowerDeployment.BILLING_METHODS,
+        'active_count': ManpowerDeployment.objects.filter(status='active').count(),
+        'recurring_count': ManpowerDeployment.objects.filter(status='active', recurring=True).count(),
+        'period': period,
+        'report_period': report_period, 'billing_records': billing_records,
+        'period_billing_total': sum((r.amount for r in billing_records), Decimal('0.00')),
+        'report_years': range(timezone.localdate().year - 5, timezone.localdate().year + 2),
+        'month_options': [(f'{i:02d}', month_name[i]) for i in range(1, 13)],
+        'selected_billing_month': report_period.strftime('%m'),
+    })
+
+
+def manpower_deployment_edit(request, pk=None):
+    obj = get_object_or_404(ManpowerDeployment.objects.select_related('client').prefetch_related('rate_revisions'), pk=pk) if pk else None
+    form = ManpowerDeploymentForm(request.POST or None, instance=obj,
+                                  initial={'rate_effective_from': timezone.localdate()})
+    if request.method == 'POST' and form.is_valid():
+        values = form.cleaned_data
+        effective_from = values['rate_effective_from']
+        old = (obj.billing_method, obj.billing_rate, obj.proration_method) if obj else None
+        new = (values['billing_method'], values['billing_rate'], values['proration_method'])
+        latest = obj.rate_revisions.order_by('-effective_from', '-id').first() if obj else None
+        changed_rate = old is None or old != new or (latest and (latest.billing_method, latest.rate, latest.proration_method) != new)
+        if changed_rate and latest and effective_from <= latest.effective_from:
+            form.add_error('rate_effective_from', 'A rate revision must take effect after the latest saved revision; previous rates are preserved.')
+        elif changed_rate and latest and not (values.get('rate_note') or '').strip():
+            form.add_error('rate_note', 'Explain why this commercial rate is changing.')
+        if not form.errors:
+            try:
+                with transaction.atomic():
+                    deployment = form.save()
+                    if changed_rate:
+                        ManpowerRateRevision.objects.create(
+                            deployment=deployment, billing_method=deployment.billing_method,
+                            rate=deployment.billing_rate, proration_method=deployment.proration_method,
+                            effective_from=effective_from, note=values.get('rate_note', '').strip())
+            except IntegrityError:
+                form.add_error('rate_effective_from', 'A rate revision already exists for this effective date.')
+            else:
+                messages.success(request, 'Manpower deployment and commercial terms saved.')
+                return redirect('manpower_deployments')
+    history = obj.rate_revisions.all() if obj else []
+    return render(request, 'invoice_app/manpower_deployment_form.html', {
+        'form': form, 'deployment': obj, 'history': history,
+        'title': 'Edit manpower deployment' if obj else 'Add manpower deployment'})
+
+
 def _back(request, fallback):
     nxt = request.POST.get('next', '')
     return redirect(nxt) if nxt.startswith('/') and not nxt.startswith('//') else redirect(fallback)
@@ -160,17 +419,36 @@ def _dup_names(clients_qs):
     return {k for k, v in n.items() if v > 1}
 
 
-def _projects_json(clients_qs, keep_project_ids=()):
+def _projects_json(clients_qs, keep_project_ids=(), keep_placement_ids=()):
     """Only active projects are offered; inactive ones already on the invoice being edited are kept."""
     data = {}
     for c in clients_qs:
+        deployments = []
+        for d in c.manpower_deployments.all():
+            revisions = [{'method': r.billing_method, 'rate': str(r.rate), 'proration': r.proration_method,
+                          'effective': r.effective_from.isoformat()} for r in d.rate_revisions.all()]
+            deployments.append({'id': d.pk, 'name': d.resource_name or (d.employee.full_name if d.employee_id else ''),
+                                'designation': d.designation, 'method': d.billing_method, 'rate': str(d.billing_rate),
+                                'proration': d.proration_method, 'start': d.start_date.isoformat(),
+                                'end': d.end_date.isoformat() if d.end_date else '', 'status': d.status,
+                                'recurring': d.recurring, 'rates': revisions})
+        placements = []
+        for placement in c.recruitment_placements.select_related('candidate', 'agreement', 'invoice'):
+            if not placement.fee_approved or (placement.invoice_id and placement.pk not in keep_placement_ids):
+                continue
+            placements.append({'id': placement.pk,
+                               'name': placement.candidate_name_snapshot or placement.candidate.candidate_name,
+                               'designation': placement.designation_snapshot or placement.designation,
+                               'fee': str(placement.fee_amount), 'agreement': placement.agreement.agreement_reference,
+                               'invoice': placement.invoice_id or ''})
         data[c.pk] = {'last_pdf_ref_no': c.last_pdf_ref_no,
             'terms_mode': c.terms_mode, 'terms_text': c.terms_text, 'billing': c.billing_type, 'billing_label': c.get_billing_type_display(),
             'treatment': c.tax_treatment, 'state_code': c.state_code, 'gstin': c.gstin, 'lut': c.lut_number, 'projects': [{
                 'id': p.pk, 'name': p.name, 'description': p.description, 'desc_type': p.invoice_description_type, 'type': p.pricing_type,
                 'monthly': str(p.monthly_amount), 'daily': str(p.daily_rate), 'basis': p.proration_basis,
                 'full': p.fixed_monthly_even_if_partial, 'label': p.method_label,
-                'sac': p.sac_code or gst.DEFAULT_SAC, 'gst_rate': str(p.gst_rate)} for p in c.projects.all() if p.active or p.pk in keep_project_ids]}
+                'sac': p.sac_code or gst.DEFAULT_SAC, 'gst_rate': str(p.gst_rate)} for p in c.projects.all() if p.active or p.pk in keep_project_ids],
+            'deployments': deployments, 'placements': placements}
     return data
 
 
@@ -211,15 +489,19 @@ def invoice_edit(request, pk=None):
     invoice = get_object_or_404(Invoice, pk=pk) if pk else None
     # Bill To offers active customers only (plus the current customer when editing an invoice).
     from django.db.models import Q
-    all_clients = Client.objects.filter(Q(active=True) | Q(pk=invoice.client_id if invoice else 0)).prefetch_related('projects')
+    all_clients = Client.objects.filter(Q(active=True) | Q(pk=invoice.client_id if invoice else 0)).prefetch_related(
+        'projects', 'manpower_deployments__employee', 'manpower_deployments__rate_revisions',
+        'recruitment_placements__candidate', 'recruitment_placements__agreement', 'recruitment_placements__invoice')
     keep_ids = set(invoice.lines.exclude(project=None).values_list('project_id', flat=True)) if invoice else set()
+    keep_placement_ids = set(invoice.lines.exclude(recruitment_placement=None).values_list(
+        'recruitment_placement_id', flat=True)) if invoice else set()
     data = None
     if request.method == 'POST':
         client = Client.objects.filter(pk=request.POST.get('client') or 0).first()
         if client is None:
             messages.error(request, 'Select a customer.')
         else:
-            data = services.parse_invoice_post(request.POST, client, profile)
+            data = services.parse_invoice_post(request.POST, client, profile, invoice=invoice)
             for e in data.errors:
                 messages.error(request, e)
             action = request.POST.get('action', 'save')
@@ -236,7 +518,11 @@ def invoice_edit(request, pk=None):
                     return _pdf_response(pdf, f'{display_number}-preview.pdf', action == 'download')
                 try:
                     invoice = services.save_invoice(data, invoice)
-                except ValidationError as e:
+                except (ValidationError, IntegrityError) as e:
+                    if isinstance(e, IntegrityError):
+                        messages.error(request, 'A deployment for this billing period was invoiced by another open request. Refresh and review the period before saving.')
+                        invoice = Invoice.objects.get(pk=invoice.pk) if invoice else None
+                        return redirect('invoice_edit', pk=invoice.pk) if invoice else redirect('new_invoice')
                     for msg in e.messages:
                         messages.error(request, msg)
                     invoice = Invoice.objects.get(pk=invoice.pk) if invoice else None
@@ -253,10 +539,15 @@ def invoice_edit(request, pk=None):
                    **_ym_parts(data.billing_month),
                    'tax_treatment': data.tax_treatment, 'place_of_supply': data.place_of_supply,
                    'po_number': data.po_number, 'format_template': request.POST.get('format_template', ''),
+                   'service_type': data.service_type, 'resource_display_format': data.resource_display_format,
+                   'billing_period_start': data.billing_period_start, 'billing_period_end': data.billing_period_end,
+                   'supplementary': data.supplementary,
                    'lines': [dict(project=l.project.pk if l.project else '', name=l.project_name, desc=l.description,
                                   start=l.from_date, end=l.to_date, days=l.days,
                                   unit=l.unit_override if l.unit_override is not None else '',
-                                  amount=l.amount_override if l.amount_override is not None else '') for l in data.lines]}
+                                  amount=l.amount_override if l.amount_override is not None else '',
+                                  deployment=l.deployment.pk if l.deployment else '', method=l.billing_method,
+                                  placement=l.placement.pk if l.placement else '', remarks=l.line_remarks) for l in data.lines]}
     elif invoice is not None:
         initial = {'client': invoice.client_id, 'invoice_date': invoice.invoice_date, 'terms_mode': invoice.terms_mode,
                    'terms_text': invoice.terms_display,
@@ -266,9 +557,16 @@ def invoice_edit(request, pk=None):
                    'po_number': invoice.po_number,
                    'format_template': (str(invoice.format_template_id) if invoice.format_template_id and
                                        invoice.format_template_id != invoice.client.invoice_format_id else ''),
+                   'service_type': invoice.service_type,
+                   'resource_display_format': invoice.resource_display_format,
+                   'billing_period_start': invoice.billing_period_start, 'billing_period_end': invoice.billing_period_end,
+                   'supplementary': invoice.supplementary,
                    'lines': [dict(project=l.project_id or '', name=l.project_name, desc=l.description, start=l.from_date,
                                   end=l.to_date, days=l.quantity_days, unit='' if (l.project_id or l.unit_price is None) else l.unit_price,
-                                  amount=l.amount if (l.amount_overridden or not l.project_id) else '')
+                                  amount=l.amount if (l.amount_overridden or (not l.project_id and not l.recruitment_placement_id)) else '',
+                                  deployment=l.manpower_deployment_id or '', method=l.billing_method_snapshot,
+                                  placement=l.recruitment_placement_id or '',
+                                  remarks='')
                              for l in invoice.lines.all()]}
     else:
         from django.utils import timezone
@@ -277,21 +575,86 @@ def invoice_edit(request, pk=None):
                    'terms_mode': 'custom', 'terms_text': str(profile.payment_terms_days),
                    'profile_terms': str(profile.payment_terms_days),
                    'due_date': billing.due_date_for(today, profile.payment_terms_days),
+                   'service_type': request.GET.get('service_type', Invoice.PROJECT_MANPOWER),
+                   'resource_display_format': profile.manpower_resource_display_default,
                    **_ym_parts(services.previous_month(today)), 'lines': []}
+        requested_month = None
+        try:
+            if request.GET.get('billing_year') and request.GET.get('billing_mon'):
+                requested_month = services.parse_month(f"{request.GET['billing_year']}-{request.GET['billing_mon']}")
+                initial.update(_ym_parts(requested_month))
+        except ValueError:
+            requested_month = None
+        if initial['service_type'] == Invoice.GENERAL_MANPOWER and str(initial['client']).isdigit():
+            selected_deployments = ManpowerDeployment.objects.select_related('employee').filter(
+                client_id=initial['client'], status='active')
+            requested_id = request.GET.get('deployment')
+            if requested_id and requested_id.isdigit():
+                selected_deployments = selected_deployments.filter(pk=requested_id)
+            elif request.GET.get('recurring') == '1':
+                selected_deployments = selected_deployments.filter(recurring=True)
+            else:
+                selected_deployments = selected_deployments.none()
+            presets = []
+            selected_deployments = list(selected_deployments)
+            for d in selected_deployments:
+                if requested_month:
+                    import calendar
+                    month_end = date(requested_month.year, requested_month.month,
+                                     calendar.monthrange(requested_month.year, requested_month.month)[1])
+                    if d.start_date > month_end or (d.end_date and d.end_date < requested_month):
+                        continue
+                    start, end = max(d.start_date, requested_month), min(d.end_date or month_end, month_end)
+                else:
+                    start, end = d.start_date, d.end_date
+                presets.append({'deployment': d.pk, 'name': d.designation,
+                                'start': start.isoformat() if start else '', 'end': end.isoformat() if end else '',
+                                'days': '1' if d.billing_method in (ManpowerDeployment.MONTHLY, ManpowerDeployment.FIXED) else '',
+                                'unit': str(d.billing_rate), 'method': d.billing_method,
+                                'proration': d.proration_method})
+            initial['lines'] = presets
+            preset_ids = {row['deployment'] for row in presets}
+            po_values = {d.po_number for d in selected_deployments if d.pk in preset_ids and d.po_number}
+            if len(po_values) == 1:
+                initial['po_number'] = po_values.pop()
+        elif initial['service_type'] == Invoice.RECRUITMENT_PLACEMENT and str(initial['client']).isdigit():
+            requested_id = request.GET.get('placement')
+            selected_placements = RecruitmentPlacement.objects.select_related('candidate', 'agreement').filter(
+                client_id=initial['client'], fee_approved=True, invoice__isnull=True)
+            if requested_id and requested_id.isdigit():
+                selected_placements = selected_placements.filter(pk=requested_id)
+            else:
+                selected_placements = selected_placements.none()
+            selected_placements = list(selected_placements)
+            initial['lines'] = [{'placement': p.pk, 'name': p.candidate_name_snapshot or p.candidate.candidate_name,
+                                 'days': '1', 'description': ''} for p in selected_placements]
+            display_values = {p.invoice_display_format for p in selected_placements}
+            if len(display_values) == 1:
+                initial['resource_display_format'] = display_values.pop()
+            if len(selected_placements) == 1 and selected_placements[0].agreement.payment_terms:
+                initial['terms_mode'] = 'custom'
+                initial['terms_text'] = selected_placements[0].agreement.payment_terms
     js_init = json.dumps({**initial, 'profile_terms': str(profile.payment_terms_days), 'lines': initial.get('lines', [])}, default=str)
+    from attendance.models import AttendanceSettings, Holiday
+    attendance_schedule = AttendanceSettings.objects.filter(pk=1).first() or AttendanceSettings()
+    work_calendar = {'offDays': sorted(attendance_schedule.off_weekdays),
+                     'offSaturdays': sorted(attendance_schedule.off_saturday_numbers),
+                     'holidays': [d.isoformat() for d in Holiday.objects.filter(optional=False).values_list('date', flat=True)]}
     return render(request, 'invoice_app/invoice_form.html', {
         'invoice': invoice, 'profile': profile, 'clients': all_clients,
         'next_number': invoice.invoice_number if invoice else profile.next_number(),
-        'projects_json': json.dumps(_projects_json(all_clients, keep_ids)), 'init_json': js_init,
+        'projects_json': json.dumps(_projects_json(all_clients, keep_ids, keep_placement_ids)), 'init_json': js_init,
         'rounding': profile.amount_rounding, 'initial': initial,
         'year_options': _year_options(initial.get('billing_year')),
         'mon_options': [(f'{i:02d}', n) for i, n in enumerate(MONTH_NAMES, 1)],
         'dup_names': _dup_names(all_clients), 'tax_types': Invoice.TAX_TYPES,
+        'service_types': Invoice.SERVICE_TYPES, 'resource_displays': Invoice.RESOURCE_DISPLAY,
         'formats': InvoiceFormatTemplate.objects.filter(
             Q(is_active=True) | Q(pk=invoice.format_template_id if invoice and invoice.format_template_id else 0)),
         'format_locked': bool(invoice and invoice.status != Invoice.DRAFT),
         'client_formats_json': json.dumps({str(c.pk): c.invoice_format.name if c.invoice_format_id else ''
                                            for c in all_clients.select_related('invoice_format')}),
+        'work_calendar_json': json.dumps(work_calendar),
         'treatments': gst.TREATMENTS, 'states': gst.STATE_CHOICES, 'biz_state': gst.business_state(profile),
         'biz_state_label': gst.state_label(gst.business_state(profile)),
         'init_treatment': initial.get('tax_treatment') or gst.EXPORT,

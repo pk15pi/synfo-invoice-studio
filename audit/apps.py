@@ -3,6 +3,8 @@ from django.apps import AppConfig
 # Financial / sensitive models whose saves and deletes are written to the audit log.
 AUDITED_MODELS = [
     'invoice_app.Invoice', 'invoice_app.InvoicePayment', 'invoice_app.CreditNote',
+    'invoice_app.RecruitmentCandidate', 'invoice_app.RecruitmentRequisition',
+    'invoice_app.RecruitmentAgreement', 'invoice_app.RecruitmentPlacement',
     'expense_management.CompanyExpense', 'expense_management.CompanyExpensePayment',
     'expense_management.EmployeeExpenseClaim', 'expense_management.EmployeeReimbursement',
     'expense_management.Vendor',

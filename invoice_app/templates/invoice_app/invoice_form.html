@@ -3,7 +3,11 @@
 <form method="post" id="invform">{% csrf_token %}
 <section class="panel"><div class="form-grid three">
 <div class="form-field"><label for="client">Bill To <small>(choose a customer)</small></label><select class="field" name="client" id="client" required><option value="">&mdash; Select customer &mdash;</option>{% for c in clients %}<option value="{{ c.pk }}" data-name="{{ c.name|lower }}">{{ c.name }}{% if c.name in dup_names %} (#{{ c.pk }}){% endif %}</option>{% endfor %}</select><input class="field small-filter" id="client_filter" type="search" placeholder="Type to search customers&hellip; ({{ clients|length }})" autocomplete="off" aria-label="Search Bill To customers"></div>
+<div class="form-field"><label for="service_type">Service type</label><select class="field" name="service_type" id="service_type">{% for k,v in service_types %}<option value="{{ k }}"{% if initial.service_type == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+<div class="form-field service-display-field"><label for="resource_display_format">Resource / candidate display on invoice</label><select class="field" name="resource_display_format" id="resource_display_format">{% for k,v in resource_displays %}<option value="{{ k }}"{% if initial.resource_display_format == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select><small class="muted">For recruitment, this affects the PDF only. CTC and personal details are never printed.</small></div>
 <div class="form-field"><label>Invoice for <small>(year and month)</small></label><div class="ym-pair"><select class="field" name="billing_year" id="billing_year" aria-label="Invoice for year"><option value="">Year&hellip;</option>{% for y in year_options %}<option value="{{ y }}"{% if y == initial.billing_year %} selected{% endif %}>{{ y }}</option>{% endfor %}</select><select class="field" name="billing_mon" id="billing_mon" aria-label="Invoice for month"><option value="">Month&hellip;</option>{% for v, l in mon_options %}<option value="{{ v }}"{% if v == initial.billing_mon %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div><small class="muted">Defaults to the previous month. Changing it fills Memo period from/to and Qty for that month (rows still editable).</small></div>
+<div class="form-field manpower-field"><label>Billing period <small>(optional custom period)</small></label><div class="ym-pair"><input class="field" type="date" name="billing_period_start" id="billing_period_start" value="{{ initial.billing_period_start|date:'Y-m-d' }}" aria-label="Billing period start"><input class="field" type="date" name="billing_period_end" id="billing_period_end" value="{{ initial.billing_period_end|date:'Y-m-d' }}" aria-label="Billing period end"></div></div>
+<div class="form-field manpower-field"><label><span>Supplementary billing</span><span class="muted"><input type="checkbox" name="supplementary" id="supplementary" value="1"{% if initial.supplementary %} checked{% endif %}> Approved additional charge for a period already billed</span></label></div>
 <div class="form-field"><label>Invoice Date</label><input class="field" type="date" name="invoice_date" id="invoice_date"></div>
 <div class="form-field"><label>Terms <small>(days until due)</small></label>
 <select class="field" name="terms_mode" id="terms_mode"><option value="month_days">1 - Days in invoice month (auto)</option><option value="custom">2 - Custom text or number</option></select>
@@ -14,8 +18,8 @@
 <div class="form-field"><label for="po_number">PO number <small>(optional)</small></label><input class="field" name="po_number" id="po_number" maxlength="60" value="{{ initial.po_number|default:'' }}"{% if format_locked %} readonly{% endif %}></div>
 <div class="form-field"><label for="format_template">PDF format <small id="fmt_hint">(blank = customer default)</small></label><select class="field" name="format_template" id="format_template"{% if format_locked %} disabled{% endif %}><option value="">Customer default</option>{% for f in formats %}<option value="{{ f.pk }}"{% if initial.format_template == f.pk|stringformat:'s' %} selected{% endif %}>{{ f.name }}</option>{% endfor %}</select>{% if format_locked %}<small class="muted">Finalized: the PDF keeps the format saved with it ({{ invoice.format_snapshot.name|default:"default" }}). Use &ldquo;Download in another format&rdquo; on the invoice page.</small>{% endif %}</div>
 </div></section>
-<section class="panel"><div class="panel-head"><h2>Consultant -Project Name rows</h2><button type="button" class="button secondary" id="addrow">&#43; Add row</button></div>
-<div class="table-wrap"><table id="rows"><thead><tr><th>Consultant -Project Name <small>(type to filter saved, or custom)</small></th><th>Memo period from</th><th>Memo period to</th><th>Qty</th><th>Memo/Description</th><th>Unit Price <small>(override)</small></th><th>Amount <small>(override)</small></th><th>Unit Price</th><th>Amount</th><th></th></tr></thead><tbody></tbody></table></div>
+<section class="panel"><div class="panel-head"><h2 id="line_heading">Consultant - Project rows</h2><button type="button" class="button secondary" id="addrow">&#43; Add row</button></div>
+<div class="table-wrap"><table id="rows"><thead><tr><th>Project / resource / service</th><th>Memo period from</th><th>Memo period to</th><th>Qty / days / hours</th><th>Memo/Description</th><th id="method_head">Billing method</th><th id="rate_head">Unit Price <small>(override)</small></th><th>Amount override</th><th>Unit price</th><th>Amount</th><th></th></tr></thead><tbody></tbody></table></div>
 <p class="muted"><small>Leave overrides blank to use the customer&rsquo;s billing type. Billing type 3 leaves Unit Price blank. Live figures are a preview; the server recalculates everything on save.</small></p></section>
 <section class="panel"><h2>Preview</h2><table class="pdfcols" id="preview"><thead><tr><th>Consultant -Project Name</th><th>Memo/Description</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr></thead><tbody></tbody></table>
 <div class="total-preview"><span>Total <small>INR</small></span><strong id="total">0.00</strong></div></section>
@@ -37,10 +41,11 @@
 <p><label><input type="checkbox" name="cancelled" value="1"{% if invoice.cancelled %} checked{% endif %}> <b>Mark this invoice as cancelled</b></label> &nbsp; <label>Cancellation date <input class="field" type="date" name="cancelled_date" value="{{ invoice.cancelled_date|date:'Y-m-d' }}"></label> <small class="muted">Cancelled invoices are excluded from revenue and receivables.</small></p></section>
 <div class="form-actions"><button class="button secondary" name="action" value="preview" formtarget="_blank">Preview PDF</button><button class="button secondary" name="action" value="preview_manual" formtarget="_blank">Preview PDF With Manual Invoice number</button><button class="button secondary" name="action" value="download">Download PDF (unsaved)</button><button class="button primary" name="action" value="save">{% if invoice %}Save changes{% else %}Save invoice (uses {{ next_number }}){% endif %}</button></div>
 </form>
-{{ projects_json|json_script:"projects-data" }}{{ init_json|json_script:"init-data" }}{{ client_formats_json|json_script:"client-formats" }}
+{{ projects_json|json_script:"projects-data" }}{{ init_json|json_script:"init-data" }}{{ client_formats_json|json_script:"client-formats" }}{{ work_calendar_json|json_script:"work-calendar" }}
 <template id="rowtpl"><tr>
-<td><input type="hidden" name="line_project"><div class="pj-combo"><input class="field pj-text" name="line_name" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Consultant - Project Name" placeholder="Type to filter, or custom name"><button type="button" class="pj-toggle" tabindex="-1" title="Show all saved projects" aria-label="Show all saved projects">&#9662;</button><ul class="pj-list" role="listbox" hidden></ul></div><small class="muted pj"></small><small class="muted pjtax"></small></td><td><input class="field" type="date" name="line_from"></td><td><input class="field" type="date" name="line_to"></td>
+<td><input type="hidden" name="line_project"><select class="field deployment-select" name="line_deployment" aria-label="Optional saved manpower deployment"><option value="">Manual resource line</option></select><select class="field placement-select" name="line_placement" aria-label="Approved candidate placement"><option value="">Select approved placement</option></select><div class="pj-combo"><input class="field pj-text" name="line_name" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Consultant - Project Name or resource designation" placeholder="Type project, designation, or service"><button type="button" class="pj-toggle" tabindex="-1" title="Show saved projects" aria-label="Show saved projects">&#9662;</button><ul class="pj-list" role="listbox" hidden></ul></div><small class="muted pj"></small><small class="muted pjtax"></small></td><td><input class="field" type="date" name="line_from"></td><td><input class="field" type="date" name="line_to"></td>
 <td><input class="field" name="line_days" style="width:70px"></td><td><input class="field" name="line_desc"></td>
+<td class="method-cell"><select class="field line-method" name="line_method"><option value="monthly">Monthly</option><option value="daily">Per day</option><option value="hourly">Per hour</option><option value="fixed">Fixed contract</option></select><select class="field line-proration" name="line_proration" aria-label="Monthly proration"><option value="calendar">Actual calendar days</option><option value="30_day">Fixed 30-day divisor</option><option value="working_days">Configured working days</option><option value="full_month">Full-month fixed</option><option value="manual">Manual override</option></select><textarea class="field" name="line_remarks" rows="1" placeholder="Reason for manual adjustment"></textarea></td>
 <td><input class="field" name="line_unit" style="width:90px"></td><td><input class="field" name="line_amount" style="width:100px"></td>
 <td class="num u"></td><td class="num a"></td><td><button class="icon-btn danger del" type="button" title="Remove" aria-label="Remove">{% icon "remove" %}</button></td></tr></template>
 {% endblock %}
@@ -48,6 +53,7 @@
 (function(){
 const P=JSON.parse(JSON.parse(document.getElementById('projects-data').textContent));
 const I=JSON.parse(JSON.parse(document.getElementById('init-data').textContent));
+const WC=JSON.parse(JSON.parse(document.getElementById('work-calendar').textContent));
 const ROUNDING="{{ rounding }}";
 const $=id=>document.getElementById(id), tb=document.querySelector('#rows tbody');
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -58,6 +64,25 @@ const fmt=x=>x.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDi
 const fmtIN=x=>x.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
 function billing(){const c=P[$('client').value];return c?c.billing:'monthly_prorated';}
 function projs(){const c=P[$('client').value];return c?c.projects:[];}
+function manpower(){return $('service_type').value==='general_manpower';}
+function recruitment(){return $('service_type').value==='recruitment_placement';}
+function placements(){const c=P[$('client').value];return c?c.placements:[];}
+function deployments(){const c=P[$('client').value];return c?c.deployments.filter(d=>d.status==='active'):[];}
+function rateFor(d,day){const rs=(d.rates||[]).filter(r=>r.effective<=day).sort((a,b)=>a.effective.localeCompare(b.effective));return rs.length?rs[rs.length-1]:{method:d.method,rate:d.rate,proration:d.proration};}
+function periodBounds(){const a=$('billing_period_start').value,b=$('billing_period_end').value;if(a&&b)return [a,b];const y=$('billing_year').value,m=$('billing_mon').value;if(y&&m){const s=`${y}-${m}-01`, e=iso(new Date(Date.UTC(+y,+m,0)));return [s,e];}return [a,b];}
+function overlaps(a,b,c,d){return (!b||b>=c)&&(!d||a<=d);}
+function fillDeploymentChoices(tr){const sel=tr.querySelector('[name=line_deployment]'),keep=sel.value||tr.dataset.deployment||'',bounds=periodBounds();sel.innerHTML='<option value="">Manual resource line</option>';
+ deployments().concat((P[$('client').value]?.deployments||[]).filter(d=>String(d.id)===String(keep)&&d.status!=='active')).filter((d,i,a)=>a.findIndex(x=>String(x.id)===String(d.id))===i).filter(d=>overlaps(d.start,d.end,bounds[0]||'0000-01-01',bounds[1]||'9999-12-31')).forEach(d=>{const o=document.createElement('option');o.value=d.id;o.textContent=`${d.designation}${d.name?' · '+d.name:''}${d.status==='active'?'':' · '+d.status}`;sel.appendChild(o);});
+ sel.value=keep;}
+function fillPlacementChoices(tr){const sel=tr.querySelector('[name=line_placement]'),keep=sel.value||tr.dataset.placement||'';sel.innerHTML='<option value="">Select approved placement</option>';placements().forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=`${p.name} · ${p.designation} · ₹${p.fee}${p.agreement?' · '+p.agreement:''}`;sel.appendChild(o);});sel.value=keep;}
+function choosePlacement(tr,id){const p=placements().find(x=>String(x.id)===String(id));if(!p)return;const g=n=>tr.querySelector(`[name=${n}]`);g('line_name').value=p.name;g('line_project').value='';g('line_days').value='1';g('line_unit').value='';g('line_amount').value='';tr.dataset.placement=id;tr.querySelector('.pj').textContent=`Approved placement · ${p.designation}`;refresh();}
+function chooseDeployment(tr,id){const d=deployments().find(x=>String(x.id)===String(id));if(!d)return;const g=n=>tr.querySelector(`[name=${n}]`),bounds=periodBounds(),start=bounds[0]||d.start,end=bounds[1]||d.end||d.start;
+ const a=d.start>start?d.start:start,b=d.end&&d.end<end?d.end:end,r=rateFor(d,a);
+ g('line_name').value=d.designation;g('line_project').value='';g('line_from').value=a;g('line_to').value=b;
+ g('line_method').value=r.method;g('line_proration').value=r.proration;g('line_unit').value=r.rate;
+ g('line_days').value=(r.method==='monthly'||r.method==='fixed')?'1':'';tr.dataset.deployment=id;tr.querySelector('.pj').textContent='Saved deployment · '+(d.name||'external resource');refresh();}
+function isWorking(d){const s=d.split('-').map(Number),day=new Date(Date.UTC(s[0],s[1]-1,s[2]));const n=(Math.floor((day.getUTCDate()-1)/7)+1);return !WC.offDays.includes(day.getUTCDay()===0?6:day.getUTCDay()-1)&&!(day.getUTCDay()===6&&WC.offSaturdays.includes(n))&&!WC.holidays.includes(d);}
+function countWorking(a,b){let n=0;const x=pd(a),z=pd(b);if(!x||!z)return 0;for(let t=x;t<=z;t=new Date(t.getTime()+864e5))if(isWorking(iso(t)))n++;return n;}
 function desc(base,a,b){if(!a||!b)return base;const p=a.getUTCFullYear()!==b.getUTCFullYear()?`${MONTHS[a.getUTCMonth()]} ${pad(a.getUTCDate())}, ${a.getUTCFullYear()} - `:`${MONTHS[a.getUTCMonth()]} ${pad(a.getUTCDate())} - `;return (base?base+' - ':'')+p+`${MONTHS[b.getUTCMonth()]} ${pad(b.getUTCDate())}, ${b.getUTCFullYear()}`;}
 const DESC_URL="{% url 'line_description' %}";
 // Memo/Description defaults are rendered by the server (invoice_app/descriptions.py = single source of truth).
@@ -68,9 +93,30 @@ function autoDesc(tr,p){const g=n=>tr.querySelector(`[name=${n}]`);const key=[p.
   const q=new URLSearchParams({project:p.id,from:g('line_from').value,to:g('line_to').value,billing_month:ym()});
   fetch(DESC_URL+'?'+q,{headers:{'Accept':'application/json'},credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(j=>{
     if(!j||tr.dataset.descSeq!==seq||tr.dataset.descAuto==='0'||!tr.isConnected)return;g('line_desc').value=j.description;refresh();}).catch(()=>{});}
+function deployedMonthlyAmount(d,a,b,override){const chosen=rateFor(d,a);if(chosen.method!=='monthly')return null;if(chosen.proration==='manual')return override===null?0:override;
+ let total=0,cursor=pd(a),finish=pd(b);while(cursor<=finish){const mStart=new Date(Date.UTC(cursor.getUTCFullYear(),cursor.getUTCMonth(),1)),mEnd=new Date(Date.UTC(cursor.getUTCFullYear(),cursor.getUTCMonth()+1,0));const segStart=cursor,segEnd=mEnd<finish?mEnd:finish;
+  const monthRevs=(d.rates||[]).filter(r=>r.effective>iso(mStart)&&r.effective<=iso(segEnd));if(chosen.proration==='full_month'&&monthRevs.length)return null;
+  let s=segStart,active=rateFor(d,iso(s));while(s<=segEnd){const next=monthRevs.find(r=>r.effective>iso(s));let e=segEnd;if(next){const revDay=pd(next.effective);e=new Date(revDay.getTime()-864e5);}
+   if(active.method!=='monthly')return null;if(active.proration==='full_month')total+=+active.rate;else{const ds=iso(s),de=iso(e),div=active.proration==='30_day'?30:(active.proration==='working_days'?countWorking(iso(mStart),iso(mEnd)):(mEnd.getUTCDate()));const bill=active.proration==='working_days'?countWorking(ds,de):Math.round((e-s)/864e5)+1;if(!div)return null;total+=(+active.rate)*bill/div;}
+   if(!next)break;s=pd(next.effective);active=next;}
+  cursor=new Date(segEnd.getTime()+864e5);}
+ return amt(total);}
 function calc(tr){
   const g=n=>tr.querySelector(`[name=${n}]`), p=projs().find(x=>String(x.id)===g('line_project').value);
   const a=pd(g('line_from').value), b=pd(g('line_to').value);
+  if(recruitment()){
+    const p=P[$('client').value]?.placements.find(x=>String(x.id)===g('line_placement').value);const amount=p?parseFloat(p.fee)||0:0;
+    const label=!p?'':($('resource_display_format').value==='name'?`${p.name} - ${p.designation}`:$('resource_display_format').value==='designation'?p.designation:'Professional Recruitment Services');
+    tr.querySelector('.u').textContent='';tr.querySelector('.a').textContent=fmt(amount);
+    return {name:label,desc:'Recruitment and Placement Services as per agreed terms.',days:1,unit:null,amount,sac:'998314',rate:18};
+  }
+  if(manpower()){
+    const c=P[$('client').value],d=c&&c.deployments.find(x=>String(x.id)===g('line_deployment').value),method=g('line_method').value,rate=parseFloat(g('line_unit').value)||0,qty=parseFloat(g('line_days').value)||0,override=g('line_amount').value===''?null:(parseFloat(g('line_amount').value)||0);let amount=0,unit=rate;
+    if(d){if(method==='monthly'&&a&&b)amount=deployedMonthlyAmount(d,iso(a),iso(b),override);else if(method==='daily'||method==='hourly')amount=rate*qty;else if(method==='fixed')amount=override===null?rate:override;unit=method==='fixed'?null:rate;}
+    else if(method==='fixed'){amount=override===null?rate:override;unit=null;}else if(method==='monthly'&&g('line_proration').value==='manual'){amount=override===null?0:override;}else amount=rate*qty;
+    if(override!==null&&!d)amount=override;const valid=Number.isFinite(amount);tr.querySelector('.u').textContent=unit===null?'':fmt(unit);tr.querySelector('.a').textContent=valid?fmt(amount):'Review rate dates';
+    const label=g('line_name').value.trim(),description=g('line_desc').value.trim();return {name:label,desc:description,days:qty,unit,amount:valid?amount:0,sac:'998314',rate:18};
+  }
   if(a&&b&&b>=a&&tr.dataset.daysAuto!=='0')g('line_days').value=Math.round((b-a)/864e5)+1;
   if(p&&tr.dataset.descAuto!=='0')autoDesc(tr,p);
   const days=parseFloat(g('line_days').value)||0; let unit=null, amount=0; const bt=billing();
@@ -107,18 +153,22 @@ function calcTax(t,L){const tp=document.getElementById('taxpanel');if(!tp)return
   set('tx_taxable',base);set('tx_cgst',c);set('tx_sgst',s);set('tx_igst',i);set('tx_total',c+s+i);set('tx_grand',base+c+s+i);}
 document.addEventListener('input',e=>{if(e.target.closest&&e.target.closest('#taxpanel'))refresh();});
 document.addEventListener('change',e=>{if(e.target.closest&&e.target.closest('#taxpanel'))refresh();});
-function fillProjects(){}
-function matchProject(txt){const t=(txt||'').trim().toLowerCase();return projs().find(p=>p.name.toLowerCase()===t)||null;}
+function fillProjects(){tb.querySelectorAll('tr').forEach(tr=>{fillDeploymentChoices(tr);fillPlacementChoices(tr);});}
+function matchProject(txt){if(manpower())return null;const t=(txt||'').trim().toLowerCase();return projs().find(p=>p.name.toLowerCase()===t)||null;}
 function syncProject(tr){const g=n=>tr.querySelector(`[name=${n}]`);const p=matchProject(g('line_name').value);const prev=g('line_project').value;
   g('line_project').value=p?p.id:'';tr.querySelector('.pj').textContent=p?'saved project':(g('line_name').value.trim()?'custom text':'');
   if(String(prev)!==String(g('line_project').value)){tr.dataset.descAuto='1';delete tr.dataset.descKey;}}
+function syncMode(){const m=manpower(),r=recruitment();document.querySelectorAll('.manpower-field').forEach(x=>x.hidden=!m);document.querySelectorAll('.service-display-field').forEach(x=>x.hidden=!(m||r));$('method_head').hidden=!m;$('rate_head').innerHTML=m?'Rate':'Unit Price <small>(override)</small>';$('line_heading').textContent=m?'Manpower resources and service lines':r?'Approved recruitment placements':($('service_type').value==='other_service'?'Other service lines':'Consultant - Project rows');
+ tb.querySelectorAll('tr').forEach(tr=>{tr.querySelector('[name=line_deployment]').hidden=!m;tr.querySelector('[name=line_placement]').hidden=!r;tr.querySelector('.pj-combo').hidden=r;tr.querySelector('.method-cell').hidden=!m;});fillProjects();}
 function addRow(d){d=d||{};const tr=document.getElementById('rowtpl').content.firstElementChild.cloneNode(true);tb.appendChild(tr);
   const g=n=>tr.querySelector(`[name=${n}]`);g('line_project').value=d.project||'';
   g('line_name').value=d.name||'';g('line_from').value=d.start||'';g('line_to').value=d.end||'';g('line_days').value=d.days||'';
   g('line_desc').value=d.desc||'';g('line_unit').value=d.unit||'';g('line_amount').value=d.amount||'';
+  g('line_method').value=d.method||'monthly';g('line_proration').value=d.proration||'calendar';g('line_remarks').value=d.remarks||'';tr.dataset.deployment=d.deployment||'';
   if(d.desc)tr.dataset.descAuto='0'; if(d.days&&d.start&&d.end){const a=pd(d.start),b=pd(d.end);if(Math.round((b-a)/864e5)+1!=parseFloat(d.days))tr.dataset.daysAuto='0';}
   {const p0=projs().find(x=>String(x.id)===String(d.project||''));if(p0&&!g('line_name').value)g('line_name').value=p0.name;}
   tr.querySelector('.pj').textContent=g('line_project').value?'saved project':(g('line_name').value?'custom text':'');
+  fillDeploymentChoices(tr);fillPlacementChoices(tr);if(d.deployment){g('line_deployment').value=d.deployment;chooseDeployment(tr,d.deployment);g('line_unit').disabled=true;g('line_method').disabled=true;g('line_proration').disabled=true;}if(d.placement){g('line_placement').value=d.placement;choosePlacement(tr,d.placement);g('line_unit').disabled=true;g('line_amount').disabled=true;}
   {const txt=g('line_name'),list=tr.querySelector('.pj-list'),tog=tr.querySelector('.pj-toggle');let act=-1,items=[];
    const isOpen=()=>!list.hidden;
    const close=()=>{list.hidden=true;txt.setAttribute('aria-expanded','false');act=-1;};
@@ -144,6 +194,8 @@ function addRow(d){d=d||{};const tr=document.getElementById('rowtpl').content.fi
    tog.addEventListener('click',()=>{if(isOpen())close();else{txt.focus();open(true);}});
    window.addEventListener('scroll',()=>{if(isOpen())place();},true);window.addEventListener('resize',()=>{if(isOpen())place();});}
   g('line_name').addEventListener('input',()=>{syncProject(tr);refresh();});
+  g('line_deployment').addEventListener('change',()=>{const id=g('line_deployment').value;if(id){chooseDeployment(tr,id);g('line_unit').disabled=true;g('line_method').disabled=true;g('line_proration').disabled=true;}else{tr.dataset.deployment='';g('line_unit').disabled=false;g('line_method').disabled=false;g('line_proration').disabled=false;tr.querySelector('.pj').textContent='Manual resource / service line';refresh();}});
+  g('line_placement').addEventListener('change',()=>{const id=g('line_placement').value;if(id){choosePlacement(tr,id);g('line_unit').disabled=true;g('line_amount').disabled=true;}else{tr.dataset.placement='';g('line_unit').disabled=false;g('line_amount').disabled=false;refresh();}});
   g('line_desc').addEventListener('input',()=>tr.dataset.descAuto='0'); g('line_days').addEventListener('input',()=>tr.dataset.daysAuto='0');
   tr.querySelector('.del').addEventListener('click',()=>{tr.remove();refresh();});
   tr.addEventListener('input',refresh);tr.addEventListener('change',refresh);refresh();}
@@ -159,7 +211,8 @@ function lastTag(){const c=P[$('client').value],t=$('last_invoice');if(!c){t.tex
 function setTax(tt,pos){$('tx_treat').value=tt||'export';$('tx_pos').value=pos||'';}
 (()=>{const CF=JSON.parse(JSON.parse(document.getElementById('client-formats').textContent)),h=document.getElementById('fmt_hint'),o=document.querySelector('#format_template option[value=""]');const u=()=>{const n=CF[$('client').value];if(o)o.textContent='Customer default ('+(n||'QuantBud Standard')+')';};$('client').addEventListener('change',u);u();})();
 $('client').addEventListener('change',()=>{lastTag();fillProjects();const c=P[$('client').value];$('billing_label').value=c?c.billing_label:'';if(c)setTax(c.treatment,c.state_code);if(c)setTerms(c.terms_mode,c.terms_mode==='custom'?(c.terms_text||I.profile_terms||''):'');due();
-  tb.innerHTML='';const mr=monthRange(ym());const sd=mr?{start:mr[0],end:mr[1]}:{};projs().forEach(p=>addRow({project:p.id,name:p.name,...sd}));if(!projs().length)addRow(sd);});
+  tb.innerHTML='';const mr=monthRange(ym()),sd=mr?{start:mr[0],end:mr[1]}:{};if(manpower())addRow(sd);else if(recruitment())addRow({});else{projs().forEach(p=>addRow({project:p.id,name:p.name,...sd}));if(!projs().length)addRow(sd);}syncMode();});
+$('service_type').addEventListener('change',()=>{syncMode();tb.querySelectorAll('tr').forEach(syncProject);if(!tb.rows.length){const mr=monthRange(ym());addRow(mr?{start:mr[0],end:mr[1]}:{});}refresh();});
 $('invoice_date').addEventListener('change',()=>{due();refresh();});$('terms_text').addEventListener('input',due);$('terms_mode').addEventListener('change',()=>{if($('terms_mode').value==='custom')$('terms_text').value='';due();});
 function ym(){const y=$('billing_year').value,m=$('billing_mon').value;return y&&m?`${y}-${m}`:'';}
 function monthRange(v){if(!v)return null;const [y,m]=v.split('-').map(Number);return [iso(new Date(Date.UTC(y,m-1,1))),iso(new Date(Date.UTC(y,m,0)))];}
@@ -167,17 +220,20 @@ let prevMonth=ym();
 ['billing_year','billing_mon'].forEach(id=>$(id).addEventListener('change',()=>{const old=monthRange(prevMonth),nw=monthRange(ym());if(!nw)return;prevMonth=ym();
   tb.querySelectorAll('tr').forEach(tr=>{const f=tr.querySelector('[name=line_from]'),t=tr.querySelector('[name=line_to]');
     const untouched=(!f.value&&!t.value)||(old&&f.value===old[0]&&t.value===old[1]);
-    if(untouched){f.value=nw[0];t.value=nw[1];tr.dataset.daysAuto='1';}});refresh();}));
+    if(untouched){f.value=nw[0];t.value=nw[1];tr.dataset.daysAuto='1';}fillDeploymentChoices(tr);if(tr.querySelector('[name=line_deployment]').value)chooseDeployment(tr,tr.querySelector('[name=line_deployment]').value);});refresh();}));
+$('billing_period_start').addEventListener('change',()=>{fillProjects();refresh();});$('billing_period_end').addEventListener('change',()=>{fillProjects();refresh();});
 $('addrow').addEventListener('click',()=>{const r=monthRange(ym());addRow(r?{start:r[0],end:r[1]}:{});});
 $('client').value=I.client||'';fillProjects();
 {const f=$('client_filter');if(f)f.addEventListener('input',()=>{const t=f.value.trim().toLowerCase();let first=null;
   [...$('client').options].forEach(o=>{if(!o.value)return;const show=!t||o.dataset.name.includes(t)||o.textContent.toLowerCase().includes(t);o.hidden=!show;if(show&&!first)first=o;});
   const n=[...$('client').options].filter(o=>o.value&&!o.hidden).length;f.title=n+' match';
   if(t&&n===1&&$('client').value!==first.value){$('client').value=first.value;$('client').dispatchEvent(new Event('change'));}});}
+$('service_type').value=I.service_type||'project_manpower';$('resource_display_format').value=I.resource_display_format||'designation';$('billing_period_start').value=I.billing_period_start||'';$('billing_period_end').value=I.billing_period_end||'';
 $('invform').addEventListener('submit',e=>{if(!$('client').value){e.preventDefault();alert('Choose a Bill To customer.');$('client').focus();}});$('invoice_date').value=I.invoice_date||'';setTerms(I.terms_mode,I.terms_text);$('due_date').value=I.due_date||'';$('pdf_number_override').value=I.pdf_number_override||'';
 {const c=P[$('client').value];$('billing_label').value=c?c.billing_label:'';
   if(I.tax_treatment)setTax(I.tax_treatment,I.place_of_supply||(I.tax_treatment==='domestic_gst'&&c?c.state_code:''));else if(c)setTax(c.treatment,c.state_code);}lastTag();
 {const keep=$('due_date').value;due();if(keep)$('due_date').value=keep;}
 if(I.lines&&I.lines.length)I.lines.forEach(addRow);else if(I.client)$('client').dispatchEvent(new Event('change'));else{const r=monthRange(ym());addRow(r?{start:r[0],end:r[1]}:{});}
+syncMode();
 })();
 </script>{% endblock %}

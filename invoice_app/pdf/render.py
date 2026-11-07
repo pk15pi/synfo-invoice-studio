@@ -59,6 +59,10 @@ class InvoiceData:
     tax_rows: list = field(default_factory=list)   # [(label, Decimal)] e.g. Taxable Value, CGST @ 9%
     grand_total: Decimal | None = None
     amount_words: str = ''
+    service_type: str = ''
+    billing_period_start: object = None
+    billing_period_end: object = None
+    recruitment_agreement_reference: str = ''
 
 
 def _hex(value, default):
@@ -192,6 +196,8 @@ class InvoiceCanvas:
         edges = self._edges()
         f, s = t['header_font']
         for i, head in enumerate(t['headers']):
+            if i == 0 and self.d.service_type in ('general_manpower', 'recruitment_placement') and head.lower().startswith('consultant'):
+                head = 'Recruitment Service' if self.d.service_type == 'recruitment_placement' else 'Resource / Service'
             mode, x = t['header_align'][i]
             if mode == 'center':
                 self.text(head, (edges[i] + edges[i + 1]) / 2, t['header_baseline'], f, s, self.col['on_primary'], 'center')

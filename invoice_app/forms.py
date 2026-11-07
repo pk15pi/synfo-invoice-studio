@@ -4,7 +4,9 @@ from decimal import Decimal
 from django import forms
 from django.db.models import Q as models_Q
 
-from .models import BusinessProfile, Client, Invoice, InvoiceDescriptionTemplate, InvoiceFormatTemplate, InvoicePayment, ProjectTemplate
+from .models import (BusinessProfile, Client, Invoice, InvoiceDescriptionTemplate, InvoiceFormatTemplate,
+                     InvoicePayment, ManpowerDeployment, ProjectTemplate, RecruitmentAgreement,
+                     RecruitmentCandidate, RecruitmentPlacement, RecruitmentRequisition)
 
 HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
 COLOR_FIELDS = ['primary_color', 'alternate_row_color', 'white_row_color', 'border_color', 'label_color']
@@ -19,11 +21,16 @@ class StyledForm(forms.ModelForm):
 
 
 class BusinessProfileForm(StyledForm):
+    manpower_resource_display_default = forms.ChoiceField(
+        choices=BusinessProfile.MANPOWER_DISPLAY, required=False,
+        label='Default manpower invoice display')
+
     class Meta:
         model = BusinessProfile
         fields = ['name', 'address', 'phone', 'email', 'gstin', 'bank_name', 'account_holder', 'account_number',
                   'bank_country', 'ifsc', 'signature_image', 'signature_text', 'footer_text', 'invoice_prefix',
                   'next_invoice_number', 'number_padding', 'payment_terms_days', 'amount_rounding'] + COLOR_FIELDS
+        fields += ['manpower_resource_display_default']
         widgets = {'address': forms.Textarea(attrs={'rows': 3}),
                    **{f: forms.TextInput(attrs={'type': 'color'}) for f in COLOR_FIELDS}}
 
@@ -36,6 +43,10 @@ class BusinessProfileForm(StyledForm):
             elif v:
                 data[f] = v.upper()
         return data
+
+    def clean_manpower_resource_display_default(self):
+        return (self.cleaned_data.get('manpower_resource_display_default') or
+                getattr(self.instance, 'manpower_resource_display_default', '') or 'designation')
 
 
 class ClientForm(StyledForm):
@@ -180,6 +191,134 @@ class ProjectTemplateForm(StyledForm):
                 self.add_error('description_template', 'This template is inactive; pick an active one.')
         else:
             data['description_template'] = None  # only Fixed Template keeps a template link
+        return data
+
+
+class ManpowerDeploymentForm(StyledForm):
+    rate_note = forms.CharField(label='Rate revision note', required=False, max_length=240,
+                                help_text='Required when changing an existing commercial rate.')
+
+    class Meta:
+        model = ManpowerDeployment
+        fields = ['client', 'project', 'employee', 'resource_name', 'designation', 'department_skill',
+                  'work_location', 'work_location_other', 'start_date', 'end_date', 'billing_method',
+                  'billing_rate', 'billing_frequency', 'proration_method', 'rate_effective_from',
+                  'contract_reference', 'po_number', 'agreement_reference', 'contract_start', 'contract_end',
+                  'payment_terms', 'overtime_rate', 'weekend_rate', 'minimum_monthly_commitment',
+                  'additional_charges', 'discount', 'recurring', 'status', 'remarks']
+        widgets = {'start_date': forms.DateInput(attrs={'type': 'date'}),
+                   'end_date': forms.DateInput(attrs={'type': 'date'}),
+                   'rate_effective_from': forms.DateInput(attrs={'type': 'date'}),
+                   'contract_start': forms.DateInput(attrs={'type': 'date'}),
+                   'contract_end': forms.DateInput(attrs={'type': 'date'}),
+                   'remarks': forms.Textarea(attrs={'rows': 3})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['client'].queryset = Client.objects.order_by('name')
+        self.fields['project'].queryset = ProjectTemplate.objects.select_related('client').order_by('client__name', 'name')
+        from employee_management.models import Employee
+        self.fields['employee'].queryset = Employee.objects.order_by('employee_id')
+        self.fields['project'].required = False
+        self.fields['employee'].required = False
+        self.fields['resource_name'].required = False
+        self.fields['rate_effective_from'].required = False
+        self.fields['rate_effective_from'].help_text = 'The commercial rate applies from this date. Earlier revisions remain in history.'
+
+    def clean(self):
+        data = super().clean()
+        if not data.get('rate_effective_from') and data.get('start_date'):
+            data['rate_effective_from'] = data['start_date']
+        if data.get('project') and data.get('client') and data['project'].client_id != data['client'].pk:
+            self.add_error('project', 'Choose a project belonging to the selected client.')
+        if not data.get('employee') and not (data.get('resource_name') or '').strip():
+            self.add_error('resource_name', 'Enter a resource description or select an employee.')
+        if data.get('billing_method') == ManpowerDeployment.MONTHLY and data.get('proration_method') == ManpowerDeployment.MANUAL:
+            self.add_error('proration_method', 'Manual proration is selected on the invoice with a mandatory reason.')
+        return data
+
+
+class RecruitmentCandidateForm(StyledForm):
+    class Meta:
+        model = RecruitmentCandidate
+        fields = ['candidate_name', 'default_designation', 'candidate_reference', 'notes']
+        widgets = {'notes': forms.Textarea(attrs={'rows': 2})}
+
+    def clean_candidate_reference(self):
+        return self.cleaned_data.get('candidate_reference') or None
+
+    def clean_candidate_name(self):
+        name = (self.cleaned_data.get('candidate_name') or '').strip()
+        qs = RecruitmentCandidate.objects.filter(candidate_name__iexact=name)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists() and not self.cleaned_data.get('candidate_reference'):
+            raise forms.ValidationError('A candidate with this name already exists. Select that record for another client, or provide a distinct existing recruitment reference if this is a different person with the same name.')
+        return name
+
+
+class RecruitmentRequisitionForm(StyledForm):
+    class Meta:
+        model = RecruitmentRequisition
+        fields = ['client', 'title', 'reference', 'status']
+
+
+class RecruitmentAgreementForm(StyledForm):
+    class Meta:
+        model = RecruitmentAgreement
+        fields = ['client', 'billing_method', 'percentage', 'fixed_fee', 'ctc_basis', 'ctc_basis_description',
+                  'effective_start', 'effective_end', 'agreement_reference', 'minimum_fee', 'maximum_fee',
+                  'payment_terms', 'sac_code', 'gst_rate', 'billing_trigger', 'retention_days', 'custom_trigger_description',
+                  'guarantee_days', 'replacement_terms', 'refund_terms', 'guarantee_conditions', 'status']
+        widgets = {'effective_start': forms.DateInput(attrs={'type': 'date'}),
+                   'effective_end': forms.DateInput(attrs={'type': 'date'}),
+                   'replacement_terms': forms.Textarea(attrs={'rows': 2}),
+                   'refund_terms': forms.Textarea(attrs={'rows': 2}),
+                   'guarantee_conditions': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['client'].queryset = Client.objects.order_by('name')
+
+
+class RecruitmentPlacementForm(StyledForm):
+    fee_override_amount = forms.DecimalField(required=False, min_value=0, max_digits=14, decimal_places=2,
+        label='Approved fee override', help_text='Optional. Requires a reason and is audit logged.')
+    fee_override_reason = forms.CharField(required=False, max_length=500, label='Fee override reason')
+
+    class Meta:
+        model = RecruitmentPlacement
+        fields = ['client', 'candidate', 'requisition', 'agreement', 'designation', 'expected_annual_ctc', 'finalized_annual_ctc',
+                  'monthly_ctc', 'fixed_components', 'variable_components', 'employer_contributions',
+                  'other_ctc_components', 'agreed_basis_amount', 'ctc_finalized', 'ctc_approved_on',
+                  'client_approval_reference', 'offer_reference', 'offer_accepted_on', 'joining_date',
+                  'custom_trigger_date', 'custom_trigger_reference', 'invoice_display_format']
+        widgets = {f: forms.DateInput(attrs={'type': 'date'}) for f in
+                   ('ctc_approved_on', 'offer_accepted_on', 'joining_date', 'custom_trigger_date')}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        client_id = (self.data.get('client') if self.is_bound else
+                     self.instance.client_id if self.instance.pk else self.initial.get('client'))
+        if not str(client_id or '').isdigit():
+            client_id = None
+        self.fields['client'].queryset = Client.objects.order_by('name')
+        self.fields['candidate'].queryset = RecruitmentCandidate.objects.order_by('candidate_name')
+        self.fields['requisition'].queryset = RecruitmentRequisition.objects.filter(client_id=client_id).order_by('title')
+        self.fields['agreement'].queryset = RecruitmentAgreement.objects.filter(client_id=client_id).exclude(status='draft').order_by('-effective_start')
+        self.fields['requisition'].required = False
+        self.fields['client_approval_reference'].help_text = 'Client confirmation of the final offer and compensation basis.'
+        self.fields['ctc_finalized'].help_text = 'Check only after the client has approved the final CTC; expected/proposed amounts do not qualify.'
+
+    def clean(self):
+        data = super().clean()
+        if self.instance.pk and self.instance.invoice_id and self.instance.invoice.status != Invoice.DRAFT:
+            raise forms.ValidationError('This placement is already invoiced; use the existing credit-note workflow for adjustments.')
+        override = data.get('fee_override_amount')
+        if override is not None and not (data.get('fee_override_reason') or '').strip():
+            self.add_error('fee_override_reason', 'A fee override requires a reason.')
+        if data.get('ctc_finalized') and not (data.get('client_approval_reference') or '').strip():
+            self.add_error('client_approval_reference', 'Record the client approval reference for finalized CTC.')
         return data
 
 

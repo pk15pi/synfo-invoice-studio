@@ -5,6 +5,7 @@ Money is always ``Decimal``; see ``billing.py`` for the single rounding policy.
 from django.core.validators import RegexValidator
 from django.db import models
 from django.utils import timezone
+import uuid
 
 from . import gst
 from .descriptions import validate_template_text
@@ -42,6 +43,10 @@ class BusinessProfile(models.Model):
     number_padding = models.PositiveSmallIntegerField('Digits in number', default=3)
     payment_terms_days = models.PositiveIntegerField('Default payment terms (days)', default=31)
     amount_rounding = models.CharField(max_length=12, choices=ROUNDING, default=ROUND_RUPEE_DOWN)
+    MANPOWER_DISPLAY = [('name', 'Resource name and designation'), ('designation', 'Designation and quantity'),
+                        ('consolidated', 'Consolidated manpower description')]
+    manpower_resource_display_default = models.CharField(
+        'Default manpower invoice display', max_length=16, choices=MANPOWER_DISPLAY, default='designation')
     # PDF colours (geometry never depends on these)
     primary_color = models.CharField('Primary navy (header, badge, total strip)', max_length=7, default='#0B5394', help_text=HEX_HELP)
     alternate_row_color = models.CharField('Alternate (light-blue) row', max_length=7, default='#CFE2F3', help_text=HEX_HELP)
@@ -369,6 +374,12 @@ class ProjectTemplate(models.Model):
 
 
 class Invoice(models.Model):
+    PROJECT_MANPOWER, GENERAL_MANPOWER, OTHER_SERVICE, RECRUITMENT_PLACEMENT = (
+        'project_manpower', 'general_manpower', 'other_service', 'recruitment_placement')
+    SERVICE_TYPES = [(PROJECT_MANPOWER, 'Project-Based Manpower Supply'),
+                     (GENERAL_MANPOWER, 'General Manpower Supply'), (OTHER_SERVICE, 'Other Services'),
+                     (RECRUITMENT_PLACEMENT, 'Recruitment / Candidate Placement')]
+    RESOURCE_DISPLAY = BusinessProfile.MANPOWER_DISPLAY
     client = models.ForeignKey(Client, on_delete=models.PROTECT)
     invoice_number = models.CharField(max_length=40, unique=True)
     pdf_number_override = models.CharField(
@@ -416,7 +427,8 @@ class Invoice(models.Model):
     # credit note (documented policy - see invoice_app/ledger.py).
     LOCKED_FIELDS = ('client_id', 'invoice_date', 'currency', 'taxable_value', 'tax_type', 'tax_rate',
                      'cgst_amount', 'sgst_amount', 'igst_amount', 'grand_total', 'tax_treatment', 'place_of_supply',
-                     'format_template_id', 'format_snapshot')
+                     'format_template_id', 'format_snapshot', 'service_type', 'resource_display_format',
+                     'billing_period_start', 'billing_period_end', 'recruitment_agreement_reference', 'supplementary')
     # --- GST treatment (see gst.py). The amounts above stay the single source of truth. ---
     tax_treatment = models.CharField('Tax treatment', max_length=12, choices=gst.TREATMENTS, default=gst.EXPORT)
     place_of_supply = models.CharField('Place of supply (state code)', max_length=2, blank=True,
@@ -428,6 +440,12 @@ class Invoice(models.Model):
                                         related_name='invoices')
     format_snapshot = models.JSONField(null=True, blank=True, editable=False,
                                        help_text='Format settings at save time; the PDF uses this copy.')
+    service_type = models.CharField(max_length=24, choices=SERVICE_TYPES, default=PROJECT_MANPOWER)
+    resource_display_format = models.CharField(max_length=16, choices=RESOURCE_DISPLAY, default='designation')
+    billing_period_start = models.DateField(null=True, blank=True)
+    billing_period_end = models.DateField(null=True, blank=True)
+    recruitment_agreement_reference = models.CharField(max_length=300, blank=True)
+    supplementary = models.BooleanField(default=False, help_text='Allows additional billing for an already billed period.')
 
     @property
     def is_tax_invoice(self):
@@ -577,9 +595,358 @@ class InvoiceLine(models.Model):
     # GST snapshot taken from the project when the line is saved (later project edits never change it).
     sac_code = models.CharField('SAC code', max_length=10, blank=True)
     gst_rate = models.DecimalField('GST rate %', max_digits=5, decimal_places=2, default=0)
+    manpower_deployment = models.ForeignKey('ManpowerDeployment', null=True, blank=True,
+                                            on_delete=models.SET_NULL, related_name='invoice_lines')
+    recruitment_placement = models.ForeignKey('RecruitmentPlacement', null=True, blank=True,
+                                              on_delete=models.SET_NULL, related_name='invoice_lines')
+    resource_name_snapshot = models.CharField(max_length=180, blank=True)
+    designation_snapshot = models.CharField(max_length=120, blank=True)
+    billing_method_snapshot = models.CharField(max_length=12, blank=True)
+    billing_unit_snapshot = models.CharField(max_length=12, blank=True)
+    billing_quantity_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    billing_rate_snapshot = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    billing_period_start = models.DateField(null=True, blank=True)
+    billing_period_end = models.DateField(null=True, blank=True)
 
     class Meta:
         ordering = ['position', 'id']
+        constraints = [models.UniqueConstraint(fields=['recruitment_placement'],
+            condition=models.Q(recruitment_placement__isnull=False), name='recruitment_placement_invoice_line_uniq')]
+
+
+class ManpowerDeployment(models.Model):
+    MONTHLY, DAILY, HOURLY, FIXED = 'monthly', 'daily', 'hourly', 'fixed'
+    BILLING_METHODS = [(MONTHLY, 'Fixed monthly'), (DAILY, 'Actual days worked'),
+                       (HOURLY, 'Actual hours worked'), (FIXED, 'Fixed contract amount')]
+    CALENDAR, THIRTY, WORKING, FULL_MONTH, MANUAL = 'calendar', '30_day', 'working_days', 'full_month', 'manual'
+    PRORATION_METHODS = [(CALENDAR, 'Actual calendar days'), (THIRTY, 'Fixed 30-day divisor'),
+                         (WORKING, 'Configured working days'), (FULL_MONTH, 'Full-month fixed charge'),
+                         (MANUAL, 'Manual amount override')]
+    FREQUENCIES = [('monthly', 'Monthly'), ('weekly', 'Weekly'), ('custom', 'Custom')]
+    STATUSES = [('draft', 'Draft'), ('active', 'Active'), ('on_hold', 'On hold'), ('completed', 'Completed'),
+                ('terminated', 'Terminated')]
+    LOCATIONS = [('client', 'Client premises'), ('remote', 'Remote'), ('hybrid', 'Hybrid'), ('other', 'Other')]
+
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='manpower_deployments')
+    project = models.ForeignKey(ProjectTemplate, null=True, blank=True, on_delete=models.SET_NULL,
+                                related_name='manpower_deployments')
+    employee = models.ForeignKey('employee_management.Employee', null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='client_deployments')
+    resource_name = models.CharField(max_length=180, blank=True,
+                                     help_text='External resource description or client-facing name; no fake employee record required.')
+    designation = models.CharField(max_length=120)
+    department_skill = models.CharField(max_length=120, blank=True)
+    work_location = models.CharField(max_length=12, choices=LOCATIONS, default='client')
+    work_location_other = models.CharField(max_length=120, blank=True)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    billing_method = models.CharField(max_length=12, choices=BILLING_METHODS, default=MONTHLY)
+    billing_rate = models.DecimalField(max_digits=14, decimal_places=2)
+    billing_frequency = models.CharField(max_length=12, choices=FREQUENCIES, default='monthly')
+    proration_method = models.CharField(max_length=16, choices=PRORATION_METHODS, default=CALENDAR)
+    rate_effective_from = models.DateField()
+    contract_reference = models.CharField(max_length=120, blank=True)
+    po_number = models.CharField(max_length=60, blank=True)
+    agreement_reference = models.CharField(max_length=120, blank=True)
+    contract_start = models.DateField(null=True, blank=True)
+    contract_end = models.DateField(null=True, blank=True)
+    payment_terms = models.CharField(max_length=80, blank=True)
+    overtime_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    weekend_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    minimum_monthly_commitment = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    additional_charges = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    recurring = models.BooleanField(default=False)
+    status = models.CharField(max_length=12, choices=STATUSES, default='draft', db_index=True)
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['client__name', 'designation', 'start_date']
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        errors = {}
+        if self.end_date and self.end_date < self.start_date:
+            errors['end_date'] = 'Deployment end date cannot be before its start date.'
+        if self.contract_end and self.contract_start and self.contract_end < self.contract_start:
+            errors['contract_end'] = 'Contract end date cannot be before its start date.'
+        if self.project_id and self.client_id and self.project.client_id != self.client_id:
+            errors['project'] = 'Choose a project belonging to the selected client.'
+        if self.billing_rate is not None and self.billing_rate < 0:
+            errors['billing_rate'] = 'Billing rate cannot be negative.'
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f'{self.client.name} - {self.designation}'
+
+
+class ManpowerRateRevision(models.Model):
+    deployment = models.ForeignKey(ManpowerDeployment, on_delete=models.PROTECT, related_name='rate_revisions')
+    billing_method = models.CharField(max_length=12, choices=ManpowerDeployment.BILLING_METHODS)
+    rate = models.DecimalField(max_digits=14, decimal_places=2)
+    proration_method = models.CharField(max_length=16, choices=ManpowerDeployment.PRORATION_METHODS)
+    effective_from = models.DateField()
+    note = models.CharField(max_length=240, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['effective_from', 'id']
+        constraints = [models.UniqueConstraint(fields=['deployment', 'effective_from'], name='manpower_rate_effective_uniq')]
+
+
+class ManpowerBillingRecord(models.Model):
+    deployment = models.ForeignKey(ManpowerDeployment, on_delete=models.PROTECT, related_name='billing_records')
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name='manpower_billing_records')
+    invoice_line = models.OneToOneField(InvoiceLine, null=True, blank=True, on_delete=models.SET_NULL,
+                                        related_name='manpower_billing_record')
+    period_start = models.DateField()
+    period_end = models.DateField()
+    billing_method = models.CharField(max_length=12, choices=ManpowerDeployment.BILLING_METHODS)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    rate = models.DecimalField(max_digits=14, decimal_places=2)
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    supplementary = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['period_start', 'deployment_id']
+        constraints = [models.UniqueConstraint(
+            fields=['deployment', 'period_start', 'period_end'], condition=models.Q(supplementary=False),
+            name='manpower_bill_period_uniq')]
+
+
+def _candidate_code():
+    return 'CAN-' + uuid.uuid4().hex[:10].upper()
+
+
+class RecruitmentCandidate(models.Model):
+    """Minimal internal candidate record; contacts and identity documents stay in secure HR storage."""
+    candidate_code = models.CharField(max_length=16, unique=True, default=_candidate_code, editable=False)
+    candidate_name = models.CharField(max_length=180)
+    default_designation = models.CharField(max_length=120, blank=True)
+    candidate_reference = models.CharField(max_length=120, blank=True, unique=True, null=True,
+                                           help_text='Optional reference from an existing recruitment system.')
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['candidate_name', 'candidate_code']
+
+    def __str__(self):
+        return self.candidate_code
+
+
+class RecruitmentRequisition(models.Model):
+    STATUSES = [('open', 'Open'), ('on_hold', 'On hold'), ('closed', 'Closed')]
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='recruitment_requisitions')
+    title = models.CharField(max_length=180)
+    reference = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=12, choices=STATUSES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['client__name', 'title']
+
+    def __str__(self):
+        return self.title
+
+
+class RecruitmentAgreement(models.Model):
+    PERCENTAGE, FIXED = 'percentage', 'fixed'
+    BILLING_METHODS = [(PERCENTAGE, 'Percentage of agreed CTC basis'), (FIXED, 'Fixed fee per placement')]
+    ANNUAL_CTC, MONTHLY_ANNUALIZED, AGREED_BASIS = 'annual_ctc', 'monthly_annualized', 'agreed_basis'
+    CTC_BASES = [(ANNUAL_CTC, 'Finalized annual CTC'),
+                 (MONTHLY_ANNUALIZED, 'Finalized monthly CTC × 12'),
+                 (AGREED_BASIS, 'Explicit client-approved fee basis amount')]
+    OFFER, JOINING, RETENTION, CUSTOM = 'offer_acceptance', 'joining', 'retention', 'custom'
+    TRIGGERS = [(OFFER, 'Offer acceptance'), (JOINING, 'Candidate joining'),
+                (RETENTION, 'Retention period completed'), (CUSTOM, 'Other agreed milestone')]
+    STATUSES = [('draft', 'Draft'), ('active', 'Active'), ('expired', 'Expired'),
+                ('superseded', 'Superseded')]
+
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='recruitment_agreements')
+    service_type = models.CharField(max_length=24, default='recruitment_placement', editable=False)
+    billing_method = models.CharField(max_length=12, choices=BILLING_METHODS, default=PERCENTAGE)
+    percentage = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    fixed_fee = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    ctc_basis = models.CharField(max_length=24, choices=CTC_BASES, default=ANNUAL_CTC)
+    ctc_basis_description = models.CharField(max_length=180, blank=True)
+    effective_start = models.DateField()
+    effective_end = models.DateField(null=True, blank=True)
+    agreement_reference = models.CharField(max_length=120, blank=True)
+    minimum_fee = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    maximum_fee = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    payment_terms = models.CharField(max_length=120, blank=True)
+    sac_code = models.CharField(max_length=10, blank=True, help_text='Optional agreed service classification; blank uses the existing service default.')
+    gst_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True,
+                                   help_text='Optional agreed GST rate; blank uses the existing tax configuration.')
+    billing_trigger = models.CharField(max_length=20, choices=TRIGGERS, blank=True)
+    retention_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    custom_trigger_description = models.CharField(max_length=180, blank=True)
+    guarantee_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    replacement_terms = models.TextField(blank=True)
+    refund_terms = models.TextField(blank=True)
+    guarantee_conditions = models.TextField(blank=True)
+    status = models.CharField(max_length=12, choices=STATUSES, default='draft', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['client__name', '-effective_start', '-id']
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        errors = {}
+        if self.effective_end and self.effective_end < self.effective_start:
+            errors['effective_end'] = 'Agreement end must be on or after its start.'
+        if self.billing_method == self.PERCENTAGE:
+            if self.percentage is None or self.percentage <= 0:
+                errors['percentage'] = 'Enter a positive client-agreed percentage.'
+            if self.ctc_basis == self.AGREED_BASIS and not self.ctc_basis_description.strip():
+                errors['ctc_basis_description'] = 'Describe the client-approved CTC basis.'
+        elif self.fixed_fee is None or self.fixed_fee < 0:
+            errors['fixed_fee'] = 'Enter a non-negative fixed placement fee.'
+        if self.minimum_fee is not None and self.maximum_fee is not None and self.minimum_fee > self.maximum_fee:
+            errors['maximum_fee'] = 'Maximum fee must be at least the minimum fee.'
+        if self.gst_rate is not None and not (0 <= self.gst_rate <= 100):
+            errors['gst_rate'] = 'GST rate must be between 0 and 100.'
+        if self.billing_trigger == self.RETENTION and not self.retention_days:
+            errors['retention_days'] = 'Enter the agreed retention period in days.'
+        if self.billing_trigger == self.CUSTOM and not self.custom_trigger_description.strip():
+            errors['custom_trigger_description'] = 'Describe the contractual billing milestone.'
+        if self.status == 'active' and not self.billing_trigger:
+            errors['billing_trigger'] = 'Configure the contractual billing trigger before activating the agreement.'
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self):
+        return f'{self.client.name} - Recruitment {self.agreement_reference or self.pk or "agreement"}'
+
+
+class RecruitmentPlacement(models.Model):
+    DISPLAY_CANDIDATE, DISPLAY_DESIGNATION, DISPLAY_CONSOLIDATED = 'name', 'designation', 'consolidated'
+    INVOICE_DISPLAY = [('name', 'Candidate name and designation'), ('designation', 'Designation only'),
+                       ('consolidated', 'Consolidated professional recruitment services')]
+
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='recruitment_placements')
+    candidate = models.ForeignKey(RecruitmentCandidate, on_delete=models.PROTECT, related_name='placements')
+    requisition = models.ForeignKey(RecruitmentRequisition, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name='placements')
+    agreement = models.ForeignKey(RecruitmentAgreement, on_delete=models.PROTECT, related_name='placements')
+    designation = models.CharField(max_length=120)
+    expected_annual_ctc = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True,
+                                               help_text='Proposed/expected only; never used for a percentage fee.')
+    finalized_annual_ctc = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    monthly_ctc = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    fixed_components = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    variable_components = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    employer_contributions = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    other_ctc_components = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    agreed_basis_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    ctc_finalized = models.BooleanField(default=False)
+    ctc_approved_on = models.DateField(null=True, blank=True)
+    client_approval_reference = models.CharField(max_length=120, blank=True)
+    offer_reference = models.CharField(max_length=120, blank=True)
+    offer_accepted_on = models.DateField(null=True, blank=True)
+    joining_date = models.DateField(null=True, blank=True)
+    custom_trigger_date = models.DateField(null=True, blank=True)
+    custom_trigger_reference = models.CharField(max_length=180, blank=True)
+    invoice_display_format = models.CharField(max_length=16, choices=INVOICE_DISPLAY, default=DISPLAY_DESIGNATION)
+    # Frozen calculation/audit snapshot set only after explicit fee approval.
+    candidate_name_snapshot = models.CharField(max_length=180, blank=True)
+    designation_snapshot = models.CharField(max_length=120, blank=True)
+    agreement_terms_snapshot = models.JSONField(null=True, blank=True)
+    billing_method_snapshot = models.CharField(max_length=12, blank=True)
+    percentage_snapshot = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    fixed_fee_snapshot = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    ctc_basis_snapshot = models.CharField(max_length=24, blank=True)
+    fee_basis_amount_snapshot = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    fee_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    fee_override_reason = models.CharField(max_length=500, blank=True)
+    fee_approved = models.BooleanField(default=False)
+    fee_approved_on = models.DateField(null=True, blank=True)
+    invoice = models.ForeignKey(Invoice, null=True, blank=True, on_delete=models.SET_NULL, related_name='recruitment_placements')
+    invoice_line = models.OneToOneField(InvoiceLine, null=True, blank=True, on_delete=models.SET_NULL,
+                                        related_name='recruitment_placement_record')
+    guarantee_start = models.DateField(null=True, blank=True)
+    guarantee_end = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['client__name', 'candidate__candidate_name', '-created_at']
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        errors = {}
+        if self.agreement_id and self.client_id and self.agreement.client_id != self.client_id:
+            errors['agreement'] = 'Choose a recruitment agreement belonging to this client.'
+        if self.requisition_id and self.client_id and self.requisition.client_id != self.client_id:
+            errors['requisition'] = 'Choose a requisition belonging to this client.'
+        for name in ('expected_annual_ctc', 'finalized_annual_ctc', 'monthly_ctc', 'fixed_components', 'variable_components',
+                     'employer_contributions', 'other_ctc_components', 'agreed_basis_amount'):
+            value = getattr(self, name)
+            if value is not None and value < 0:
+                errors[name] = 'CTC amounts cannot be negative.'
+        if self.ctc_finalized and not self.ctc_approved_on:
+            errors['ctc_approved_on'] = 'Record when the final CTC was client-approved.'
+        if self.ctc_approved_on and self.ctc_approved_on > timezone.localdate():
+            errors['ctc_approved_on'] = 'CTC approval date cannot be in the future.'
+        if self.agreement_id and self.agreement.billing_method == RecruitmentAgreement.PERCENTAGE and self.ctc_finalized:
+            required = {'annual_ctc': 'finalized_annual_ctc', 'monthly_annualized': 'monthly_ctc',
+                        'agreed_basis': 'agreed_basis_amount'}.get(self.agreement.ctc_basis)
+            if required and getattr(self, required) is None:
+                errors[required] = 'Enter the finalized amount required by this agreement’s CTC basis.'
+        if errors:
+            raise ValidationError(errors)
+
+    @property
+    def trigger_date(self):
+        from datetime import timedelta
+        if not self.agreement_id or not self.agreement.billing_trigger:
+            return None
+        if self.agreement.billing_trigger == RecruitmentAgreement.OFFER:
+            return self.offer_accepted_on
+        if self.agreement.billing_trigger == RecruitmentAgreement.JOINING:
+            return self.joining_date
+        if self.agreement.billing_trigger == RecruitmentAgreement.RETENTION:
+            if self.joining_date and self.agreement.retention_days:
+                return self.joining_date + timedelta(days=self.agreement.retention_days)
+            return None
+        if self.agreement.billing_trigger == RecruitmentAgreement.CUSTOM:
+            return self.custom_trigger_date
+        return None
+
+    @property
+    def trigger_met(self):
+        day = self.trigger_date
+        if day is None or day > timezone.localdate() or self.agreement.status == 'draft':
+            return False
+        if self.agreement.status != 'active' and self.agreement.effective_end is None:
+            return False
+        return day >= self.agreement.effective_start and (
+            self.agreement.effective_end is None or day <= self.agreement.effective_end)
+
+    @property
+    def can_approve_fee(self):
+        if not self.agreement_id or not self.trigger_met:
+            return False
+        if self.agreement.billing_method == RecruitmentAgreement.PERCENTAGE:
+            return self.ctc_finalized and self.ctc_approved_on is not None
+        return True
+
+    @property
+    def guarantee_expiring(self):
+        if not self.guarantee_end or self.guarantee_end < timezone.localdate():
+            return False
+        return (self.guarantee_end - timezone.localdate()).days <= 30
+
+    def __str__(self):
+        return f'{self.client.name} - {self.candidate.candidate_code} placement'
 
 
 class InvoicePayment(models.Model):

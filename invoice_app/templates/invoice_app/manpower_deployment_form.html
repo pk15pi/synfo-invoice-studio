@@ -1,0 +1,9 @@
+{% extends 'invoice_app/base.html' %}{% block content %}
+<div class="page-heading"><a class="back" href="{% url 'manpower_deployments' %}">&larr; Manpower deployments</a><p class="eyebrow">INVOICE MANAGEMENT</p><h1>{{ title }}</h1><p class="muted">Project and employee are optional. For an external resource, enter a description without creating an employee record.</p></div>
+<form method="post" class="panel form-panel">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="form-grid two">{% for field in form %}<div class="form-field{% if field.name == 'remarks' %} span-all{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>{{ field }}{% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endfor %}</div>
+  <p class="muted">Rates are commercial amounts billed to the client. Employee payroll and salary data are not read by this feature.</p>
+  <div class="form-actions"><button class="button primary" type="submit">Save deployment</button><a class="button secondary" href="{% url 'manpower_deployments' %}">Cancel</a></div>
+</form>
+{% if deployment %}<section class="panel"><h2>Rate revision history</h2><div class="table-wrap"><table><thead><tr><th>Effective from</th><th>Billing method</th><th>Client rate</th><th>Proration</th><th>Revision note</th></tr></thead><tbody>{% for r in history %}<tr><td>{{ r.effective_from|date:'d-m-Y' }}</td><td>{{ r.get_billing_method_display }}</td><td>{{ r.rate }}</td><td>{{ r.get_proration_method_display }}</td><td>{{ r.note|default:'-' }}</td></tr>{% empty %}<tr><td colspan="5">No rate revision records yet.</td></tr>{% endfor %}</tbody></table></div></section>{% endif %}{% endblock %}

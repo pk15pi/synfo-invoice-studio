@@ -8,7 +8,9 @@ NEVER_LOG = ('password', 'secret', 'token', 'api_key', 'apikey', 'private_key', 
 HASH_FIELDS = {
     'rendered_content', 'content_snapshot', 'body_template', 'clause_text', 'contact_snapshot',
     'partner_details', 'signature_configuration', 'approval_workflow', 'validation_rules', 'metadata',
-    'details',
+    'details', 'candidate_name', 'candidate_name_snapshot', 'expected_annual_ctc', 'finalized_annual_ctc', 'monthly_ctc', 'fixed_components',
+    'variable_components', 'employer_contributions', 'other_ctc_components', 'agreed_basis_amount',
+    'fee_basis_amount_snapshot', 'client_approval_reference', 'offer_reference',
 }
 
 _LONG_DIGITS = re.compile(r'\d[\d \-]{6,}\d')

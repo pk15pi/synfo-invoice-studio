@@ -238,7 +238,9 @@ def reconciliation(p, period):
         rows.append([label, mgmt, led, d, 'Ties' if not d else why])
 
     mrev = S.invoice_revenue(s, e)[0]
-    add('Revenue (invoice taxable value)', q2(mrev), LG.account_movement('invoice.revenue', s, e),
+    ledger_revenue = q2(LG.account_movement('invoice.revenue', s, e) +
+                        LG.account_movement('invoice.recruitment_revenue', s, e))
+    add('Revenue (invoice taxable value)', q2(mrev), ledger_revenue,
         'Ledger posts only finalized INR invoices and nets credit notes; drafts / unposted or foreign-currency '
         'invoices count in the management report only.')
     add('Company expenses', S.company_expense_total(s, e),

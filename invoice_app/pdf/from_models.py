@@ -55,6 +55,29 @@ def build_invoice_data(invoice, profile, lines=None, number=None):
     client = invoice.client
     if lines is None:
         lines = list(invoice.lines.all())
+    display_lines = [LineData(l.project_name,
+                              (f'{l.designation_snapshot}: ' if getattr(invoice, 'service_type', '') == 'general_manpower' and
+                               getattr(invoice, 'resource_display_format', '') == 'name' and l.designation_snapshot else '') + l.description,
+                              l.quantity_days, l.unit_price, l.amount,
+                              getattr(l, 'sac_code', '') or '') for l in lines]
+    service_type = getattr(invoice, 'service_type', '')
+    period_start = getattr(invoice, 'billing_period_start', None) or getattr(invoice, 'billing_month', None)
+    period_end = getattr(invoice, 'billing_period_end', None) or getattr(invoice, 'billing_month', None)
+    if service_type == 'recruitment_placement' and getattr(invoice, 'resource_display_format', '') == 'consolidated':
+        display_lines = [LineData('Professional Recruitment Services',
+                                  'Professional Recruitment Services as per agreed terms.',
+                                  Decimal('1'), None, invoice.total,
+                                  getattr(lines[0], 'sac_code', '') if lines else '')]
+    elif service_type == 'general_manpower' and getattr(invoice, 'resource_display_format', '') == 'consolidated':
+        period = ''
+        if period_start and period_end:
+            period = f' for {period_start:%d %B %Y} to {period_end:%d %B %Y}'
+        elif period_start:
+            period = f' for {period_start:%B %Y}'
+        display_lines = [LineData('Manpower Supply Services',
+                                  f'Manpower Supply Services{period} as per agreed commercial terms.',
+                                  Decimal('1'), None, invoice.total,
+                                  getattr(lines[0], 'sac_code', '') if lines else '')]
     return InvoiceData(**gst_extras(invoice, profile, lines),
         number=number or invoice.invoice_number,
         invoice_date=invoice.invoice_date, terms_days=invoice.terms_display, due_date=invoice.due_date,
@@ -64,8 +87,9 @@ def build_invoice_data(invoice, profile, lines=None, number=None):
         bank=dict(bank_name=profile.bank_name, account_holder=profile.account_holder,
                   account_number=profile.account_number, bank_country=profile.bank_country, ifsc=profile.ifsc),
         client_name=client.name, client_address_lines=(client.address or '').splitlines(),
-        lines=[LineData(l.project_name, l.description, l.quantity_days, l.unit_price, l.amount,
-                        getattr(l, 'sac_code', '') or '') for l in lines],
+        lines=display_lines,
         signature_path=signature_path(profile), signature_name=profile.signature_text or profile.name,
         footer_text=profile.footer_text, colors=profile_colors(profile),
+        service_type=service_type, billing_period_start=period_start, billing_period_end=period_end,
+        recruitment_agreement_reference=getattr(invoice, 'recruitment_agreement_reference', ''),
     )
