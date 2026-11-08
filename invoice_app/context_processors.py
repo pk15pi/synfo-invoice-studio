@@ -1,5 +1,6 @@
 from .models import BusinessProfile
 from .page_help import PAGE_GUIDES
+from reporting import periods as report_periods
 
 
 def brand_name(request):
@@ -18,6 +19,17 @@ def page_help(request):
         'page_help_key': route_name,
         'page_help_guide': guide,
         'page_help_missing': bool(route_name and guide is None),
+    }
+
+
+def standard_period_filter(request):
+    """Shared choices for the application's calendar and Indian FY filters."""
+    return {
+        'standard_calendar_year_choices': report_periods.calendar_year_choices(),
+        'standard_month_choices': report_periods.MONTH_CHOICES,
+        'standard_fy_choices': report_periods.fy_choices(),
+        'standard_current_calendar_year': report_periods.today().year,
+        'standard_current_fy': report_periods.fy_start_year(report_periods.today()),
     }
 
 

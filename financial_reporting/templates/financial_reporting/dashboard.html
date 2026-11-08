@@ -12,12 +12,7 @@
 </header>
 <form method="get" class="fr-filter panel">
   <div class="fr-filter-title"><h2>Reporting period</h2><p>Choose the dates and reporting interval to view.</p></div>
-  <label>Period {{ period_form.period }}</label>
-  <label>Financial year start {{ period_form.financial_year }}</label>
-  <label>FY quarter / half {{ period_form.financial_year_part }}</label>
-  <label>Month {{ period_form.month }}</label>
-  <label>From {{ period_form.date_from }}</label>
-  <label>To {{ period_form.date_to }}</label>
+  {% include 'invoice_app/_standard_period_filter.html' %}
   <div class="fr-filter-action"><button class="button secondary" type="submit">Apply period</button><button class="button primary" type="submit" name="export" value="xlsx">Export to Excel</button></div>
 </form>
 <div class="fr-summary">

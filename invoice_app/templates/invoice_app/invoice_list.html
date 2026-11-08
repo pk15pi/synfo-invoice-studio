@@ -8,31 +8,11 @@
 <a href="?period=previous"{% if period == 'previous' %} class="on" aria-current="page"{% endif %}>Previous month</a>
 <a href="?period=last6"{% if period == 'last6' %} class="on" aria-current="page"{% endif %} title="Includes the current calendar month and previous five months">Last 6 months</a>
 </nav>
-<form method="get" class="invoice-period-form">
-<input type="hidden" name="period" value="year_month">
-<label class="visually-hidden" for="invoice-year">Selected year</label>
-<select class="field" name="year" id="invoice-year" aria-label="Selected year" required>
-<option value="">Choose year</option>
-{% for y in year_options %}<option value="{{ y }}"{% if year == y|stringformat:"s" %} selected{% endif %}>{{ y }}</option>{% endfor %}
-</select>
-<label class="visually-hidden" for="invoice-month">Month (optional)</label>
-<select class="field" name="month" id="invoice-month" aria-label="Month (optional)">
-<option value="">All months</option>
-{% for value, label in month_options %}<option value="{{ value }}"{% if month == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
-</select>
-<button class="button primary" type="submit">Filter</button>
-<a class="button secondary" href="{% url 'invoice_list' %}">Clear</a>
-</form>
-<form method="get" class="invoice-fy-form">
-<input type="hidden" name="period" value="financial_year">
-<label class="visually-hidden" for="invoice-financial-year">Financial year</label>
-<select class="field" name="financial_year" id="invoice-financial-year" aria-label="Financial year"
-        onchange="this.form.submit()">
-<option value="">Financial year&hellip;</option>
-{% for fy, label in financial_year_options %}<option value="{{ fy }}"{% if financial_year == fy|stringformat:"s" %} selected{% endif %}>{{ label }}</option>{% endfor %}
-</select>
-</form>
 </div>
+<form method="get" class="invoice-period-form panel">
+{% include 'invoice_app/_standard_period_filter.html' %}
+<button class="button primary" type="submit">Filter</button><a class="button secondary" href="{% url 'invoice_list' %}">Clear</a>
+</form>
 {% if filter_error %}<p class="message error" role="alert">{{ filter_error }}</p>{% endif %}
-<p class="muted invoice-filter-summary">{{ invoices|length }} invoice{{ invoices|length|pluralize }} shown{% if period == 'year_month' %} for {% if selected_month_label %}{{ selected_month_label }}{% else %}all months{% endif %}{% if year %} {{ year }}{% endif %}{% elif financial_year_label %} for {{ financial_year_label }}{% elif period == 'last3' %} from the current and previous two calendar months{% elif period == 'last6' %} from the current and previous five calendar months{% elif period == 'previous' %} from the previous calendar month{% endif %}.</p>
+<p class="muted invoice-filter-summary">{{ invoices|length }} invoice{{ invoices|length|pluralize }} shown{% if selected_standard_period %} for {{ selected_standard_period.label }} ({{ selected_standard_period.range_text }}){% elif period == 'last3' %} from the current and previous two calendar months{% elif period == 'last6' %} from the current and previous five calendar months{% elif period == 'previous' %} from the previous calendar month{% endif %}.</p>
 {% include 'invoice_app/_invoice_table.html' %}</section>{% endblock %}

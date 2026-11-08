@@ -19,11 +19,8 @@
 {% include 'expense_management/_field.html' with field=form.remarks %}
 <h3 class="xm-section">Prior period</h3>{% include 'expense_management/_field.html' with field=form.is_prior_period %}{% include 'expense_management/_field.html' with field=form.relates_to_fy %}{% include 'expense_management/_field.html' with field=form.prior_period_note %}
 <h3 class="xm-section">Attachments</h3>{% include 'expense_management/_upload.html' %}
-{% if not exp %}<h3 class="xm-section">Payment</h3>
-<div class="form-field"><label><input type="checkbox" name="pay_now" value="1" id="pay-now" {% if form.data.pay_now %}checked{% endif %}> Record a payment now (status is derived from payments)</label></div>
-<div id="pay-fields" class="form-grid" style="grid-column:1/-1;{% if not form.data.pay_now %}display:none{% endif %}">{% include 'expense_management/_fields.html' with fields=pay_form %}</div>{% endif %}
 </div>
-<div class="form-actions"><button class="button primary" type="submit">Save expense</button></div></form>
+<div class="form-actions"><button class="button primary" type="submit" title="Save this entry as an editable draft without posting it">Save as draft</button></div></form>
 
 <div class="xm-modal" id="qv-modal"><div class="panel"><div class="panel-head"><h2>Add vendor</h2></div><div id="qv-err" class="xm-warn" style="display:none"></div>
 <div class="form-grid" id="qv-fields">{% include 'expense_management/_fields.html' with fields=vendor_form %}</div>
@@ -38,7 +35,6 @@
   function modeUi(){ if(!mode)return; total.readOnly=mode.value==='breakup'; recalc(); }
   ['id_amount_before_tax','id_gst_amount','id_cgst_amount','id_sgst_amount','id_igst_amount','id_other_taxes','id_discount'].forEach(i=>{const e=g(i); if(e) e.addEventListener('input',recalc);});
   if(mode){mode.addEventListener('change',modeUi); modeUi();}
-  const pn=g('pay-now'); if(pn){pn.addEventListener('change',()=>{g('pay-fields').style.display=pn.checked?'':'none'; const a=g('id_pay-amount'); if(pn.checked&&a&&!a.value)a.value=total.value;});}
   const m=g('qv-modal'); g('qv-open').onclick=()=>m.classList.add('open'); g('qv-close').onclick=()=>m.classList.remove('open');
   g('qv-save').onclick=async()=>{ const fd=new FormData(); fd.append('csrfmiddlewaretoken',document.querySelector('[name=csrfmiddlewaretoken]').value);
     g('qv-fields').querySelectorAll('input,select,textarea').forEach(e=>fd.append(e.name,e.value));

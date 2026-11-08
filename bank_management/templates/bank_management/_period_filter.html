@@ -1,3 +1,1 @@
-<select class="field" name="period">{% for k, l in periods %}<option value="{{ k }}" {% if f.key == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-<select class="field" name="fy"><option value="">FY (for "choose")</option>{% for y, l in fy_list %}<option value="{{ y }}" {% if params.fy == y|stringformat:"s" %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-<input class="field" type="month" name="month" value="{{ params.month }}"> <input class="field" type="date" name="date_from" value="{{ params.date_from }}"> <input class="field" type="date" name="date_to" value="{{ params.date_to }}">
+{% include 'invoice_app/_standard_period_filter.html' %}

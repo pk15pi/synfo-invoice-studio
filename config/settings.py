@@ -66,6 +66,7 @@ TEMPLATES = [{
         'django.contrib.messages.context_processors.messages',
         'invoice_app.context_processors.brand_name',
         'invoice_app.context_processors.page_help',
+        'invoice_app.context_processors.standard_period_filter',
     ]},
 }]
 WSGI_APPLICATION = 'config.wsgi.application'

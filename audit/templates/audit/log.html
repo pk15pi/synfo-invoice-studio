@@ -6,7 +6,7 @@
 <input name="model" placeholder="Model" value="{{ f.model }}"><input name="object_id" placeholder="Object id" value="{{ f.object_id }}" size="8">
 <select name="action"><option value="">All actions</option>{% for k,l in actions %}<option value="{{ k }}" {% if f.action == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
 <select name="source"><option value="">All sources</option>{% for k,l in sources %}<option value="{{ k }}" {% if f.source == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-<input type="date" name="date_from" value="{{ f.date_from }}"><input type="date" name="date_to" value="{{ f.date_to }}"><input name="q" placeholder="Search object / reason" value="{{ f.q }}">
+{% include 'invoice_app/_standard_period_filter.html' %}<input name="q" placeholder="Search object / reason" value="{{ f.q }}">
 <button type="submit">Filter</button> <a href="{% url 'audit:log' %}">Reset</a> &middot; <a href="{% url 'audit:export' %}?{{ qs }}">Export CSV</a></form>{% else %}<p><a href="{% url 'audit:log' %}">&larr; Full audit log</a></p>{% endif %}
 <table class="table" data-server-sort="orm"><thead><tr><th data-sort-key="timestamp" data-sort-type="date">When (IST)</th><th>Operator</th><th data-sort-key="source">Source</th><th data-sort-key="object">Object</th><th data-sort-key="action" data-sort-type="status">Action</th><th>Changes (old &rarr; new)</th><th data-sort-key="reason">Reason</th><th data-sort-key="path">Path</th></tr></thead><tbody>
 {% for e in page %}<tr><td>{{ e.timestamp|date:"d-m-Y H:i:s" }}</td><td>{{ operator }}</td><td>{{ e.get_source_display }}</td>

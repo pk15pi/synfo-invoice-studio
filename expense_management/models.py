@@ -211,6 +211,7 @@ class CompanyExpense(models.Model):
     exchange_rate = models.DecimalField('Exchange rate to INR', help_text='1 for INR. Used to show INR totals in reports.',
                                         **RATE)
     payment_status = models.CharField(max_length=10, choices=STATUSES, default=UNPAID, db_index=True)
+    is_draft = models.BooleanField(default=False, db_index=True)
     client = models.ForeignKey('invoice_app.Client', null=True, blank=True, on_delete=models.SET_NULL,
                                related_name='company_expenses')
     project = models.ForeignKey('invoice_app.ProjectTemplate', null=True, blank=True, on_delete=models.SET_NULL,
@@ -298,7 +299,7 @@ class CompanyExpense(models.Model):
 
     @property
     def outstanding_amount(self):
-        if self.is_cancelled:
+        if self.is_cancelled or self.is_draft:
             return ZERO
         return q2(self.total_amount - self.paid_amount)
 

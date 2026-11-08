@@ -35,6 +35,8 @@ def record_payment(expense, *, payment_date, method, amount, reference='', bank_
         exp = CompanyExpense.objects.select_for_update().get(pk=expense.pk)
         if exp.is_cancelled:
             raise ValidationError('This expense is cancelled; payments cannot be added.')
+        if exp.is_draft:
+            raise ValidationError('Finalize this draft before recording a payment.')
         if amount <= 0:
             raise ValidationError({'amount': 'Payment amount must be greater than zero.'})
         if tds < 0:
@@ -62,7 +64,7 @@ def cancel_expense(expense, reason):
         exp = CompanyExpense.objects.select_for_update().get(pk=expense.pk)
         if exp.is_cancelled:
             raise ValidationError('This expense is already cancelled.')
-        CompanyExpense.objects.filter(pk=exp.pk).update(payment_status=CompanyExpense.CANCELLED,
+        CompanyExpense.objects.filter(pk=exp.pk).update(payment_status=CompanyExpense.CANCELLED, is_draft=False,
                                                         cancel_reason=reason[:300], cancelled_at=timezone.now())
         exp.refresh_from_db()
         post_expense(exp)

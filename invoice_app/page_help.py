@@ -402,18 +402,18 @@ _add("exp:dashboard", "Expense dashboard", "Review company expenses and employee
      related=["All expenses, employee claims, vendors and expense reports."])
 _add("exp:all", "All expenses", "Search and review company expenses across categories and statuses.",
      "This is the central register for company-paid expense entries.",
-     ["Use date, category, vendor or status filters to narrow the list.", "Open an entry to inspect its source and payment state.", "Use edit, payment, attachment or cancellation actions only when supported."],
-     rules=["Expense edits, payments and cancellations can change financial reports and accounting links; retain source evidence."],
+     ["Use date, category, vendor or status filters to narrow the list.", "Draft entries can be edited and finalized from their detail page.", "Finalized entries can receive payments; cancelled entries remain read-only history."],
+     rules=["Draft expenses stay out of the accounting ledger and financial reports until finalized.", "Retain source evidence when finalizing or recording payment."],
      related=["Expense dashboard, vendors, accounting and financial reports."])
 _add("exp:expense_new exp:expense_edit", "Add or edit company expense", "Record a company expense with its category, payee, amount and source details.",
      "Company expense entries feed expense reports and may link to accounting/bank records.",
-     ["Enter the transaction date and category.", "Select or enter the vendor/payee and invoice/reference details.", "Enter the amount, tax and payment details shown.", "Attach supporting evidence and save."],
-     rules=["Use the actual transaction/document amount and verified tax treatment. Avoid duplicate entries for the same purchase."],
+     ["Enter the transaction date and category.", "Select or enter the vendor/payee and invoice/reference details.", "Enter the amount, tax and allocation details.", "Attach supporting evidence and save as a draft.", "Review the draft and finalize it before recording a payment."],
+     rules=["Draft expenses stay out of the accounting ledger and financial reports until finalized.", "Use the actual transaction/document amount and verified tax treatment. Avoid duplicate entries for the same purchase."],
      related=["Expense categories, vendors, attachments, bank transactions and reports."])
 _add("exp:expense_detail", "Expense details", "Review one company expense, its payment state and attachments.",
      "This page lets you verify the recorded expense before changing or paying it.",
-     ["Compare vendor, date, amount, category and reference with the source.", "Review attached files and payment history.", "Use only the action that matches the intended correction."],
-     rules=["Payment and cancel actions affect the expense balance and downstream reports; confirm the source and accounting impact."],
+     ["Compare vendor, date, amount, category and reference with the source.", "Edit the record while it is a draft.", "Finalize the draft to post it to the ledger, then record payment if needed."],
+     rules=["Finalized expenses cannot be edited; correct the draft before finalizing.", "Payment and cancel actions affect the expense balance and downstream reports."],
      related=["All expenses, bank, accounting and expense reports."])
 _add("exp:expense_payment", "Record expense payment", "Record payment against a company expense.",
      "Payment tracking shows whether and how the expense was settled.",
@@ -821,4 +821,25 @@ NON_PAGE_ROUTES = {
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
     "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual",
 }
+
+# Shared guidance for pages that use the standardized calendar/FY period controls.
+_period_filter_help = (
+    "Date filters have three modes. Calendar year can be narrowed to one month or left on All months. "
+    "Financial year follows April through March; Monthly uses the chosen month within that FY, Quarterly uses "
+    "Q1 Apr-Jun, Q2 Jul-Sep, Q3 Oct-Dec or Q4 Jan-Mar, Half-Yearly uses H1 Apr-Sep or H2 Oct-Mar, and Full "
+    "Financial Year covers all twelve months. Custom dates use the inclusive From and To dates. Apply the filter "
+    "to refresh the page; other search and status filters remain in effect."
+)
+_period_filter_routes = (
+    "exp:dashboard exp:all exp:reports exp:report acc:journal acc:ledger bank:transactions bank:reconciliation "
+    "bank:book reporting:dashboard reporting:section reporting:report reporting:custom "
+    "financial_reporting:dashboard financial_reporting:catalogue compliance:check compliance:gst_input "
+    "compliance:gst_output compliance:payroll compliance:tds audit:log invoice_list receipts manpower_deployments "
+    "performance_review:dashboard performance_review:records performance_review:reports "
+    "performance_review:daily_brief_records performance_review:daily_brief_analytics"
+)
+for _route in _period_filter_routes.split():
+    _guide = PAGE_GUIDES.get(_route)
+    if _guide:
+        _guide['notes'].append(_period_filter_help)
 

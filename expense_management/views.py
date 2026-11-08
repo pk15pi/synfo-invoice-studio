@@ -62,10 +62,30 @@ def _filter_ctx(request, f):
 
 
 # --------------------------------------------------------------------------- dashboard
+def _dashboard_period_filter(request):
+    """Resolve the shared calendar/FY controls without changing report calculations."""
+    from reporting import periods as shared_periods
+    period = shared_periods.resolve(request.GET)
+    f = reports.parse_filters({'period_mode': 'custom', 'date_from': period.start.isoformat(),
+                               'date_to': period.end.isoformat()})
+    f['label'] = period.label
+    year = int(request.GET.get('calendar_year') or period.start.year)
+    return f, year, request.GET.get('calendar_month', ''), request.GET.get('period_type', 'full_fy'), \
+        request.GET.get('period_value', ''), ''
+
+
 @local_only
 def dashboard(request):
-    f = reports.parse_filters(request.GET, 'this_month' if not request.GET else 'current_fy')
+    f, selected_year, selected_month, selected_duration, selected_quarter, selected_half = _dashboard_period_filter(request)
     ctx = _filter_ctx(request, f)
+    recorded = [CompanyExpense.objects.aggregate(first=Min('expense_date'), last=Max('expense_date')),
+                C.objects.aggregate(first=Min('expense_date'), last=Max('expense_date'))]
+    first_year = min([selected_year] + [bounds['first'].year for bounds in recorded if bounds['first']])
+    last_year = max([selected_year, today().year] + [bounds['last'].year for bounds in recorded if bounds['last']])
+    ctx.update(year_choices=range(last_year, max(1900, first_year) - 1, -1),
+               month_names=[(number, calendar.month_name[number]) for number in range(1, 13)],
+               selected_year=selected_year, selected_month=selected_month, selected_duration=selected_duration,
+               selected_quarter=selected_quarter, selected_half=selected_half)
     ctx.update(reports.dashboard(f))
     m = ctx['monthly']
     peak = max([r[3] for r in m['rows']] + [1])
@@ -81,26 +101,31 @@ def dashboard(request):
 @local_only
 def all_expenses(request):
     g = request.GET
-    has_dates = any(g.get(k) for k in ('period', 'fy', 'month', 'date_from', 'date_to'))
+    has_dates = any(g.get(k) for k in ('period_mode', 'period', 'fy', 'month', 'date_from', 'date_to'))
     f = reports.parse_filters(g) if has_dates else dict(reports.parse_filters({'period': 'custom', 'date_from': '1900-01-01', 'date_to': '2999-12-31'}), label='All dates')
     kind, q = g.get('type', ''), (g.get('q') or '').strip()
     pay_status, claim_status = g.get('payment_status', ''), g.get('claim_status', '')
     rows = []
     if kind in ('', 'company') and not claim_status:
-        qs = reports.company_qs(f, include_cancelled=True)
-        if pay_status:
-            qs = qs.filter(payment_status=pay_status)
+        qs = reports.company_qs(f, include_cancelled=True, include_draft=True)
+        if pay_status == 'draft':
+            qs = qs.filter(is_draft=True)
+        elif pay_status:
+            qs = qs.filter(is_draft=False, payment_status=pay_status)
         if q:
             qs = qs.filter(Q(expense_id__icontains=q) | Q(invoice_number__icontains=q) | Q(vendor__name__icontains=q)
                            | Q(description__icontains=q) | Q(payments__reference__icontains=q)
                            | Q(employee__employee_id__icontains=q) | Q(employee__first_name__icontains=q)
                            | Q(employee__last_name__icontains=q) | Q(remarks__icontains=q)).distinct()
         for e in qs:
-            rows.append(dict(kind='company', pk=e.pk, can_edit=not e.is_cancelled, can_cancel=not e.is_cancelled,
+            rows.append(dict(kind='company', pk=e.pk, can_edit=e.is_draft and not e.is_cancelled,
+                         can_cancel=not e.is_cancelled,
                              id=e.expense_id, date=e.expense_date, category=e.category.name,
                              party=e.vendor.name if e.vendor_id else '-', ref=e.invoice_number or '-',
-                             amount=e.total_amount, currency=e.currency, status=e.get_payment_status_display(),
-                             status_key=e.payment_status, url=reverse('exp:expense_detail', args=[e.pk])))
+                             amount=e.total_amount, currency=e.currency,
+                             status='Draft' if e.is_draft else e.get_payment_status_display(),
+                             status_key='draft' if e.is_draft else e.payment_status,
+                             url=reverse('exp:expense_detail', args=[e.pk])))
     if kind in ('', 'claim') and not pay_status:
         qs = reports.claims_qs(f, statuses=None)
         if claim_status:
@@ -133,7 +158,8 @@ def all_expenses(request):
         rows.sort(key=lambda r: (r['date'], r['id']), reverse=True)
     ctx = _filter_ctx(request, f)
     ctx.update(rows=rows[:500], truncated=len(rows) > 500, total_rows=len(rows), q=q, kind=kind,
-               pay_statuses=CompanyExpense.STATUSES, claim_statuses=C.STATUSES, has_dates=has_dates,
+               pay_statuses=[('draft', 'Draft'), *CompanyExpense.STATUSES],
+               claim_statuses=C.STATUSES, has_dates=has_dates,
                current_url=request.get_full_path())
     return render(request, 'expense_management/all_expenses.html', ctx)
 
@@ -155,32 +181,50 @@ def expense_form(request, pk=None):
     if exp and exp.is_cancelled:
         messages.error(request, 'Cancelled expenses are read-only.')
         return redirect('exp:expense_detail', exp.pk)
+    if exp and not exp.is_draft:
+        messages.error(request, 'Only draft expenses can be edited. Return to the expense book to review the record.')
+        return redirect('exp:expense_detail', exp.pk)
     initial = {} if exp else {'expense_date': today(), 'currency': 'INR', 'exchange_rate': 1}
     form = CompanyExpenseForm(request.POST or None, instance=exp, initial=initial)
     upload_errors = []
     if request.method == 'POST':
         upload_errors = services.validate_uploads(request.FILES.getlist('attachments'))
-        pay = None
-        if not exp and request.POST.get('pay_now'):
-            pay = PaymentForm(request.POST, prefix='pay')
-        if form.is_valid() and not upload_errors and (pay is None or pay.is_valid()):
+        if form.is_valid() and not upload_errors:
             try:
                 with transaction.atomic():
-                    obj = form.save()
+                    obj = form.save(commit=False)
+                    obj.is_draft = True
+                    obj.save()
                     n = _save_uploads(request, obj, COMPANY_DOC_TYPES)
-                    if pay is not None:
-                        services.record_payment(obj, **pay.cleaned_data)
-                messages.success(request, f'{obj.expense_id} saved' + (f' with {n} attachment(s).' if n else '.'))
+                messages.success(request, f'{obj.expense_id} saved as draft' + (f' with {n} attachment(s).' if n else '.'))
                 return redirect('exp:expense_detail', obj.pk)
             except ValidationError as e:
                 form.add_error(None, _errs(e))
-        elif pay is not None and not pay.is_valid():
-            form.add_error(None, 'Payment: ' + '; '.join(f'{k}: {" ".join(v)}' for k, v in pay.errors.items()))
     return render(request, 'expense_management/expense_form.html', dict(
         form=form, exp=exp, upload_errors=upload_errors, doc_types=COMPANY_DOC_TYPES,
-        pay_form=PaymentForm(prefix='pay', initial={'payment_date': today()}),
         vendor_form=QuickVendorForm(prefix='qv'),
         projects=ProjectTemplate.objects.select_related('client')))
+
+
+@local_only
+@require_POST
+def expense_finalize(request, pk):
+    exp = get_object_or_404(CompanyExpense, pk=pk)
+    if exp.is_cancelled:
+        messages.error(request, 'Cancelled expenses cannot be finalized.')
+        return redirect('exp:expense_detail', exp.pk)
+    if not exp.is_draft:
+        messages.info(request, 'This expense has already been finalized.')
+        return redirect('exp:expense_detail', exp.pk)
+    try:
+        with transaction.atomic():
+            exp.is_draft = False
+            exp.payment_status = CompanyExpense.UNPAID
+            exp.save()
+        messages.success(request, f'{exp.expense_id} finalized and posted to the ledger. You can now record payment.')
+    except ValidationError as e:
+        messages.error(request, _errs(e))
+    return redirect('exp:expense_detail', exp.pk)
 
 
 @local_only

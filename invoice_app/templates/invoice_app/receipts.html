@@ -1,6 +1,6 @@
 {% extends 'invoice_app/base.html' %}{% block content %}
 <div class="page-heading"><h1>Receipts</h1><p class="muted">Customer payments against invoices. TDS / bank charges are written off against the invoice but are not cash received.</p></div>
-<form method="get" class="panel filters"><label>From <input class="field" type="date" name="from" value="{{ f.from }}"></label> <label>To <input class="field" type="date" name="to" value="{{ f.to }}"></label>
+<form method="get" class="panel filters">{% include 'invoice_app/_standard_period_filter.html' %}
 <label>Customer <select class="field" name="client"><option value="">All</option>{% for c in clients %}<option value="{{ c.pk }}"{% if f.client == c.pk|stringformat:"s" %} selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></label>
 <label>Mode <select class="field" name="mode"><option value="">All</option>{% for k, v in modes %}<option value="{{ k }}"{% if f.mode == k %} selected{% endif %}>{{ v }}</option>{% endfor %}</select></label>
 <label>Search <input class="field" name="q" value="{{ f.q }}" placeholder="UTR, invoice, notes"></label> <button class="button primary">Filter</button> <a href="{% url 'receipts' %}">Reset</a></form>

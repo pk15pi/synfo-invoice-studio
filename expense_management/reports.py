@@ -7,6 +7,7 @@ from django.db.models import Q
 
 from .fy import fy_label, fy_start_year, months_between, resolve_period
 from .models import ZERO, CompanyExpense, EmployeeExpenseClaim, EmployeeReimbursement, q2
+from reporting.periods import resolve as resolve_shared_period
 
 C = EmployeeExpenseClaim
 GST_NOTE = ('For accounting reference only. Recorded GST is NOT assumed to be eligible for input tax credit; '
@@ -31,16 +32,22 @@ def _int(v):
 
 
 def parse_filters(params, default_period='current_fy'):
-    start, end, label, key = resolve_period(params, default_period)
+    if params.get('period_mode'):
+        shared = resolve_shared_period(params, default=default_period)
+        start, end, label, key = shared.start, shared.end, shared.label, shared.key
+    else:
+        start, end, label, key = resolve_period(params, default_period)
     f = dict(start=start, end=end, label=label, period=key)
     for k in ('category', 'vendor', 'employee', 'department', 'client', 'project'):
         f[k] = _int(params.get(k))
     return f
 
 
-def company_qs(f, include_cancelled=False):
+def company_qs(f, include_cancelled=False, include_draft=False):
     qs = CompanyExpense.objects.select_related('vendor', 'category', 'subcategory', 'department', 'client', 'project',
                                                'employee').filter(expense_date__range=(f['start'], f['end']))
+    if not include_draft:
+        qs = qs.filter(is_draft=False)
     if not include_cancelled:
         qs = qs.exclude(payment_status=CompanyExpense.CANCELLED)
     for k in ('category', 'vendor', 'employee', 'department', 'client', 'project'):

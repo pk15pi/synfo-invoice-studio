@@ -1,0 +1,71 @@
+<div class="standard-period-filter" data-standard-period-filter>
+  <label class="compact-filter-label"><span>Filter by</span>
+    <select class="field" name="period_mode" data-period-mode>
+      <option value="calendar"{% if request.GET.period_mode == 'calendar' %} selected{% endif %}>Calendar year</option>
+      <option value="financial"{% if not request.GET.period_mode or request.GET.period_mode == 'financial' %} selected{% endif %}>Financial year</option>
+      <option value="custom"{% if request.GET.period_mode == 'custom' %} selected{% endif %}>Custom dates</option>
+    </select>
+  </label>
+  <label class="compact-filter-label" data-period-fields="calendar"><span>Year</span>
+    <select class="field" name="calendar_year" data-period-calendar-year>
+      {% for y in standard_calendar_year_choices %}<option value="{{ y }}"{% if request.GET.calendar_year == y|stringformat:'s' or not request.GET.calendar_year and y == standard_current_calendar_year %} selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="compact-filter-label" data-period-fields="calendar"><span>Month</span>
+    <select class="field" name="calendar_month" data-period-calendar-month>
+      <option value="">All months</option>{% for value,label in standard_month_choices %}<option value="{{ value }}"{% if request.GET.calendar_month == value|stringformat:'s' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="compact-filter-label" data-period-fields="financial"><span>Financial year</span>
+    <select class="field" name="fy" data-period-fy>
+      {% for y,label in standard_fy_choices %}<option value="{{ y }}"{% if request.GET.fy == y|stringformat:'s' or not request.GET.fy and standard_filter_default_fy == y or not request.GET.fy and not standard_filter_default_fy and y == standard_current_fy %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="compact-filter-label" data-period-fields="financial"><span>Period</span>
+    <select class="field" name="period_type" data-period-type>
+      <option value="monthly"{% if request.GET.period_type == 'monthly' or not request.GET.period_type and standard_filter_default_type == 'monthly' %} selected{% endif %}>Monthly</option>
+      <option value="quarterly"{% if request.GET.period_type == 'quarterly' %} selected{% endif %}>Quarterly</option>
+      <option value="half_yearly"{% if request.GET.period_type == 'half_yearly' %} selected{% endif %}>Half-Yearly</option>
+      <option value="full_fy"{% if request.GET.period_type == 'full_fy' or not request.GET.period_type and standard_filter_default_type != 'monthly' %} selected{% endif %}>Full Financial Year</option>
+    </select>
+  </label>
+  <label class="compact-filter-label" data-period-selection="monthly"><span>Month in FY</span>
+    <select class="field" name="period_value" data-period-value>
+      {% for value,label in standard_month_choices %}<option value="{{ value }}"{% if request.GET.period_value == value|stringformat:'s' or not request.GET.period_value and standard_filter_default_value == value|stringformat:'s' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="compact-filter-label" data-period-selection="quarterly" hidden><span>Quarter</span>
+    <select class="field" data-period-quarter>{% for value in '1234' %}<option value="Q{{ value }}"{% if request.GET.period_value == 'Q'|add:value %} selected{% endif %}>Q{{ value }}</option>{% endfor %}</select>
+  </label>
+  <label class="compact-filter-label" data-period-selection="half_yearly" hidden><span>Half-year</span>
+    <select class="field" data-period-half><option value="H1"{% if request.GET.period_value == 'H1' %} selected{% endif %}>H1 (Apr–Sep)</option><option value="H2"{% if request.GET.period_value == 'H2' %} selected{% endif %}>H2 (Oct–Mar)</option></select>
+  </label>
+  <label class="compact-filter-label" data-period-fields="custom" hidden><span>From</span><input class="field" type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
+  <label class="compact-filter-label" data-period-fields="custom" hidden><span>To</span><input class="field" type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
+</div>
+<script>
+(() => {
+  document.querySelectorAll('[data-standard-period-filter]:not([data-ready])').forEach(root => {
+    root.dataset.ready = '1';
+    const mode = root.querySelector('[data-period-mode]');
+    const type = root.querySelector('[data-period-type]');
+    const sync = () => {
+      root.querySelectorAll('[data-period-fields]').forEach(node => {
+        const show = node.dataset.periodFields === mode.value;
+        node.hidden = !show;
+        node.querySelectorAll('select,input').forEach(input => input.disabled = !show);
+      });
+      root.querySelectorAll('[data-period-selection]').forEach(node => {
+        const show = mode.value === 'financial' && node.dataset.periodSelection === type.value;
+        node.hidden = !show;
+        node.querySelectorAll('select').forEach(input => input.disabled = !show);
+      });
+    };
+    root.querySelector('[data-period-quarter]').name = 'period_value';
+    root.querySelector('[data-period-half]').name = 'period_value';
+    mode.addEventListener('change', sync);
+    type.addEventListener('change', sync);
+    sync();
+  });
+})();
+</script>

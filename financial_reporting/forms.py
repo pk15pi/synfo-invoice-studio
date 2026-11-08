@@ -23,6 +23,12 @@ PERIOD_CHOICES = [
 
 
 class ReportingPeriodForm(forms.Form):
+    period_mode = forms.ChoiceField(required=False, choices=[('calendar', 'Calendar year'), ('financial', 'Financial year'), ('custom', 'Custom dates')])
+    calendar_year = forms.IntegerField(required=False, min_value=1900, max_value=9998)
+    calendar_month = forms.IntegerField(required=False, min_value=1, max_value=12)
+    fy = forms.IntegerField(required=False, min_value=1900, max_value=9998)
+    period_type = forms.ChoiceField(required=False, choices=[('monthly', 'Monthly'), ('quarterly', 'Quarterly'), ('half_yearly', 'Half-Yearly'), ('full_fy', 'Full Financial Year')])
+    period_value = forms.CharField(required=False, max_length=8)
     period = forms.ChoiceField(choices=PERIOD_CHOICES, initial='this_quarter', required=False)
     financial_year = forms.IntegerField(required=False, min_value=1900, max_value=9998)
     financial_year_part = forms.ChoiceField(required=False, choices=periods.FY_PARTS)
@@ -32,6 +38,28 @@ class ReportingPeriodForm(forms.Form):
 
     def clean(self):
         cleaned = super().clean()
+        if cleaned.get('period_mode'):
+            mode = cleaned['period_mode']
+            if mode == 'calendar' and not cleaned.get('calendar_year'):
+                self.add_error('calendar_year', 'Choose a calendar year.')
+            if mode == 'financial':
+                if not cleaned.get('fy'):
+                    self.add_error('fy', 'Choose a financial year.')
+                period_type = cleaned.get('period_type') or 'full_fy'
+                value = cleaned.get('period_value') or ''
+                if period_type == 'quarterly' and value not in ('Q1', 'Q2', 'Q3', 'Q4'):
+                    cleaned['period_value'] = 'Q1'
+                elif period_type == 'half_yearly' and value not in ('H1', 'H2'):
+                    cleaned['period_value'] = 'H1'
+                elif period_type == 'monthly' and not value.isdigit():
+                    cleaned['period_value'] = str(date.today().month)
+            if mode == 'custom':
+                start, end = cleaned.get('date_from'), cleaned.get('date_to')
+                if not start or not end:
+                    self.add_error('date_from' if not start else 'date_to', 'Enter both custom date boundaries.')
+                elif end < start:
+                    self.add_error('date_to', 'End date cannot be before start date.')
+            return cleaned
         period = cleaned.get('period') or 'this_quarter'
         year = cleaned.get('financial_year')
         month = cleaned.get('month', '')
@@ -60,6 +88,17 @@ class ReportingPeriodForm(forms.Form):
     def period_params(self):
         if not self.is_valid():
             raise ValueError('The reporting period form must be valid.')
+        if self.cleaned_data.get('period_mode'):
+            mode = self.cleaned_data['period_mode']
+            params = {'period_mode': mode}
+            for key in ('calendar_year', 'calendar_month', 'fy', 'period_type', 'period_value'):
+                value = self.cleaned_data.get(key)
+                if value not in (None, ''):
+                    params[key] = str(value)
+            if mode == 'custom':
+                params['date_from'] = self.cleaned_data['date_from'].isoformat()
+                params['date_to'] = self.cleaned_data['date_to'].isoformat()
+            return params
         period = self.cleaned_data.get('period') or 'this_quarter'
         params = {'period': period}
         if period == 'fy':

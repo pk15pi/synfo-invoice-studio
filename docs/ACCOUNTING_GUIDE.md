@@ -2,6 +2,8 @@
 
 Applies to the solo, localhost-only install. **This is not tax or legal advice.** Have a Chartered Accountant check the GST, TDS, PF/ESI/PT and closing treatment before you rely on it for filings.
 
+Accounting journal and ledger period filters use the shared calendar/FY selector. Choose calendar year/month, an April–March FY with month/quarter/half/full-year period, or an inclusive custom date range. Q1 is Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec, Q4 Jan–Mar; H1 is Apr–Sep and H2 Oct–Mar. See the [date and period filter guide](date_period_filter_guide.md).
+
 ## 1. Module map
 | App | What it owns | Ledger role |
 |---|---|---|

@@ -17,6 +17,10 @@ FILTERS = ('app', 'model', 'object_id', 'action', 'source', 'date_from', 'date_t
 
 def _filtered(request):
     g = {k: request.GET.get(k, '').strip() for k in FILTERS}
+    if request.GET.get('period_mode'):
+        from reporting import periods as report_periods
+        selected = report_periods.resolve(request.GET)
+        g['date_from'], g['date_to'] = selected.start.isoformat(), selected.end.isoformat()
     qs = AuditEvent.objects.all()
     if g['app']:
         qs = qs.filter(app_label=g['app'])

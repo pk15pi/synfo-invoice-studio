@@ -15,6 +15,16 @@ from .models import (CandidateApplication, CandidateStageHistory, PerformanceSet
 
 def period_bounds(params=None, settings=None):
     params = params or {}
+    if not params:
+        params = {'period_mode': 'financial', 'period_type': 'full_fy'}
+    if params.get('period_mode'):
+        from reporting import periods as shared_periods
+        chosen = shared_periods.resolve(params)
+        return {'period': chosen.key, 'start': chosen.start, 'end': chosen.end,
+                'year': chosen.start.year, 'month': chosen.start.month,
+                'quarter': 1, 'fy_year': shared_periods.fy_start_year(chosen.start),
+                'from_date': chosen.start.isoformat(), 'to_date': chosen.end.isoformat(),
+                'label': chosen.label}
     settings = settings or PerformanceSettings.current()
     today = timezone.localdate()
     start_month = settings.financial_year_start_month
@@ -301,6 +311,21 @@ def _quarterly(monthly, start_month):
 def daily_brief_period_bounds(params=None, settings=None):
     """Resolve Daily Brief date filters; calendar and financial years are labelled distinctly."""
     params = params or {}
+    if not params:
+        params = {'period_mode': 'financial', 'period_type': 'full_fy'}
+    if params.get('period_mode'):
+        from reporting import periods as shared_periods
+        chosen = shared_periods.resolve(params)
+        start_fy = shared_periods.fy_start_year(chosen.start)
+        return {
+            'period': chosen.key, 'start': chosen.start, 'end': chosen.end, 'label': chosen.label,
+            'year': chosen.start.year, 'month': chosen.start.month, 'fy_year': start_fy,
+            'quarter': 1, 'half': 1, 'reference_date': chosen.start.isoformat(),
+            'fy_start_label': calendar.month_name[4],
+            'from_date': chosen.start.isoformat(), 'to_date': chosen.end.isoformat(),
+            'period_choices': [], 'month_choices': [(n, calendar.month_name[n]) for n in range(1, 13)],
+            'quarter_choices': range(1, 5), 'half_choices': (1, 2),
+        }
     settings = settings or PerformanceSettings.current()
     today = timezone.localdate()
     mode = params.get('period') or 'monthly'

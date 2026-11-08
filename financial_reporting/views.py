@@ -24,14 +24,16 @@ from .services.report_registry import active_reports
 
 @local_only
 def dashboard(request):
+    initial_period = {'period_mode': 'financial', 'fy': str(periods.fy_start_year(periods.today())),
+                      'period_type': 'full_fy'}
     form = ReportingPeriodForm(request.GET or None)
     if request.GET and not form.is_valid():
         messages.error(request, 'The reporting period is invalid. Review the selected dates and try again.')
-        form = ReportingPeriodForm(initial={'period': 'this_quarter'})
+        form = ReportingPeriodForm(initial=initial_period)
     if form.is_bound and form.is_valid():
         period = periods.resolve(form.period_params())
     else:
-        period = periods.resolve({}, default='this_quarter')
+        period = periods.resolve(initial_period)
 
     if request.GET.get('export') == 'xlsx' and form.is_bound and form.is_valid():
         response = HttpResponse(
@@ -56,12 +58,14 @@ def dashboard(request):
 
 @local_only
 def catalogue(request):
+    initial_period = {'period_mode': 'financial', 'fy': str(periods.fy_start_year(periods.today())),
+                      'period_type': 'full_fy'}
     period_form = ReportingPeriodForm(request.GET or None)
     if request.GET and not period_form.is_valid():
         messages.error(request, 'The reporting period is invalid. Review the selected dates and try again.')
-        period_form = ReportingPeriodForm(initial={'period': 'this_quarter'})
+        period_form = ReportingPeriodForm(initial=initial_period)
     period = periods.resolve(period_form.period_params()) if period_form.is_bound and period_form.is_valid() \
-        else periods.resolve({}, default='this_quarter')
+        else periods.resolve(initial_period)
     period_type = {
         'month': 'month', 'quarter': 'quarter', 'half': 'half_year',
         'fy': 'financial_year', 'year': 'annual',

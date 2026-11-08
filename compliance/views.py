@@ -14,6 +14,10 @@ from .models import VERIFY_WARNING, DueDateEntry, GstInputClaim, StatutoryPaymen
 
 
 def _range(request):
+    if request.GET.get('period_mode'):
+        from reporting import periods as report_periods
+        period = report_periods.resolve(request.GET)
+        return period.start, period.end
     today = date.today()
     fy = today.year if today.month >= 4 else today.year - 1
     try:

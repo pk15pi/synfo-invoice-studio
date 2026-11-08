@@ -20,7 +20,7 @@ class Command(BaseCommand):
         w = self.stdout.write
         w('APPLY' if apply else 'DRY-RUN (nothing is written; use --apply to post)')
         groups = [
-            ('expenses', CompanyExpense.objects.exclude(payment_status=CompanyExpense.CANCELLED).order_by('id'),
+            ('expenses', CompanyExpense.objects.filter(is_draft=False).exclude(payment_status=CompanyExpense.CANCELLED).order_by('id'),
              ledger.expense_key, ledger.post_expense, lambda o: f'{o.expense_id} {o.expense_date} {o.total_inr}'),
             ('vendor payments', CompanyExpensePayment.objects.select_related('expense').order_by('id'),
              ledger.payment_key, ledger.post_payment,

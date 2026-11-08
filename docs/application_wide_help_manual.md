@@ -12,6 +12,10 @@ The shared page-help component adds a compact circular `?` button to the current
 
 Clicking the button opens a native modal dialog without navigating away. It has a fixed header and close button; the dialog supports keyboard focus, closes with Escape, and closes when the backdrop is clicked. The page remains in place after closing.
 
+### Date and financial period filters
+
+The shared period controls now provide calendar year/month, April–March financial year with monthly/quarterly/half-yearly/full-year selection, and custom inclusive dates. Quarter and half-year boundaries follow the Indian financial year. Search and other non-date controls remain independent. See the [Date and Financial Period Filters guide](date_period_filter_guide.md) for detailed page coverage and examples. The page-help registry includes these instructions on each page using the shared selector.
+
 ## Architecture
 
 - `invoice_app/templates/invoice_app/_page_help_dialog.html` is the shared dialog markup used by the main application shell and Django Admin.
@@ -332,3 +336,7 @@ The user-facing pages are `/performance/daily-brief/` and `/performance/daily-br
 The additive migration `performance_review.0005_dailybrief_dailybriefhistory_dailybriefjddetail_and_more` was first applied to the isolated database snapshot and then to the active database. Pre-migration backup archive: `backups/backup-20261107-181335.zip`; verified working snapshot and manifest: `backups/daily_brief_preimplementation_20261107/`. The SQLite backup passed `integrity_check` with zero foreign-key violations and included 28 private-media and 16 media files. The isolated migration left existing business-table row counts unchanged; the expected additions were three empty Daily Brief tables plus Django content-type, permission and migration metadata.
 
 Verification: focused Daily Brief tests **14 passed**; full Performance Review tests **26 passed**; `manage.py check` and `makemigrations --check --dry-run` passed. The repository-wide run executed 671 tests: 670 passed and the known unrelated `invoice_app.tests.IconActionTests.test_customer_row_actions_are_accessible_icons` failed because it expects a Delete icon instead of the existing Deactivate/Edit actions. No live QA records were created. Browser verification returned HTTP 200 with no JavaScript errors at 1440px for the records page and 390px for analytics; the entry form also fit a 390px viewport with no horizontal overflow. The mobile breakpoints stack form controls and preserve horizontal scrolling for wide data tables.
+
+### Shared date and financial period filters (7 November 2026)
+
+The help registry and coverage guidance now explain calendar-year/month selection, FY monthly/quarterly/half-yearly/full-year selection, custom inclusive ranges, and exact Indian FY boundaries on pages using the shared selector. Page-specific search and status controls remain independent. The detailed page list and exclusions are in [date_period_filter_guide.md](date_period_filter_guide.md), with the initial audit inventory in [date_period_filter_audit.md](date_period_filter_audit.md). Operational single-day/month workflows and pages with two independent business-date ranges remain separately documented because they have distinct data semantics.

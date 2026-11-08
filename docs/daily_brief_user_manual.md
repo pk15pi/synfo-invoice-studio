@@ -18,20 +18,18 @@ The records table shows activity date, recruiter, JD count, resume count, select
 
 ## Date filters
 
-The same period definitions are used on the records and analytics pages:
+The records and analytics pages use the shared calendar and financial-year selectors:
 
 | Period | Meaning |
 |---|---|
-| Calendar year | January 1 through December 31 of the selected year. |
-| Weekly | Monday through Sunday for the week containing the selected reference date. |
-| 15 days | The selected reference date and the preceding 14 dates, inclusive. |
-| Monthly | The selected calendar month and year. |
-| Quarterly | Selected financial quarter in the selected financial year. |
-| Half-yearly | First or second six months of the selected financial year. |
-| Yearly | Complete financial year beginning in the selected FY starting year. |
+| Calendar year | January 1 through December 31; optionally narrow to a calendar month. |
+| Monthly | The chosen month within the selected FY; January–March are in the FY's ending calendar year. |
+| Quarterly | Q1 April–June, Q2 July–September, Q3 October–December, or Q4 January–March. |
+| Half-yearly | H1 April–September or H2 October–March. |
+| Full financial year | April 1 through March 31 of the following year. |
 | Custom date range | From and To dates, inclusive. |
 
-Financial quarter, half-year and year follow the financial-year start month configured in Performance Settings (April by default). For an April start, Q1 is April–June, H1 is April–September, and FY 2026–27 is April 2026–March 2027. All periods filter by **Activity Date**, never by record creation time. The date period combines with recruiter, recruiter-name/ID and JD Number searches.
+Financial reporting periods use the Indian April–March year. All periods filter by **Activity Date**, never by record creation time. The date period combines with recruiter, recruiter-name/ID and JD Number searches.
 
 ## Daily Brief Analytics
 

@@ -1,7 +1,7 @@
 # Financial Data Audit - Final Review Report
 
 **Audit date:** 6 November 2026  
-**Status:** Follow-up clarifications incorporated; clear bank matches staged only in the isolated audit copy. The live database has not been changed.
+**Status:** The audit below describes the database as of 6 November 2026. A separately authorized Expense Book reset was applied on 7 November 2026; see the subsequent user-authorized expense-book reset section.
 
 ## Scope and instruction handling
 
@@ -15,7 +15,7 @@ The audit covered the project database snapshot, `ll.zip` (including nested purc
 - Copied configured private media and backup storage into the audit working area and verified copied files using SHA-256. The configured media directory was absent; this is recorded in the backup manifest.
 - Validated the ZIP structure and CRC. Scanned nested purchase archives and safely extracted the nested salary `.7z` with a locally available 7-Zip-compatible executable. All 75 salary workbooks opened successfully.
 - Reconciled bank statement rows using transaction dates, amounts, references and running balances. No source rows were rejected based on PDF metadata; the user confirmed the statements are authentic despite modified metadata.
-- No live financial record was changed. The isolated working database contains the 112 missing bank statement rows, five additional high-confidence bank-to-ledger matches, updated non-business reasons for the six owner-confirmed account-validation transfers, and the source-supported invoice number/date for EXP-0026. No expense amounts, supplier/payable links, income, tax, asset, payroll, payment or journal postings were changed.
+- At the time of the 6 November audit, no live financial record had been changed. The isolated working database contains the 112 missing bank statement rows, five additional high-confidence bank-to-ledger matches, updated non-business reasons for the six owner-confirmed account-validation transfers, and the source-supported invoice number/date for EXP-0026. The later reset described below is separate from that audit work.
 
 **Sensitive working-copy note:** The backup manifest, database copy, and source-document staging area are in the temporary `FINANCIAL_AUDIT` directory. Their paths and contents should be handled as sensitive.
 
@@ -110,7 +110,7 @@ Six folders contain both Aadhaar and PAN images, one has Aadhaar only, four have
 
 ## Review boundary
 
-The bank transactions staged in the isolated working database are an audit aid only and are not a live import. Five exact salary payment matches, the six owner-confirmed account-validation classifications, and source invoice metadata for EXP-0026 were recorded in the isolated copy; no financial record was changed in the live database. The correction register separates owner-confirmed facts from pending source documents and review decisions. Any live changes require the final correction report to be presented and approved, with before/after values and source references retained.
+The bank transactions staged in the isolated working database are an audit aid only and are not a live import. Five exact salary payment matches, the six owner-confirmed account-validation classifications, and source invoice metadata for EXP-0026 were recorded in the isolated copy. The live-database state changed later as documented below. The correction register separates owner-confirmed facts from pending source documents and review decisions. Any live changes require the final correction report to be presented and approved, with before/after values and source references retained.
 
 ## Source records
 
@@ -118,3 +118,13 @@ The bank transactions staged in the isolated working database are an audit aid o
 - IDFC FIRST statement 2: `C:\Users\prasenjit\Downloads\IDFCFIRSTBankstatement_2.pdf`
 - Purchase, employee, and salary source archive: `D:\QuantBudLLP\ll.zip`
 - Audit request and follow-up instructions: user-supplied pasted text files and `prompt.txt`
+
+## Subsequent user-authorized expense-book reset
+
+**Date:** 7 November 2026
+
+- Created and verified a full application backup before the reset: `E:\QuantBud_Backups\qb-manual-20261107-223323-412.zip` (SHA-256 `e553c6c07ab1db2da03da96ce5a13913c6a06f467e4364ac10fdab41fc80dc54`).
+- Converted all 21 company expense entries to editable drafts. No employee claims or reimbursements were present. Draft entries are excluded from the accounting ledger and financial reports until finalized.
+- Removed 21 company payment records from the live Expense Book. Their posted payment journals and the 21 posted expense journals were reversed; immutable journal and reversal history remains in the accounting register. The delete actions were recorded in the audit log.
+- Released all 21 bank reconciliation matches to those expense-payment journal lines. Imported bank statement transactions remain unchanged as source evidence; 7 transactions remain matched to other book lines, 51 are unreconciled, and 6 remain ignored.
+- Drafts can be edited. Finalizing posts the expense to the ledger and enables payment recording. The All Expenses list shows Edit only for draft expenses and editable employee claims.

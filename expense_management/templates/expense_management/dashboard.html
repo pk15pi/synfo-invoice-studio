@@ -10,10 +10,6 @@
             href="{% url 'exp:vendors' %}">Manage vendors</a><a class="button secondary"
             href="{% url 'exp:claim_new' %}">+ Employee claim</a><a class="button primary"
             href="{% url 'exp:expense_new' %}">+ Company expense</a></div>
-</div>
-<form class="panel filters" method="get">{% include 'expense_management/_period_filter.html' %}<button
-        class="button secondary" type="submit">Apply</button><span class="muted">Showing <b>{{ f.label }}</b> ({{ f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span></form>
-<div class="xm-cards">
     <div class="xm-card"><span class="muted">Total expenses this month</span><strong>{{ cards.month_total|money }}</strong><small>{{ cards.month_label }}</small></div>
     <div class="xm-card"><span class="muted">Total expenses this financial year</span><strong>{{ cards.fy_total|money }}</strong><small>{{ cards.fy_label }}</small></div>
     <a class="xm-card" href="{% url 'exp:review' %}?status=pending"><span class="muted">Pending employee
@@ -29,6 +25,13 @@
             reimbursements</span><strong>{{ cards.reimb_total|money }}</strong><small>{{ cards.reimb_count }}
             payments</small></a>
 </div>
+<form class="panel filters dashboard-period-filters" method="get">
+    {% include 'invoice_app/_standard_period_filter.html' %}
+    <button class="button secondary" type="submit">Apply</button>
+    <span class="muted">Showing <b>{{ f.label }}</b> ({{ f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span>
+</form>
+
+
 <div class="xm-grid2">
     <div class="panel">
         <div class="panel-head">

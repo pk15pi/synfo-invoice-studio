@@ -1,17 +1,5 @@
 <form method="get" class="panel pr-filters daily-brief-filters">
-  <label>Period
-    <select name="period" class="field">
-      {% for value,label in period.period_choices %}<option value="{{ value }}"{% if period.period == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
-    </select>
-  </label>
-  <label>Calendar year <input class="field" type="number" name="year" min="2000" max="2100" value="{{ period.year }}"></label>
-  <label>Month <select class="field" name="month">{% for value,label in period.month_choices %}<option value="{{ value }}"{% if period.month == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
-  <label>Week / 15-day date <input class="field" type="date" name="reference_date" value="{{ period.reference_date }}"></label>
-  <label>Financial quarter <select class="field" name="quarter">{% for value in period.quarter_choices %}<option value="{{ value }}"{% if period.quarter == value %} selected{% endif %}>Q{{ value }}</option>{% endfor %}</select></label>
-  <label>Financial half <select class="field" name="half">{% for value in period.half_choices %}<option value="{{ value }}"{% if period.half == value %} selected{% endif %}>H{{ value }}</option>{% endfor %}</select></label>
-  <label>FY starting year <input class="field" type="number" name="fy_year" min="2000" max="2100" value="{{ period.fy_year }}"></label>
-  <label>From date <input class="field" type="date" name="from_date" value="{{ period.from_date }}"></label>
-  <label>To date <input class="field" type="date" name="to_date" value="{{ period.to_date }}"></label>
+  {% include 'invoice_app/_standard_period_filter.html' %}
   <label>Recruiter
     <select class="field" name="recruiter"><option value="">All recruiters</option>{% for employee in recruiters %}<option value="{{ employee.pk }}"{% if selected_recruiter == employee.pk|stringformat:'s' %} selected{% endif %}>{{ employee.employee_id }} · {{ employee.full_name }}</option>{% endfor %}</select>
   </label>

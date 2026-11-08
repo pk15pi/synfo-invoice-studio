@@ -122,6 +122,8 @@ class Period:
 
 
 def resolve(params, default='current_fy', ref=None):
+    if (params.get('period_mode') or '').strip() in ('calendar', 'financial', 'custom'):
+        return resolve_standard(params, default=default, ref=ref)
     t = ref or today()
     key = (params.get('period') or '').strip()
     fy = (params.get('fy') or '').strip()
@@ -192,6 +194,80 @@ def resolve(params, default='current_fy', ref=None):
     y = fy_start_year(t)
     p = Period(*fy_range(y), fy_label(y), 'current_fy', 'fy', {k: v for k, v in keep.items() if k == 'prior'} | {'period': 'current_fy'})
     return p
+
+
+def resolve_standard(params, default='current_fy', ref=None):
+    """Resolve the shared calendar/FY filter controls, retaining legacy query support."""
+    t = ref or today()
+    mode = (params.get('period_mode') or 'financial').strip()
+    keep = {k: params.get(k) for k in (
+        'period_mode', 'calendar_year', 'calendar_month', 'fy', 'period_type',
+        'period_value', 'date_from', 'date_to', 'prior') if params.get(k)}
+    if mode == 'calendar':
+        try:
+            year = int(params.get('calendar_year') or t.year)
+            if not 1900 <= year <= 9998:
+                raise ValueError
+        except (TypeError, ValueError):
+            year = t.year
+        month = (params.get('calendar_month') or '').strip()
+        if month:
+            try:
+                m = int(month)
+                if not 1 <= m <= 12:
+                    raise ValueError
+                s, e = date(year, m, 1), month_end(year, m)
+                return Period(s, e, s.strftime('%B %Y'), 'month', 'month', keep)
+            except (TypeError, ValueError):
+                pass
+        return Period(date(year, 1, 1), date(year, 12, 31), f'Calendar year {year}', 'cal_year', 'year', keep)
+
+    if mode == 'custom':
+        start, end = parse_date(params.get('date_from')), parse_date(params.get('date_to'))
+        if start or end:
+            start, end = start or end, end or start
+            if end < start:
+                start, end = end, start
+            return Period(start, end, f'{start:%d %b %Y} to {end:%d %b %Y}', 'custom', 'days', keep)
+        mode = 'financial'
+
+    try:
+        fy = int(params.get('fy') or fy_start_year(t))
+        if not 1900 <= fy <= 9998:
+            raise ValueError
+    except (TypeError, ValueError):
+        fy = fy_start_year(t)
+    kind = (params.get('period_type') or 'full_fy').strip().lower()
+    value = (params.get('period_value') or '').strip().upper()
+    if kind == 'monthly':
+        try:
+            month = int(value)
+            if not 1 <= month <= 12:
+                raise ValueError
+        except (TypeError, ValueError):
+            month = t.month
+        year = fy if month >= 4 else fy + 1
+        start, end = date(year, month, 1), month_end(year, month)
+        return Period(start, end, start.strftime('%B %Y'), 'fy', 'month', keep)
+    if kind == 'quarterly':
+        part = value if value in ('Q1', 'Q2', 'Q3', 'Q4') else 'Q1'
+    elif kind == 'half_yearly':
+        part = value if value in ('H1', 'H2') else 'H1'
+    else:
+        part = ''
+    start, end = fy_part_range(fy, part)
+    label = f'{part} {fy_label(fy)}' if part else fy_label(fy)
+    if part:
+        label += f' ({start:%b %Y} - {end:%b %Y})'
+    return Period(start, end, label, 'fy', 'quarter' if part.startswith('Q') else 'half' if part else 'fy', keep)
+
+
+def calendar_year_choices(back=8, forward=1):
+    year = today().year
+    return range(year + forward, year - back - 1, -1)
+
+
+MONTH_CHOICES = [(n, calendar.month_name[n]) for n in range(1, 13)]
 
 
 def fy_choices(back=8, forward=1):

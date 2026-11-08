@@ -10,6 +10,7 @@ urlpatterns = [
     path('expenses/company/<int:pk>/', views.expense_detail, name='expense_detail'),
     path('expenses/company/<int:pk>/edit/', views.expense_form, name='expense_edit'),
     path('expenses/company/<int:pk>/payment/', views.expense_payment, name='expense_payment'),
+    path('expenses/company/<int:pk>/finalize/', views.expense_finalize, name='expense_finalize'),
     path('expenses/company/<int:pk>/cancel/', views.expense_cancel, name='expense_cancel'),
     path('expenses/company/<int:pk>/attach/', views.expense_attach, name='expense_attach'),
     path('expenses/files/<str:kind>/<int:pk>/view/', views.attachment_file, {'mode': 'view'}, name='att_view'),

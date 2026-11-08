@@ -308,14 +308,19 @@ def manpower_deployments(request):
                        Q(employee__first_name__icontains=q) | Q(employee__last_name__icontains=q) |
                        Q(client__name__icontains=q) | Q(contract_reference__icontains=q))
     period = services.previous_month(timezone.localdate())
-    report_year = request.GET.get('billing_year')
-    report_month = request.GET.get('billing_month')
-    try:
-        report_period = services.parse_month(f'{report_year}-{report_month}') if report_year and report_month else period
-    except ValueError:
-        report_period = period
+    if request.GET.get('period_mode'):
+        selected_period = reporting_periods.resolve(request.GET)
+    else:
+        selected_period = reporting_periods.resolve({
+            'period_mode': 'financial',
+            'fy': str(period.year if period.month >= 4 else period.year - 1),
+            'period_type': 'monthly',
+            'period_value': str(period.month),
+        })
+    report_period = selected_period.start
     billing_records = ManpowerBillingRecord.objects.select_related('deployment__client', 'deployment__project',
-                                                                  'invoice').filter(invoice__billing_month=report_period)
+                                                                  'invoice').filter(
+        invoice__billing_month__range=(selected_period.start, selected_period.end))
     if client_id.isdigit():
         billing_records = billing_records.filter(deployment__client_id=client_id)
     return render(request, 'invoice_app/manpower_deployments.html', {
@@ -325,11 +330,14 @@ def manpower_deployments(request):
         'active_count': ManpowerDeployment.objects.filter(status='active').count(),
         'recurring_count': ManpowerDeployment.objects.filter(status='active', recurring=True).count(),
         'period': period,
-        'report_period': report_period, 'billing_records': billing_records,
+        'report_period': report_period, 'selected_period': selected_period, 'billing_records': billing_records,
         'period_billing_total': sum((r.amount for r in billing_records), Decimal('0.00')),
         'report_years': range(timezone.localdate().year - 5, timezone.localdate().year + 2),
         'month_options': [(f'{i:02d}', month_name[i]) for i in range(1, 13)],
         'selected_billing_month': report_period.strftime('%m'),
+        'standard_filter_default_type': 'monthly',
+        'standard_filter_default_fy': selected_period.start.year if selected_period.start.month >= 4 else selected_period.start.year - 1,
+        'standard_filter_default_value': str(selected_period.start.month),
     })
 
 
@@ -679,12 +687,16 @@ def invoice_list(request):
     current_month = today.replace(day=1)
     qs = Invoice.objects.all()
     filter_error = ''
+    selected_standard_period = None
 
     def month_start(offset):
         index = current_month.year * 12 + current_month.month - 1 + offset
         return date(index // 12, index % 12 + 1, 1)
 
-    if period in ('last3', 'previous', 'last6'):
+    if request.GET.get('period_mode'):
+        selected_standard_period = reporting_periods.resolve(request.GET)
+        qs = qs.filter(invoice_date__range=(selected_standard_period.start, selected_standard_period.end))
+    elif period in ('last3', 'previous', 'last6'):
         start = month_start({'last3': -2, 'previous': -1, 'last6': -5}[period])
         end = month_start(0 if period == 'previous' else 1)
         qs = qs.filter(invoice_date__gte=start, invoice_date__lt=end)
@@ -742,6 +754,7 @@ def invoice_list(request):
         'financial_year_label': financial_year_label,
         'selected_month_label': selected_month_label,
         'filter_error': filter_error,
+        'selected_standard_period': selected_standard_period,
         'empty_text': 'No invoices match the selected date filter.' if period not in ('', 'all')
         else 'No invoices yet.',
     })
@@ -871,9 +884,12 @@ def receipts(request):
     g = request.GET
     qs = InvoicePayment.objects.select_related('invoice', 'invoice__client')
     f = {k: (g.get(k) or '').strip() for k in ('from', 'to', 'client', 'mode', 'q')}
-    if f['from']:
+    selected_period = reporting_periods.resolve(g) if g.get('period_mode') else None
+    if selected_period:
+        qs = qs.filter(receipt_date__range=(selected_period.start, selected_period.end))
+    elif f['from']:
         qs = qs.filter(receipt_date__gte=f['from'])
-    if f['to']:
+    if f['to'] and not selected_period:
         qs = qs.filter(receipt_date__lte=f['to'])
     if f['client'].isdigit():
         qs = qs.filter(invoice__client_id=int(f['client']))
@@ -885,6 +901,7 @@ def receipts(request):
     rows = list(qs)
     return render(request, 'invoice_app/receipts.html', {
         'rows': rows, 'f': f, 'clients': Client.objects.all(), 'modes': InvoicePayment.MODES,
+        'selected_period': selected_period,
         'tot_amount': sum((r.amount for r in rows), 0), 'tot_ded': sum((r.deductions for r in rows), 0)})
 
 

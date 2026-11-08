@@ -65,3 +65,12 @@ tr.total td{font-weight:700;background:#f4f8fb}
 
 /* Keep the dashboard action links below the shared Back and Help controls. */
 @media(min-width:851px){.expense-dashboard-heading>.heading-actions{padding-top:52px}}
+
+.dashboard-period-filters{gap:9px;padding:12px 14px}
+.dashboard-period-filters .xm-period-control{flex:0 0 auto}
+.dashboard-period-filters select[name="year"]{width:105px}
+.dashboard-period-filters select[name="month"]{width:150px}
+.dashboard-period-filters select[name="duration"]{width:205px}
+.dashboard-period-filters select[name="quarter"],.dashboard-period-filters select[name="half"]{width:112px}
+.dashboard-period-filters [hidden]{display:none!important}
+@media(max-width:760px){.dashboard-period-filters{align-items:flex-end}.dashboard-period-filters .xm-period-control{flex:1 1 135px}.dashboard-period-filters .xm-period-control>.field{width:100%}.dashboard-period-filters>.button{flex:0 0 auto}.dashboard-period-filters>.muted{flex:1 1 100%}}

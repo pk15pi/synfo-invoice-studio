@@ -389,6 +389,7 @@ EXP_FIELDS = ('id', 'expense_id', 'expense_date', 'due_date', 'invoice_number', 
 def company_expenses(start, end, include_cancelled=False, as_at=None, **f):
     """List of dicts (one per expense) with INR total, INR paid (payments dated <= as_at) and outstanding."""
     qs = PR.apply(CompanyExpense.objects.filter(expense_date__range=(start, end)))
+    qs = qs.filter(is_draft=False)
     if not include_cancelled:
         qs = qs.exclude(payment_status=CompanyExpense.CANCELLED)
     for k in ('vendor', 'category', 'department', 'client', 'project', 'employee'):

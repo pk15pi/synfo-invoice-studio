@@ -63,8 +63,9 @@ def expense_lines(e):
 
 
 def post_expense(e):
-    if e.is_cancelled:
-        return unpost(expense_key(e), e.cancel_reason or 'Expense cancelled')
+    if e.is_cancelled or e.is_draft:
+        reason = e.cancel_reason or ('Expense saved as draft' if e.is_draft else 'Expense cancelled')
+        return unpost(expense_key(e), reason)
     return sync(expense_key(e), e.expense_date, f'Expense {e.expense_id}', expense_lines(e), 'company_expense', e.pk)
 
 
