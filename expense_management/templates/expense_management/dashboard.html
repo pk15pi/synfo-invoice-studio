@@ -1,4 +1,4 @@
-{% extends 'expense_management/xm_base.html' %}{% load filter_ui %}{% load exp_tags %}{% block xm_title %}Expense dashboard{% endblock %}{% block xm %}
+{% extends 'expense_management/xm_base.html' %}{% load pagination_ui %}{% load filter_ui %}{% load exp_tags %}{% block xm_title %}Expense dashboard{% endblock %}{% block xm %}
 <div class="page-heading split expense-dashboard-heading">
     <div>
         <p class="eyebrow">Expense Management</p>
@@ -46,8 +46,8 @@
                         <th style="width:30%"></th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for m, a, b, t, pct in trend %}<tr>
+                {% paginate trend as qb_pg1 %}<tbody>
+                    {% for m, a, b, t, pct in qb_pg1 %}<tr>
                         <td>{{ m }}</td>
                         <td class="num">{{ a|money }}</td>
                         <td class="num">{{ b|money }}</td>
@@ -57,7 +57,7 @@
                         </td>
                     </tr>{% endfor %}
                 </tbody>
-            </table>
+            </table>{% pager qb_pg1 %}
         </div>
     </div>
     <div class="panel">
@@ -74,8 +74,8 @@
                         <th style="width:30%"></th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for n, c, a, pct in cat_rows %}<tr>
+                {% paginate cat_rows as qb_pg2 %}<tbody>
+                    {% for n, c, a, pct in qb_pg2 %}<tr>
                         <td>{{ n }}</td>
                         <td class="num">{{ c }}</td>
                         <td class="num">{{ a|money }}</td>
@@ -86,7 +86,7 @@
                         <td colspan="4" class="empty">No expenses in this period.</td>
                     </tr>{% endfor %}
                 </tbody>
-            </table>
+            </table>{% pager qb_pg2 %}
         </div>
     </div>
     <div class="panel">
@@ -103,8 +103,8 @@
                         <th class="num">Total</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for r in department.rows %}<tr>
+                {% paginate department.rows as qb_pg3 %}<tbody>
+                    {% for r in qb_pg3 %}<tr>
                         <td>{{ r.0 }}</td>
                         <td class="num">{{ r.1|money }}</td>
                         <td class="num">{{ r.2|money }}</td>
@@ -113,7 +113,7 @@
                         <td colspan="4" class="empty">No data.</td>
                     </tr>{% endfor %}
                 </tbody>
-            </table>
+            </table>{% pager qb_pg3 %}
         </div>
     </div>
     <div class="panel">
@@ -131,8 +131,8 @@
                         <th class="num">Outstanding</th>
                     </tr>
                 </thead>
-                <tbody>
-                    {% for r in employee.rows %}<tr>
+                {% paginate employee.rows as qb_pg4 %}<tbody>
+                    {% for r in qb_pg4 %}<tr>
                         <td>{{ r.0 }}</td>
                         <td class="num">{{ r.1 }}</td>
                         <td class="num">{{ r.3|money }}</td>
@@ -142,7 +142,7 @@
                         <td colspan="5" class="empty">No claims.</td>
                     </tr>{% endfor %}
                 </tbody>
-            </table>
+            </table>{% pager qb_pg4 %}
         </div>
     </div>
 </div>

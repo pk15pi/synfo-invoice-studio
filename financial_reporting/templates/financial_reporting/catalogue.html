@@ -1,4 +1,4 @@
-{% extends "invoice_app/base.html" %}{% load filter_ui %}
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}{% load filter_ui %}
 {% block title %}Report Catalogue{% endblock %}
 {% block content %}
 <h1>Report Catalogue</h1>
@@ -20,8 +20,8 @@
 <div class="table-wrap">
   <table class="fr-catalogue-table" data-server-sort="orm">
     <thead><tr><th data-sort-key="report">Report</th><th data-sort-key="category">Category</th><th data-sort-key="source">Source</th><th data-sort-key="formats">Formats</th><th>Availability</th><th></th></tr></thead>
-    <tbody>
-    {% for report in page.object_list %}
+    {% paginate page as qb_pg1 %}<tbody>
+    {% for report in qb_pg1 %}
       <tr>
         <td class="fr-report-summary"><strong>{{ report.report_name }}</strong><small>{{ report.report_code }}</small><span>{{ report.description }}</span></td>
         <td>{{ report.category.name }}</td>
@@ -32,16 +32,10 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table>{% pager qb_pg1 %}
 </div>
 {% else %}
 <p>No reports match these filters.</p>
 {% endif %}
-{% if page.has_other_pages %}
-<nav aria-label="Report catalogue pages">
-  {% if page.has_previous %}<a href="?{{ page_query }}&amp;page={{ page.previous_page_number }}">Previous</a>{% endif %}
-  <span>Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
-  {% if page.has_next %}<a href="?{{ page_query }}&amp;page={{ page.next_page_number }}">Next</a>{% endif %}
-</nav>
-{% endif %}
+
 {% endblock %}

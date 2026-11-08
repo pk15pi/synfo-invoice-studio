@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 
 from django.core.paginator import Paginator
+from invoice_app.pagination import paginate as qb_paginate
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -48,7 +49,7 @@ def _ctx(qs, g, request, **extra):
         'timestamp': 'timestamp', 'source': 'source', 'object': 'object_repr',
         'action': 'action', 'reason': 'reason', 'path': 'request_path',
     })
-    page = Paginator(qs, 100).get_page(request.GET.get('page'))
+    page = qb_paginate(request, qs)
     qd = request.GET.copy()
     qd.pop('page', None)
     return dict(page=page, f=g, operator=OPERATOR_TEXT, actions=AuditEvent.ACTIONS, sources=AuditEvent.SOURCES,

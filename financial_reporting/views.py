@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.core.paginator import Paginator
+from invoice_app.pagination import paginate as qb_paginate
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
@@ -82,7 +83,7 @@ def catalogue(request):
         report_rows, _, _ = apply_queryset_sort(report_rows, request, {k: v[0] for k, v in fields.items()})
     else:
         report_rows, _, _ = apply_sequence_sort(report_rows, request, fields)
-    page = Paginator(report_rows, 30).get_page(request.GET.get('page'))
+    page = qb_paginate(request, report_rows)
     page_query = request.GET.copy()
     page_query.pop('page', None)
 

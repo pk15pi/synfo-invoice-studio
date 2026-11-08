@@ -1,4 +1,4 @@
-{% extends 'bank_management/base_bank.html' %}{% load filter_ui %}{% block bk_title %}Reconciliation{% endblock %}{% block bk %}
+{% extends 'bank_management/base_bank.html' %}{% load pagination_ui %}{% load filter_ui %}{% block bk_title %}Reconciliation{% endblock %}{% block bk %}
 <div class="page-heading"><p class="eyebrow">{{ b }}</p><h1>Bank reconciliation as of {{ s.end|date:"d M Y" }}</h1></div>
 <form class="qb-filter-form panel filters" method="get" data-filter-form>{% include 'bank_management/_period_filter.html' %}{% filter_actions %} <span class="muted">Balances are as of the period end ({{ f.label }}).</span></form>
 <div class="panel"><table><tbody>
@@ -9,5 +9,5 @@
 <tr><td>- Unreconciled book items (net)</td><td class="num">{{ s.unreconciled_book_total }}</td></tr>
 <tr><td>Adjusted book balance</td><td class="num">{{ s.adjusted_book }}</td></tr>
 <tr><th>Unexplained difference</th><th class="num {% if s.unexplained %}bk-warn{% endif %}">{{ s.unexplained }}</th></tr></tbody></table></div>
-<div class="panel"><h3>Unreconciled statement lines ({{ s.unreconciled_bank|length }})</h3><table><tbody>{% for x in s.unreconciled_bank %}<tr><td><a href="{% url 'bank:txn_detail' x.txn.pk %}">{{ x.txn.date|date:"d-m-Y" }}</a></td><td>{{ x.txn.description }}</td><td class="num">{{ x.remaining }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table></div>
-<div class="panel"><h3>Unreconciled book lines ({{ s.unreconciled_book|length }})</h3><table><tbody>{% for x in s.unreconciled_book %}<tr><td>{{ x.line.entry.date|date:"d-m-Y" }}</td><td><a href="{% url 'acc:journal_detail' x.line.entry.pk %}">{{ x.line.entry }}</a> {{ x.line.entry.narration }}</td><td class="num">{{ x.remaining }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+<div class="panel"><h3>Unreconciled statement lines ({{ s.unreconciled_bank|length }})</h3><table>{% paginate s.unreconciled_bank as qb_pg1 %}<tbody>{% for x in qb_pg1 %}<tr><td><a href="{% url 'bank:txn_detail' x.txn.pk %}">{{ x.txn.date|date:"d-m-Y" }}</a></td><td>{{ x.txn.description }}</td><td class="num">{{ x.remaining }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
+<div class="panel"><h3>Unreconciled book lines ({{ s.unreconciled_book|length }})</h3><table>{% paginate s.unreconciled_book as qb_pg2 %}<tbody>{% for x in qb_pg2 %}<tr><td>{{ x.line.entry.date|date:"d-m-Y" }}</td><td><a href="{% url 'acc:journal_detail' x.line.entry.pk %}">{{ x.line.entry }}</a> {{ x.line.entry.narration }}</td><td class="num">{{ x.remaining }}</td></tr>{% empty %}<tr><td class="empty">None.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg2 %}</div>{% endblock %}

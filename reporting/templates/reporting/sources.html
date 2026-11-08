@@ -1,6 +1,6 @@
-{% extends 'invoice_app/base.html' %}{% block title %}Report data sources{% endblock %}{% block content %}{% include 'reporting/_style.html' %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% block title %}Report data sources{% endblock %}{% block content %}{% include 'reporting/_style.html' %}
 {% include 'reporting/_nav.html' %}<h1>Data sources and rules</h1>
-<div class="rp-wrap"><table class="rp"><thead><tr><th>Figure</th><th>Source (model.field)</th><th>Date basis</th><th>Status rule</th></tr></thead><tbody>{% for a,b,c,d in sources_ %}<tr><td>{{ a }}</td><td>{{ b }}</td><td>{{ c }}</td><td>{{ d }}</td></tr>{% endfor %}</tbody></table></div>
+<div class="rp-wrap"><table class="rp"><thead><tr><th>Figure</th><th>Source (model.field)</th><th>Date basis</th><th>Status rule</th></tr></thead>{% paginate sources_ as qb_pg1 %}<tbody>{% for a,b,c,d in qb_pg1 %}<tr><td>{{ a }}</td><td>{{ b }}</td><td>{{ c }}</td><td>{{ d }}</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
 <p class="rp-note">{{ group_rules }}</p>
 <div class="rp-lim"><b>Not tracked</b><ul>{% for n in limitations %}<li>{{ n }}</li>{% endfor %}</ul></div>
 {% endblock %}

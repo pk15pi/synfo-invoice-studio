@@ -1,6 +1,6 @@
-{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Legacy bank text preview{% endblock %}{% block bk %}
+{% extends 'bank_management/base_bank.html' %}{% load pagination_ui %}{% block bk_title %}Legacy bank text preview{% endblock %}{% block bk %}
 <div class="page-heading"><p class="eyebrow">Dry run &middot; read-only</p><h1>Free-text bank values in existing payments</h1></div>
 <div class="panel"><p class="muted">This page only reads expense payments and reimbursements. Nothing is changed; linking them to bank accounts is a later, separately approved step.</p>
-<table id="legacy"><thead><tr><th>Source</th><th>Bank text as entered</th><th class="num">Records</th><th class="num">Total</th><th>Suggested account</th><th>Why</th></tr></thead><tbody>
-{% for r in rows %}<tr><td>{{ r.source }}</td><td>{{ r.text|default:"(blank)" }}</td><td class="num">{{ r.count }}</td><td class="num">{{ r.total }}</td><td>{{ r.suggestion|default:"-" }}</td><td>{{ r.why }}</td></tr>
-{% empty %}<tr><td colspan="6" class="empty">No payments or reimbursements.</td></tr>{% endfor %}</tbody></table></div>{% endblock %}
+<table id="legacy"><thead><tr><th>Source</th><th>Bank text as entered</th><th class="num">Records</th><th class="num">Total</th><th>Suggested account</th><th>Why</th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
+{% for r in qb_pg1 %}<tr><td>{{ r.source }}</td><td>{{ r.text|default:"(blank)" }}</td><td class="num">{{ r.count }}</td><td class="num">{{ r.total }}</td><td>{{ r.suggestion|default:"-" }}</td><td>{{ r.why }}</td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No payments or reimbursements.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>{% endblock %}

@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
+from invoice_app.pagination import paginate as qb_paginate
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Exists, F, OuterRef, Q
 from django.http import FileResponse, Http404
@@ -92,7 +93,7 @@ def catalogue(request):
     document_types, _, _ = apply_queryset_sort(document_types, request, {
         'type': 'name', 'code': 'code', 'numbering': 'number_prefix', 'approval': 'approval_required',
     })
-    page = Paginator(document_types, 30).get_page(request.GET.get('page'))
+    page = qb_paginate(request, document_types)
     page_query = request.GET.copy()
     page_query.pop('page', None)
     return render(request, 'document_generation/catalogue.html', {
@@ -521,7 +522,7 @@ def template_versions(request):
         'template': 'template__name', 'version': 'version_number', 'status': 'status',
         'created': 'created_at', 'type': 'template__document_type__name',
     })
-    page = Paginator(versions, 50).get_page(request.GET.get('page'))
+    page = qb_paginate(request, versions)
     page_query = request.GET.copy()
     page_query.pop('page', None)
     return render(request, 'document_generation/template_versions.html', {

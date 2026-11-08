@@ -109,8 +109,19 @@ def applied_filters(context):
 @register.inclusion_tag('invoice_app/_filter_actions.html', takes_context=True)
 def filter_actions(context, clear_url=None, apply=True):
     request = context.get('request')
+    # Keep the chosen rows-per-page (page_size, t2_page_size, ...) when filters are applied.
+    # `page` is deliberately not carried, so Apply always starts again on page 1.
+    from invoice_app.pagination import PAGE_SIZES
+    keep_sizes = []
+    if request is not None:
+        for k in request.GET:
+            if k == 'page_size' or (k.endswith('_page_size') and k[:-len('_page_size')].startswith('t')):
+                v = (request.GET.get(k) or '').strip()
+                if v.isdigit() and int(v) in PAGE_SIZES:
+                    keep_sizes.append((k, v))
     return {'clear_url': clear_url or (request.path if request else '?'), 'apply': apply,
-            'items': applied_filters(context)}
+            'items': [i for i in applied_filters(context) if not str(i[0]).endswith('page_size')],
+            'keep_sizes': keep_sizes}
 
 
 @register.simple_tag(takes_context=True)

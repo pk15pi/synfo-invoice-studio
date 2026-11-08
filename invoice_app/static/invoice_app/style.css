@@ -776,3 +776,13 @@ main>*{min-width:0}
 :is(form.qb-filter-form,form.filter-form) .standard-period-filter{flex-direction:column!important;flex-wrap:nowrap!important;align-items:stretch!important;width:100%;min-width:0}
 :is(form.qb-filter-form,form.filter-form) .standard-period-filter>label:not([hidden]){width:100%!important;max-width:100%!important}
 }
+
+/* ---- t57u: shared table pager ---- */
+.qb-pager{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:10px 0 4px;font-size:12px;color:#536779}
+.qb-pager-pages{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.qb-pg{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--line,#d7e1e9);border-radius:6px;background:#fff;color:#0B5394;text-decoration:none;font-weight:600}
+.qb-pg.on{background:#0B5394;border-color:#0B5394;color:#fff}.qb-pg.off{color:#a7b4bf}.qb-pg.gap{border:0;background:none;min-width:auto}
+.qb-pager-size{margin:0 0 0 auto;display:flex;align-items:center}
+.qb-pager-size label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-weight:700;margin:0}
+.qb-pager-size select{width:auto;min-width:70px;min-height:30px;padding:3px 6px;font-size:12px}
+@media(max-width:640px){.qb-pager-size{margin-left:0}}

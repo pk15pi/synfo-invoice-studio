@@ -1,10 +1,10 @@
-{% extends 'invoice_app/base.html' %}{% load filter_ui %}{% block content %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Employee Management</p><h1>Employees</h1></div><a class="button primary" href="{% url 'em:employee_new' %}">+ Add employee</a></div>
 <form class="qb-filter-form panel filters compact-filters" method="get" data-filter-form><label class="compact-filter-label"><span>Search</span><input class="field" name="q" value="{{ q }}" placeholder="Search ID, name, alias, designation, phone, email"></label>
 <label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="employed" {% if status == 'employed' %}selected{% endif %}>Currently employed</option><option value="all" {% if status == 'all' %}selected{% endif %}>All statuses</option>{% for k, l in statuses %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
 <label class="compact-filter-label"><span>Department</span><select class="field" name="department"><option value="">All departments</option>{% for d in departments %}<option value="{{ d.pk }}" {% if dept == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
 {% filter_actions %}</form>
-<div class="panel"><div class="table-wrap"><table id="emp-table"><thead><tr><th>ID</th><th>Name</th><th>Alias</th><th>Department</th><th>Designation</th><th>Type</th><th>Joined</th><th>Status</th></tr></thead><tbody>
-{% for e in rows %}<tr><td><a href="{% url 'em:employee_detail' e.pk %}">{{ e.employee_id }}</a></td><td><a href="{% url 'em:employee_detail' e.pk %}">{{ e.full_name }}</a></td><td>{{ e.alias|default:"-" }}</td><td>{{ e.department }}</td><td>{{ e.designation }}</td><td>{{ e.get_employment_type_display }}</td><td>{{ e.date_of_joining|date:"d-m-Y" }}</td>
+<div class="panel"><div class="table-wrap"><table id="emp-table"><thead><tr><th>ID</th><th>Name</th><th>Alias</th><th>Department</th><th>Designation</th><th>Type</th><th>Joined</th><th>Status</th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
+{% for e in qb_pg1 %}<tr><td><a href="{% url 'em:employee_detail' e.pk %}">{{ e.employee_id }}</a></td><td><a href="{% url 'em:employee_detail' e.pk %}">{{ e.full_name }}</a></td><td>{{ e.alias|default:"-" }}</td><td>{{ e.department }}</td><td>{{ e.designation }}</td><td>{{ e.get_employment_type_display }}</td><td>{{ e.date_of_joining|date:"d-m-Y" }}</td>
 <td><span class="badge {% if e.is_employed %}ok{% else %}off{% endif %}">{{ e.get_status_display }}</span></td></tr>
-{% empty %}<tr><td colspan="8" class="empty">No employees match.</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}
+{% empty %}<tr><td colspan="8" class="empty">No employees match.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>{% endblock %}

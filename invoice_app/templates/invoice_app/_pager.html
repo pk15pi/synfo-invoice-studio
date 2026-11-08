@@ -1,0 +1,12 @@
+<div class="qb-pager" data-qb-pager>
+  <span class="qb-pager-info">{% if total %}Showing {{ page.start_index }}&ndash;{{ page.end_index }} of {{ total }}{% else %}No records{% endif %}</span>
+  {% if page.paginator.num_pages > 1 %}<nav class="qb-pager-pages" aria-label="Pages">
+    {% if prev_url %}<a class="qb-pg" href="{{ prev_url }}" rel="prev" aria-label="Previous page">&lsaquo; Prev</a>{% else %}<span class="qb-pg off">&lsaquo; Prev</span>{% endif %}
+    {% for l in links %}{% if l %}{% if l.0 == page.number %}<span class="qb-pg on" aria-current="page">{{ l.0 }}</span>{% else %}<a class="qb-pg" href="{{ l.1 }}">{{ l.0 }}</a>{% endif %}{% else %}<span class="qb-pg gap">&hellip;</span>{% endif %}{% endfor %}
+    {% if next_url %}<a class="qb-pg" href="{{ next_url }}" rel="next" aria-label="Next page">Next &rsaquo;</a>{% else %}<span class="qb-pg off">Next &rsaquo;</span>{% endif %}
+  </nav>{% endif %}
+  <form method="get" class="qb-pager-size">{% for k, v in keep %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label>Rows per page <select name="{{ sk }}" onchange="this.form.submit()">{% for s in sizes %}<option value="{{ s }}"{% if s == size %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+    <noscript><button class="button secondary" type="submit">Go</button></noscript>
+  </form>
+</div>

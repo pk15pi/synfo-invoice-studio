@@ -1,4 +1,4 @@
-{% extends 'invoice_app/base.html' %}{% load ui_icons %}{% load em_tags %}{% block content %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% load em_tags %}{% block content %}
 <div class="page-heading split"><div><a class="back" href="{% url 'em:employees' %}">&larr; Employees</a><p class="eyebrow">{{ e.employee_id }} &middot; {{ e.department }}</p><h1>{{ e.full_name }} <span class="badge {% if e.is_employed %}ok{% else %}off{% endif %}">{{ e.get_status_display }}</span></h1><p class="muted">{{ e.designation }} &middot; {{ e.get_employment_type_display }}</p></div>
 <div>{% if e.photo %}<img src="{% url 'em:employee_photo' e.pk %}" alt="photo" style="height:90px;border-radius:8px">{% endif %} <a class="button primary" href="{% url 'em:employee_edit' e.pk %}">{% icon "edit" %} Edit</a></div></div>
 <nav class="segmented">
@@ -20,41 +20,41 @@
 
 {% elif tab == 'contacts' %}
 <div class="panel"><div class="panel-head split"><h2>Emergency contacts</h2><a class="button secondary" href="{% url 'em:contact_new' e.pk %}">+ Add contact</a></div>
-<div class="table-wrap"><table><thead><tr><th>Name</th><th>Relationship</th><th>Mobile</th><th>Alternate</th><th>Address</th><th></th></tr></thead><tbody>
-{% for c in contacts %}<tr><td>{{ c.name }}</td><td>{{ c.relationship }}</td><td>{{ c.mobile }}</td><td>{{ c.alternate_number }}</td><td>{{ c.address }}</td><td><a class="icon-btn" href="{% url 'em:contact_edit' e.pk c.pk %}" title="Edit" aria-label="Edit">{% icon "edit" %}</a> <form class="inline" method="post" action="{% url 'em:contact_delete' e.pk c.pk %}" onsubmit="return confirm('Remove this contact?')">{% csrf_token %}<button class="icon-btn danger" title="Remove" aria-label="Remove">{% icon "remove" %}</button></form></td></tr>
-{% empty %}<tr><td colspan="6" class="empty">No emergency contacts.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="table-wrap"><table><thead><tr><th>Name</th><th>Relationship</th><th>Mobile</th><th>Alternate</th><th>Address</th><th></th></tr></thead>{% paginate contacts as qb_pg1 %}<tbody>
+{% for c in qb_pg1 %}<tr><td>{{ c.name }}</td><td>{{ c.relationship }}</td><td>{{ c.mobile }}</td><td>{{ c.alternate_number }}</td><td>{{ c.address }}</td><td><a class="icon-btn" href="{% url 'em:contact_edit' e.pk c.pk %}" title="Edit" aria-label="Edit">{% icon "edit" %}</a> <form class="inline" method="post" action="{% url 'em:contact_delete' e.pk c.pk %}" onsubmit="return confirm('Remove this contact?')">{% csrf_token %}<button class="icon-btn danger" title="Remove" aria-label="Remove">{% icon "remove" %}</button></form></td></tr>
+{% empty %}<tr><td colspan="6" class="empty">No emergency contacts.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
 
 {% elif tab == 'documents' %}
 <div class="panel"><div class="panel-head split"><h2>Documents</h2><a class="button secondary" href="{% url 'em:document_new' e.pk %}">+ Upload document</a></div>
 <p>{% for label, ok in doc_status %}<span class="badge {% if ok %}ok{% else %}off{% endif %}">{{ label }}: {% if ok %}Available{% else %}Missing{% endif %}</span> {% endfor %}</p>
-<div class="table-wrap"><table><thead><tr><th>Category</th><th>Type</th><th>Name</th><th>Number</th><th>Uploaded</th><th>Expiry</th><th>Size</th><th></th></tr></thead><tbody>
-{% for d in docs %}<tr><td>{{ d.category }}</td><td>{{ d.get_document_type_display }}</td><td>{{ d.document_name }}</td><td>{{ d.number_masked|default:"-" }}</td><td>{{ d.upload_date|date:"d-m-Y" }}</td>
+<div class="table-wrap"><table><thead><tr><th>Category</th><th>Type</th><th>Name</th><th>Number</th><th>Uploaded</th><th>Expiry</th><th>Size</th><th></th></tr></thead>{% paginate docs as qb_pg2 %}<tbody>
+{% for d in qb_pg2 %}<tr><td>{{ d.category }}</td><td>{{ d.get_document_type_display }}</td><td>{{ d.document_name }}</td><td>{{ d.number_masked|default:"-" }}</td><td>{{ d.upload_date|date:"d-m-Y" }}</td>
 <td>{{ d.expiry_date|date:"d-m-Y"|default:"-" }}{% with st=doc_states|get_item:d.pk %}{% if st == 'expired' %} <span class="badge off">Expired</span>{% elif st == 'expiring' %} <span class="badge">Expiring</span>{% endif %}{% endwith %}</td>
 <td>{{ d.file_size|filesizeformat }}</td><td><a class="icon-btn" href="{% url 'em:document_view' e.pk d.pk %}" target="_blank" rel="noopener" title="View" aria-label="View">{% icon "view" %}</a> <a class="icon-btn" href="{% url 'em:document_download' e.pk d.pk %}" title="Download" aria-label="Download">{% icon "download" %}</a> <a class="icon-btn" href="{% url 'em:document_replace' e.pk d.pk %}" title="Replace" aria-label="Replace">{% icon "replace" %}</a> {% if d.replaces %}<a class="icon-btn" href="{% url 'em:document_history' e.pk d.pk %}" title="History" aria-label="History">{% icon "history" %}</a>{% endif %} <a class="icon-btn danger" href="{% url 'em:document_delete' e.pk d.pk %}" title="Delete" aria-label="Delete">{% icon "trash" %}</a></td></tr>
-{% empty %}<tr><td colspan="8" class="empty">No documents uploaded.</td></tr>{% endfor %}</tbody></table></div>
+{% empty %}<tr><td colspan="8" class="empty">No documents uploaded.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg2 %}</div>
 <p class="muted">Files are stored privately on this computer (outside the web folders) and served only through these links.</p></div>
 
 {% elif tab == 'bank' %}
 <div class="panel"><div class="panel-head split"><h2>Bank accounts</h2><a class="button secondary" href="{% url 'em:bank_new' e.pk %}">{% if banks %}Change bank account{% else %}+ Add bank account{% endif %}</a></div>
-<div class="table-wrap"><table><thead><tr><th>Bank</th><th>Holder</th><th>Account</th><th>IFSC</th><th>Branch</th><th>Type</th><th>Added</th><th>Status</th></tr></thead><tbody>
-{% for b in banks %}<tr><td>{{ b.bank_name }}</td><td>{{ b.account_holder_name }}</td><td>{{ b.account_masked }}</td><td>{{ b.ifsc_code }}</td><td>{{ b.branch_name }}</td><td>{{ b.get_account_type_display }}</td><td>{{ b.created_at|date:"d-m-Y" }}</td><td>{% if b.is_current %}<span class="badge ok">Current</span>{% else %}<span class="badge off">Retired {{ b.retired_at|date:"d-m-Y" }}</span>{% endif %}</td></tr>
-{% empty %}<tr><td colspan="8" class="empty">No bank account on file.</td></tr>{% endfor %}</tbody></table></div><p class="muted">Changing the account adds a new record; older accounts are kept for history and earlier payslips.</p></div>
+<div class="table-wrap"><table><thead><tr><th>Bank</th><th>Holder</th><th>Account</th><th>IFSC</th><th>Branch</th><th>Type</th><th>Added</th><th>Status</th></tr></thead>{% paginate banks as qb_pg3 %}<tbody>
+{% for b in qb_pg3 %}<tr><td>{{ b.bank_name }}</td><td>{{ b.account_holder_name }}</td><td>{{ b.account_masked }}</td><td>{{ b.ifsc_code }}</td><td>{{ b.branch_name }}</td><td>{{ b.get_account_type_display }}</td><td>{{ b.created_at|date:"d-m-Y" }}</td><td>{% if b.is_current %}<span class="badge ok">Current</span>{% else %}<span class="badge off">Retired {{ b.retired_at|date:"d-m-Y" }}</span>{% endif %}</td></tr>
+{% empty %}<tr><td colspan="8" class="empty">No bank account on file.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg3 %}</div><p class="muted">Changing the account adds a new record; older accounts are kept for history and earlier payslips.</p></div>
 
 {% elif tab == 'salary' %}
 <div class="panel"><div class="panel-head split"><h2>Salary structures</h2><a class="button secondary" href="{% url 'em:salary_new' e.pk %}">{% if structures %}New structure (revision){% else %}+ Add salary structure{% endif %}</a></div>
 {% for s in structures %}<div class="panel"><b>{{ s.get_structure_type_display }}</b> &middot; from {{ s.effective_from|date:"d-m-Y" }} to {{ s.effective_to|date:"d-m-Y"|default:"present" }}{% if s.used_in_finalized_payroll %} <span class="badge">Used in finalized payroll</span>{% endif %}
 {% if s.structure_type != 'monthly' %}<br>Rate: {{ s.rate }}{% endif %} &middot; Divisor: {{ s.get_divisor_display }}{% if s.pay_full_month %} &middot; pays full month{% endif %}{% if s.use_statutory_rules %} &middot; statutory rules{% endif %}
-<div class="table-wrap"><table><tbody>{% for c in s.components.all %}<tr><td>{{ c.get_kind_display }}</td><td>{{ c.label }}</td><td class="num">{{ c.amount }}</td></tr>{% endfor %}
-<tr><th colspan="2">Total earnings / deductions / net (monthly)</th><th class="num">{{ s.total_earnings }} / {{ s.total_deductions }} / {{ s.net_salary }}</th></tr></tbody></table></div>
+<div class="table-wrap"><table>{% paginate s.components.all as qb_pg4 %}<tbody>{% for c in qb_pg4 %}<tr><td>{{ c.get_kind_display }}</td><td>{{ c.label }}</td><td class="num">{{ c.amount }}</td></tr>{% endfor %}
+<tr><th colspan="2">Total earnings / deductions / net (monthly)</th><th class="num">{{ s.total_earnings }} / {{ s.total_deductions }} / {{ s.net_salary }}</th></tr></tbody></table>{% pager qb_pg4 %}</div>
 <a href="{% url 'em:salary_revise' e.pk s.pk %}">Copy into a new structure</a></div>
 {% empty %}<p class="empty">No salary structure.</p>{% endfor %}</div>
 
 {% elif tab == 'payroll' %}
-<div class="panel"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Rev.</th><th>Status</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Net</th><th></th></tr></thead><tbody>
-{% for p in payrolls %}<tr><td>{{ p.period.label }}</td><td>{{ p.revision }}{% if not p.is_current %} <small class="muted">(superseded/draft)</small>{% endif %}</td><td>{{ p.get_status_display }}</td><td class="num">{{ p.gross_earnings }}</td><td class="num">{{ p.total_deductions }}</td><td class="num">{{ p.net_salary }}</td><td><a class="icon-btn" href="{% url 'em:payroll_detail' p.pk %}" title="Open" aria-label="Open">{% icon "view" %}</a> &middot; <a class="icon-btn" href="{% url 'em:payslip' p.pk %}" target="_blank" title="Payslip" aria-label="Payslip">{% icon "pdf" %}</a></td></tr>
-{% empty %}<tr><td colspan="7" class="empty">No payroll yet.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Rev.</th><th>Status</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Net</th><th></th></tr></thead>{% paginate payrolls as qb_pg5 %}<tbody>
+{% for p in qb_pg5 %}<tr><td>{{ p.period.label }}</td><td>{{ p.revision }}{% if not p.is_current %} <small class="muted">(superseded/draft)</small>{% endif %}</td><td>{{ p.get_status_display }}</td><td class="num">{{ p.gross_earnings }}</td><td class="num">{{ p.total_deductions }}</td><td class="num">{{ p.net_salary }}</td><td><a class="icon-btn" href="{% url 'em:payroll_detail' p.pk %}" title="Open" aria-label="Open">{% icon "view" %}</a> &middot; <a class="icon-btn" href="{% url 'em:payslip' p.pk %}" target="_blank" title="Payslip" aria-label="Payslip">{% icon "pdf" %}</a></td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No payroll yet.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg5 %}</div></div>
 
 {% else %}
-<div class="panel"><div class="table-wrap"><table data-server-sort="orm"><thead><tr><th data-sort-key="changed" data-sort-type="date">When</th><th data-sort-key="field">Field</th><th data-sort-key="from">From</th><th data-sort-key="to">To</th></tr></thead><tbody>
-{% for l in log %}<tr><td>{{ l.changed_at|date:"d-m-Y H:i" }}</td><td>{{ l.field }}</td><td>{{ l.old_value }}</td><td>{{ l.new_value }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No changes recorded.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="panel"><div class="table-wrap"><table data-server-sort="orm"><thead><tr><th data-sort-key="changed" data-sort-type="date">When</th><th data-sort-key="field">Field</th><th data-sort-key="from">From</th><th data-sort-key="to">To</th></tr></thead>{% paginate log as qb_pg6 %}<tbody>
+{% for l in qb_pg6 %}<tr><td>{{ l.changed_at|date:"d-m-Y H:i" }}</td><td>{{ l.field }}</td><td>{{ l.old_value }}</td><td>{{ l.new_value }}</td></tr>{% empty %}<tr><td colspan="4" class="empty">No changes recorded.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg6 %}</div></div>
 {% endif %}{% endblock %}

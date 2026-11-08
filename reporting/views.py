@@ -1,4 +1,5 @@
 from django.core.paginator import Paginator
+from invoice_app.pagination import paginate as qb_paginate
 from django.http import Http404, HttpResponse
 from django.shortcuts import render
 from django.urls import reverse
@@ -72,8 +73,8 @@ def _respond(request, rep, template='reporting/report.html', **extra):
                                  num=col.kind in ('money', 'int', 'pct'))
                             for c, col in zip(r_, t.cols)], style=s) for r_, s in zip(t.rows, t.styles)]
         page = None
-        if t.paginate and len(rows) > PAGE:
-            page = Paginator(rows, PAGE).get_page(page_no)
+        if t.paginate:
+            page = qb_paginate(request, rows, '' if table_index == 0 else f't{table_index + 1}_')
             rows = list(page.object_list)
         tables.append(dict(t=t, rows=rows, page=page, table_index=table_index, sort_enabled=not any(t.styles),
                            total=[dict(v=text(c, col.kind), num=col.kind in ('money', 'int', 'pct'))

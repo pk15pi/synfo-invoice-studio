@@ -1,10 +1,10 @@
-{% extends "invoice_app/base.html" %}{% load filter_ui %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}{% load filter_ui %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Attendance &amp; Leave</p><h1>Leave balances {{ y }}</h1><p class="muted">Balance = opening + accrued − used. Carry-forward sets next year's opening from this year's balance (capped per leave type); running it again recalculates.</p></div>
 <div><a class="button secondary" href="?year={{ y }}&init=1">Create missing rows for {{ y }}</a> <a class="button secondary" href="{% url 'att:balances_export' %}?year={{ y }}">Excel</a>
 <form method="post" action="{% url 'att:carry_forward' %}" style="display:inline" onsubmit="return confirm('Carry forward {{ y }} balances into next year?')">{% csrf_token %}<input type="hidden" name="year" value="{{ y }}"><button class="button primary">Year-end carry forward &rarr;</button></form></div></div>
 {% include "attendance/_nav.html" %}
 <form method="get" class="qb-filter-form panel compact-filters" data-filter-form><label class="compact-filter-label"><span>Year</span><select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select></label> {% filter_actions %}</form>
-<div class="panel"><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Leave type</th><th>Opening</th><th>Accrued</th><th>Used</th><th>Balance</th><th></th></tr></thead><tbody>
-{% for b in rows %}<tr><td>{{ b.employee.employee_id }} {{ b.employee.full_name }}</td><td>{{ b.leave_type.name }}</td><td>{{ b.opening }}</td><td>{{ b.accrued }}</td><td>{{ b.used }}</td><td><b>{{ b.balance }}</b></td><td><a href="{% url 'att:balance_edit' b.pk %}">Edit</a></td></tr>
-{% empty %}<tr><td colspan="7" class="empty">No balances for {{ y }}. Use "Create missing rows".</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Employee</th><th>Leave type</th><th>Opening</th><th>Accrued</th><th>Used</th><th>Balance</th><th></th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
+{% for b in qb_pg1 %}<tr><td>{{ b.employee.employee_id }} {{ b.employee.full_name }}</td><td>{{ b.leave_type.name }}</td><td>{{ b.opening }}</td><td>{{ b.accrued }}</td><td>{{ b.used }}</td><td><b>{{ b.balance }}</b></td><td><a href="{% url 'att:balance_edit' b.pk %}">Edit</a></td></tr>
+{% empty %}<tr><td colspan="7" class="empty">No balances for {{ y }}. Use "Create missing rows".</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
 {% endblock %}

@@ -1,4 +1,4 @@
-{% extends 'bank_management/base_bank.html' %}{% load static %}{% block bk_title %}Review import #{{ batch.pk }}{% endblock %}{% block bk %}
+{% extends 'bank_management/base_bank.html' %}{% load pagination_ui %}{% load static %}{% block bk_title %}Review import #{{ batch.pk }}{% endblock %}{% block bk %}
 <div class="bk-import-page">
   <div class="page-heading">
     <p class="eyebrow">Bank statement import · Batch #{{ batch.pk }} · Draft Version {{ batch.version_number }} · {{ batch.get_status_display|default:batch.status|title }}</p>
@@ -77,8 +77,8 @@
     <div class="bk-table-scroll" role="region" aria-label="Statement transaction comparison table" tabindex="0">
       <table class="bk-review-table" id="bk-draft-table"><colgroup><col style="width:42px"><col style="width:60px"><col style="width:105px"><col style="width:105px"><col style="width:330px"><col style="width:125px"><col style="width:125px"><col style="width:135px"><col style="width:190px"><col style="width:280px"><col style="width:140px"><col style="width:310px"></colgroup>
         <thead><tr><th>Select</th><th data-sort-key="row_number" data-sort-type="number">Row</th><th data-sort-key="transaction_date" data-sort-type="date">Transaction date</th><th>Value date</th><th>Narration / reference</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th>Existing record / source</th><th>Proposed action and reason</th><th>Status</th><th>Review action</th></tr></thead>
-        <tbody>
-        {% for row in rows %}<tr data-classification="{{ row.classification }}" data-status="{{ row.review_status }}" data-date="{{ row.transaction_date|date:'Y-m-d' }}" data-search="{{ row.description|lower }} {{ row.reference|lower }} {{ row.existing_transaction_id|default:'' }} {{ row.justification|lower }}">
+        {% paginate rows as qb_pg1 %}<tbody>
+        {% for row in qb_pg1 %}<tr data-classification="{{ row.classification }}" data-status="{{ row.review_status }}" data-date="{{ row.transaction_date|date:'Y-m-d' }}" data-search="{{ row.description|lower }} {{ row.reference|lower }} {{ row.existing_transaction_id|default:'' }} {{ row.justification|lower }}">
           <td>{% if can_review %}<input form="bk-bulk-review" type="checkbox" name="row_ids" value="{{ row.pk }}" {% if row.review_status == 'verified' or row.review_status == 'excluded' or row.classification == 'non_transaction' %}disabled{% endif %} aria-label="Select row {{ row.row_number }}">{% endif %}</td>
           <td>{{ row.row_number }}{% if row.source_page %}<small>PDF p.{{ row.source_page }}</small>{% endif %}{% if row.regeneration_change %}<small>{{ row.get_regeneration_change_display }}</small>{% endif %}</td>
           <td>{{ row.transaction_date|date:'d-m-Y'|default:'Uncertain' }}</td><td>{{ row.value_date|date:'d-m-Y'|default:'-' }}</td>
@@ -97,9 +97,9 @@
           </td>
         </tr>{% empty %}<tr><td colspan="12" class="bk-empty">No transaction rows were extracted. Review the PDF/OCR warning and use CSV/Excel fallback.</td></tr>{% endfor %}
         </tbody>
-      </table>
+      </table>{% pager qb_pg1 %}
     </div>
-    <nav class="bk-pagination" aria-label="Draft rows pagination">{% if rows.has_previous %}<a class="button secondary" href="?page={{ rows.previous_page_number }}">Previous</a>{% endif %}<span>Page {{ rows.number }} of {{ rows.paginator.num_pages }} · {{ rows.paginator.count }} rows</span>{% if rows.has_next %}<a class="button secondary" href="?page={{ rows.next_page_number }}">Next</a>{% endif %}</nav>
+    
   </section>
 
   <section class="panel"><h2>Accounting step</h2><p>Importing a bank transaction does not create an expense, payment, receipt, payroll record or journal. After bank rows are verified, use the separate accounting review or existing bank reconciliation workflow to link them to accounting journal lines. No accounting migration is automatic.</p></section>

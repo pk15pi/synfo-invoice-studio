@@ -1,6 +1,6 @@
-{% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Attendance &amp; Leave</p><h1>Leave types</h1></div><div><a class="button primary" href="{% url 'att:leave_type_new' %}">Add leave type</a></div></div>
 {% include "attendance/_nav.html" %}
-<div class="panel"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Paid</th><th>Annual quota</th><th>Carry forward</th><th>Cap</th><th>Active</th><th></th></tr></thead><tbody>
-{% for t in rows %}<tr><td>{{ t.code }}</td><td>{{ t.name }}</td><td>{{ t.paid|yesno:"Paid,Unpaid" }}</td><td>{{ t.annual_quota }}</td><td>{{ t.carry_forward|yesno:"Yes,No" }}</td><td>{{ t.carry_forward_cap|default:"—" }}</td><td>{{ t.active|yesno:"Yes,No" }}</td><td><a href="{% url 'att:leave_type_edit' t.pk %}">Edit</a></td></tr>{% endfor %}</tbody></table></div></div>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Paid</th><th>Annual quota</th><th>Carry forward</th><th>Cap</th><th>Active</th><th></th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
+{% for t in qb_pg1 %}<tr><td>{{ t.code }}</td><td>{{ t.name }}</td><td>{{ t.paid|yesno:"Paid,Unpaid" }}</td><td>{{ t.annual_quota }}</td><td>{{ t.carry_forward|yesno:"Yes,No" }}</td><td>{{ t.carry_forward_cap|default:"—" }}</td><td>{{ t.active|yesno:"Yes,No" }}</td><td><a href="{% url 'att:leave_type_edit' t.pk %}">Edit</a></td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
 {% endblock %}

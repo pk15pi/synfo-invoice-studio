@@ -346,9 +346,10 @@ class ViewTests(Base):
         self.assertEqual(self.client.get(reverse('reporting:report', args=['nope'])).status_code, 404)
 
     def test_pagination(self):
-        with mock.patch('reporting.views.PAGE', 1):
-            r = self.client.get(reverse('reporting:report', args=['invoice_register']) + '?period=fy&fy=2025&page=2')
-        self.assertContains(r, 'Page 2 of')
+        # Shared pager: page/page_size params, sizes 5..500, filters kept in page links.
+        r = self.client.get(reverse('reporting:report', args=['invoice_register']) + '?period=fy&fy=2025&page_size=5&page=2')
+        self.assertContains(r, 'data-qb-pager')
+        self.assertContains(r, '<option value="5" selected>5</option>', html=False)
 
     def test_nav_dropdown(self):
         r = self.client.get(reverse('reporting:dashboard'))

@@ -1,7 +1,7 @@
-{% extends 'accounting/base_acc.html' %}{% block acc_title %}Chart of accounts{% endblock %}{% block acc %}
+{% extends 'accounting/base_acc.html' %}{% load pagination_ui %}{% block acc_title %}Chart of accounts{% endblock %}{% block acc %}
 <div class="page-heading split"><div><p class="eyebrow">Accounting</p><h1>Chart of accounts</h1></div><div><a class="button primary" href="{% url 'acc:account_new' %}">+ Account</a></div></div>
-<div class="panel"><input class="field" data-filter="#coa" placeholder="Filter"><div class="table-wrap"><table id="coa"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Status</th><th></th></tr></thead><tbody>
-{% for a in rows %}<tr class="{% if a.is_group %}acc-grp{% endif %}{% if not a.active %} acc-off{% endif %}"><td>{{ a.code }}</td><td style="padding-left:{{ a.indent }}px">{{ a.name }}{% if a.is_group %} (group){% endif %}</td><td>{{ a.get_account_type_display }}</td>
+<div class="panel"><input class="field" data-filter="#coa" placeholder="Filter"><div class="table-wrap"><table id="coa"><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Status</th><th></th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
+{% for a in qb_pg1 %}<tr class="{% if a.is_group %}acc-grp{% endif %}{% if not a.active %} acc-off{% endif %}"><td>{{ a.code }}</td><td style="padding-left:{{ a.indent }}px">{{ a.name }}{% if a.is_group %} (group){% endif %}</td><td>{{ a.get_account_type_display }}</td>
 <td>{% if a.active %}Active{% else %}Inactive{% endif %}{% if a.is_system %} &middot; System{% endif %}{% if a.used %} &middot; Used{% endif %}</td>
-<td><a href="{% url 'acc:account_edit' a.pk %}">Edit</a>{% if not a.is_group %} &middot; <a href="{% url 'acc:ledger' a.pk %}">Ledger</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+<td><a href="{% url 'acc:account_edit' a.pk %}">Edit</a>{% if not a.is_group %} &middot; <a href="{% url 'acc:ledger' a.pk %}">Ledger</a>{% endif %}</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
 <p class="muted">Accounts with postings cannot be deleted, only deactivated.</p></div>{% endblock %}

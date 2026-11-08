@@ -1,4 +1,4 @@
-{% extends 'invoice_app/base.html' %}{% load static %}{% block title %}Daily Brief · Records{% endblock %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load static %}{% block title %}Daily Brief · Records{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'performance_review/performance.css' %}">{% endblock %}
 {% block content %}
 <div class="page-heading split"><div><p class="eyebrow">PERFORMANCE REVIEW · DAILY BRIEF</p><h1>Daily Brief Entry &amp; Records</h1><p class="muted">Manually enter recruiter-reported JD and resume activity. This module is separate from candidate and JD operations.</p></div><div class="heading-actions"><a class="button primary" href="{% url 'performance_review:daily_brief_analytics' %}">Daily Brief Analytics</a><a class="button secondary" href="{% url 'performance_review:dashboard' %}">Performance Review</a></div></div>
@@ -15,19 +15,15 @@
       <th><a href="{% querystring sort='achieved' page=1 %}">Selections Achieved</a></th>
       <th>JD Details</th><th><a href="{% querystring sort='created' page=1 %}">Created At</a></th><th>Actions</th>
     </tr></thead>
-    <tbody>{% for brief in page_obj %}<tr>
+    {% paginate page_obj as qb_pg1 %}<tbody>{% for brief in qb_pg1 %}<tr>
       <td>{{ brief.activity_date|date:'d-m-Y' }}</td>
       <td>{{ brief.recruiter.employee_id }} · {{ brief.recruiter.full_name }}</td>
       <td>{{ brief.total_jds }}</td><td>{{ brief.total_resumes|default:0 }}</td><td>{{ brief.achieved }}</td>
-      <td><details><summary>View {{ brief.jd_details.all|length }} row(s)</summary><div class="daily-brief-details-scroll"><table><thead><tr><th>JD Number</th><th>Total Resumes Submitted</th></tr></thead><tbody>{% for detail in brief.jd_details.all %}<tr><td>{{ detail.jd_number }}</td><td>{{ detail.total_resumes_submitted }}</td></tr>{% endfor %}</tbody></table></div></details></td>
+      <td><details><summary>View {{ brief.jd_details.all|length }} row(s)</summary><div class="daily-brief-details-scroll"><table><thead><tr><th>JD Number</th><th>Total Resumes Submitted</th></tr></thead><tbody>{% for detail in brief.jd_details.all %}<tr><td>{{ detail.jd_number }}</td><td>{{ detail.total_resumes_submitted }}</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></details></td>
       <td>{{ brief.created_at|date:'d-m-Y H:i' }}</td>
       <td class="daily-brief-row-actions"><a class="button secondary" href="{% url 'performance_review:daily_brief_detail' brief.pk %}">View</a> <a class="button secondary" href="{% url 'performance_review:daily_brief_edit' brief.pk %}">Edit</a></td>
     </tr>{% empty %}<tr><td colspan="8" class="empty">No Daily Brief records match these filters.</td></tr>{% endfor %}</tbody>
   </table></div>
-  {% if page_obj.paginator.num_pages > 1 %}<nav class="daily-brief-pagination" aria-label="Daily Brief pages">
-    {% if page_obj.has_previous %}<a class="button secondary" href="{% querystring page=page_obj.previous_page_number %}">Previous</a>{% endif %}
-    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-    {% if page_obj.has_next %}<a class="button secondary" href="{% querystring page=page_obj.next_page_number %}">Next</a>{% endif %}
-  </nav>{% endif %}
+  
 </section>
 {% endblock %}

@@ -4,6 +4,7 @@ from datetime import date
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
+from invoice_app.pagination import paginate as qb_paginate
 from django.db.models import Max, Min, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -128,7 +129,7 @@ def journal_list(request):
         'number': 'number', 'date': 'date', 'narration': 'narration', 'source': 'source_type',
         'status': 'status', 'amount': 'amount',
     })
-    page = Paginator(qs, 100).get_page(request.GET.get('page'))
+    page = qb_paginate(request, qs)
     params = request.GET.copy()
     params.pop('page', None)
     return render(request, 'accounting/journal_list.html', {'page': page, 'f': f, 'status': st, 'q': q,

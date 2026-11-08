@@ -1,9 +1,9 @@
-{% extends 'invoice_app/base.html' %}{% load ui_icons %}{% block content %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Employee Management</p><h1>Departments</h1></div><a class="button primary" href="{% url 'em:department_new' %}">+ New department</a></div>
-<div class="panel"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Head</th><th class="num">Employees</th><th>Status</th><th></th></tr></thead><tbody>
-{% for d in rows %}<tr><td>{{ d.code }}</td><td>{{ d.name }}<br><small class="muted">{{ d.description|truncatechars:80 }}</small></td><td>{{ d.head.full_name|default:"-" }}</td><td class="num"><a href="{% url 'em:employees' %}?department={{ d.pk }}&status=all">{{ d.n }}</a></td>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Head</th><th class="num">Employees</th><th>Status</th><th></th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
+{% for d in qb_pg1 %}<tr><td>{{ d.code }}</td><td>{{ d.name }}<br><small class="muted">{{ d.description|truncatechars:80 }}</small></td><td>{{ d.head.full_name|default:"-" }}</td><td class="num"><a href="{% url 'em:employees' %}?department={{ d.pk }}&status=all">{{ d.n }}</a></td>
 <td>{% if d.active %}<span class="badge ok">Active</span>{% else %}<span class="badge off">Inactive</span>{% endif %}</td>
 <td><a class="icon-btn" href="{% url 'em:department_edit' d.pk %}" title="Edit" aria-label="Edit">{% icon "edit" %}</a>
 <form class="inline" method="post" action="{% url 'em:department_toggle' d.pk %}">{% csrf_token %}<button class="icon-btn {% if d.active %}muted-ico{% else %}ok-ico{% endif %}" type="submit" title="{% if d.active %}Deactivate{% else %}Activate{% endif %}" aria-label="{% if d.active %}Deactivate{% else %}Activate{% endif %}">{% if d.active %}{% icon "deactivate" %}{% else %}{% icon "activate" %}{% endif %}</button></form>
 {% if not d.n %}<form class="inline" method="post" action="{% url 'em:department_delete' d.pk %}" onsubmit="return confirm('Delete department {{ d.name|escapejs }}?')">{% csrf_token %}<button class="icon-btn danger" type="submit" title="Delete" aria-label="Delete">{% icon "trash" %}</button></form>{% endif %}</td></tr>
-{% empty %}<tr><td colspan="6" class="empty">No departments yet.</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}
+{% empty %}<tr><td colspan="6" class="empty">No departments yet.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>{% endblock %}

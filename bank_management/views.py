@@ -5,6 +5,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Max, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.core.paginator import Paginator
+from invoice_app.pagination import paginate as qb_paginate
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -632,7 +633,7 @@ def import_review(request, pk):
                'approved': all_rows.filter(review_status=ImportDraftRow.APPROVED).count(),
                'verified': all_rows.filter(verification_status='verified').count(),
                'failed': all_rows.filter(verification_status='failed').count()}
-    rows = Paginator(all_rows, 100).get_page(request.GET.get('page'))
+    rows = qb_paginate(request, all_rows)
     root = batch.source_batch or batch
     versions = ImportBatch.objects.filter(Q(pk=root.pk) | Q(source_batch=root)).order_by('version_number', 'id')
     source_available = False

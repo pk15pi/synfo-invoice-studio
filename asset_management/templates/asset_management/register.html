@@ -1,4 +1,4 @@
-{% extends 'invoice_app/base.html' %}{% load filter_ui %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
 {% block title %}Asset Register &middot; QuantBud{% endblock %}
 {% block content %}
 <div class="page-heading split"><div><h1>Asset Register</h1><p class="muted">Individual assets and their recorded custody.</p></div>
@@ -8,11 +8,11 @@
 <label class="compact-filter-label"><span>Search</span><input id="asset-filter" class="field" type="search" name="q" value="{{ search }}" placeholder="Asset ID, name, brand, or serial number"></label>
 {% filter_actions %}</form>
 <div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Name</th><th>Category</th><th>Ownership</th><th>Usage</th><th>Status</th><th>Employee</th><th>Location</th></tr></thead>
-<tbody>{% for asset in assets %}<tr>
+{% paginate assets as qb_pg1 %}<tbody>{% for asset in qb_pg1 %}<tr>
 <td><strong>{{ asset.asset_code }}</strong></td><td>{{ asset.name }}</td><td>{{ asset.category.name }}</td>
 <td>{{ asset.get_ownership_type_display }}</td><td>{{ asset.get_usage_type_display }}</td>
 <td>{{ asset.get_current_status_display }}</td><td>{{ asset.current_employee|default:"—" }}</td>
 <td>{{ asset.current_location|default:"—" }}</td>
-</tr>{% empty %}<tr><td colspan="8" class="empty">No assets have been registered.</td></tr>{% endfor %}</tbody></table></div>
+</tr>{% empty %}<tr><td colspan="8" class="empty">No assets have been registered.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
 </section>
 {% endblock %}

@@ -5,7 +5,7 @@
   </label>
   <label>Search recruiter <input class="field" type="search" name="recruiter_search" value="{{ recruiter_search }}" placeholder="Name or employee ID"></label>
   <label>Search JD Number <input class="field" type="search" name="jd_search" value="{{ jd_search }}" placeholder="e.g. 07-01"></label>
-  {% if page_sizes %}<label>Rows per page <select class="field" name="page_size">{% for size in page_sizes %}<option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}</option>{% endfor %}</select></label>{% endif %}
+  
   {% filter_actions %}
   <span class="muted daily-brief-period-label">Showing {{ period.label }}</span>
 </form>

@@ -1,4 +1,4 @@
-{% extends 'invoice_app/base.html' %}{% load ui_icons %}{% block content %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% block content %}
 <div class="page-heading split"><div><a class="back" href="{% url 'clients' %}">&larr; Customers</a><h1>{{ client.name }}</h1></div>
 <div><a class="button secondary" href="{% url 'client_edit' client.pk %}">{% icon "edit" %} Edit</a> <a class="button primary" href="{% url 'new_invoice' %}?client={{ client.pk }}">&#43; Invoice</a></div></div>
 <section class="panel"><div class="form-grid">
@@ -14,7 +14,7 @@
 <div><small class="muted">CIN / LLPIN</small><br>{{ client.cin_llpin|default:"-" }}</div>
 <div><small class="muted">NDA signed / expiry</small><br>{{ client.nda_signed_date|default:"-" }} / {{ client.nda_expiry_date|default:"-" }}</div></div></section>
 <section class="panel"><div class="panel-head"><h2>Documents (NDA / MCA)</h2><a href="{% url 'client_edit' client.pk %}">Upload</a></div>
-<table><tbody>{% for d in documents %}<tr><td>{{ d.get_kind_display }}</td><td><a href="{% url 'client_document' d.pk %}" target="_blank">{{ d.original_filename|default:"file" }}</a></td><td>{{ d.uploaded_at|date:"d M Y H:i" }}</td><td>{% if d.is_current %}Current{% else %}<span class="muted">Replaced</span>{% endif %}</td></tr>{% empty %}<tr><td>No NDA or MCA documents uploaded.</td></tr>{% endfor %}</tbody></table></section>
+<table>{% paginate documents as qb_pg1 %}<tbody>{% for d in qb_pg1 %}<tr><td>{{ d.get_kind_display }}</td><td><a href="{% url 'client_document' d.pk %}" target="_blank">{{ d.original_filename|default:"file" }}</a></td><td>{{ d.uploaded_at|date:"d M Y H:i" }}</td><td>{% if d.is_current %}Current{% else %}<span class="muted">Replaced</span>{% endif %}</td></tr>{% empty %}<tr><td>No NDA or MCA documents uploaded.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</section>
 <section class="panel"><div class="panel-head"><h2>Projects</h2><a href="{% url 'projects' client.pk %}">Manage</a> &middot; <a href="{% url 'description_templates' %}">Description templates</a></div>
-<table><tbody>{% for p in projects %}<tr><td>{{ p.name }}</td><td>{{ p.method_label }}</td></tr>{% empty %}<tr><td>No projects.</td></tr>{% endfor %}</tbody></table></section>
-<section class="panel"><h2>Invoices</h2><table><tbody>{% for i in invoices %}<tr><td><a href="{% url 'invoice_detail' i.pk %}">{{ i.invoice_number }}</a></td><td>{{ i.invoice_date }}</td><td>{{ i.total }}</td></tr>{% empty %}<tr><td>No invoices.</td></tr>{% endfor %}</tbody></table></section>{% endblock %}
+<table>{% paginate projects as qb_pg2 %}<tbody>{% for p in qb_pg2 %}<tr><td>{{ p.name }}</td><td>{{ p.method_label }}</td></tr>{% empty %}<tr><td>No projects.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg2 %}</section>
+<section class="panel"><h2>Invoices</h2><table>{% paginate invoices as qb_pg3 %}<tbody>{% for i in qb_pg3 %}<tr><td><a href="{% url 'invoice_detail' i.pk %}">{{ i.invoice_number }}</a></td><td>{{ i.invoice_date }}</td><td>{{ i.total }}</td></tr>{% empty %}<tr><td>No invoices.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg3 %}</section>{% endblock %}

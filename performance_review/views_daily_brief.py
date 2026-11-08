@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.core.paginator import Paginator
+from invoice_app.pagination import paginate as qb_paginate
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
@@ -49,11 +50,11 @@ def _records_context(request, entry_form=None, detail_formset=None, duplicate_re
     page_size = request.GET.get('page_size', '25')
     if page_size not in ('25', '50', '100'):
         page_size = '25'
-    page_obj = Paginator(summaries, int(page_size)).get_page(request.GET.get('page'))
+    page_obj = qb_paginate(request, summaries)
     context.update({
         'page_obj': page_obj,
-        'page_size': page_size,
-        'page_sizes': ('25', '50', '100'),
+        'page_size': page_obj.qb_page_size,
+        
         'sort': sort,
         'entry_form': entry_form or DailyBriefForm(),
         'detail_formset': detail_formset or DailyBriefJDDetailFormSet(instance=DailyBrief(), prefix='details'),

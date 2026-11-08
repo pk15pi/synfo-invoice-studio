@@ -1,4 +1,4 @@
-{% extends "invoice_app/base.html" %}
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}
 {% block title %}Document &amp; Agreement Management{% endblock %}
 {% block content %}
 <div class="page-heading split">
@@ -31,18 +31,18 @@
 <h2>Categories</h2>
 <div class="table-wrap"><table class="table">
   <thead><tr><th>Category</th><th>Configured types</th></tr></thead>
-  <tbody>{% for category in categories %}
+  {% paginate categories as qb_pg1 %}<tbody>{% for category in qb_pg1 %}
     <tr><td>{{ category.name }}</td><td>{{ category.type_count }}</td></tr>
   {% empty %}<tr><td colspan="2">No active categories configured.</td></tr>{% endfor %}</tbody>
-</table></div>
+</table>{% pager qb_pg1 %}</div>
 <h2>Recent document records</h2>
 <div class="table-wrap"><table class="table">
   <thead><tr><th>Number</th><th>Type</th><th>Status</th><th>Created</th></tr></thead>
-  <tbody>{% for document in recent_documents %}
+  {% paginate recent_documents as qb_pg2 %}<tbody>{% for document in qb_pg2 %}
     <tr><td>{{ document.document_number }}</td><td>{{ document.document_type.name }}</td>
       <td>{{ document.get_status_display }}</td><td>{{ document.created_at }}</td></tr>
   {% empty %}<tr><td colspan="4">No documents have been generated.</td></tr>{% endfor %}</tbody>
-</table></div>
+</table>{% pager qb_pg2 %}</div>
 <p class="muted">Generated agreements are not automatically legally valid, executed or certified. Templates and clauses require appropriate review.</p>
 <p class="muted">An internal digital acknowledgement is not a legally certified electronic signature.</p>
 {% endblock %}
