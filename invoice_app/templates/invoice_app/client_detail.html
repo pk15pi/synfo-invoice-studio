@@ -1,5 +1,5 @@
 {% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% block content %}
-<div class="page-heading split"><div><a class="back" href="{% url 'clients' %}">&larr; Customers</a><h1>{{ client.name }}</h1></div>
+<div class="page-heading split"><div><a class="back" href="{% url 'clients' %}">&larr; Customers</a><h1>{{ client.name }}</h1>{% if client.brand_name %}<p class="client-alias" title="Brand name (alias)">Brand name: <b>{{ client.brand_name }}</b></p>{% endif %}</div>
 <div><a class="button secondary" href="{% url 'client_edit' client.pk %}">{% icon "edit" %} Edit</a> <a class="button primary" href="{% url 'new_invoice' %}?client={{ client.pk }}">&#43; Invoice</a></div></div>
 <section class="panel"><div class="form-grid">
 <div><small class="muted">Address</small><br>{{ client.address|linebreaksbr }}</div>

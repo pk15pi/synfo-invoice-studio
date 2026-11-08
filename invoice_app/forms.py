@@ -28,7 +28,7 @@ class BusinessProfileForm(StyledForm):
     class Meta:
         model = BusinessProfile
         fields = ['name', 'address', 'phone', 'email', 'gstin', 'bank_name', 'account_holder', 'account_number',
-                  'bank_country', 'ifsc', 'signature_image', 'signature_text', 'footer_text', 'invoice_prefix',
+                  'bank_country', 'ifsc', 'brand_name', 'business_logo', 'signature_image', 'signature_text', 'footer_text', 'invoice_prefix',
                   'next_invoice_number', 'number_padding', 'payment_terms_days', 'amount_rounding'] + COLOR_FIELDS
         fields += ['manpower_resource_display_default']
         widgets = {'address': forms.Textarea(attrs={'rows': 3}),
@@ -44,6 +44,37 @@ class BusinessProfileForm(StyledForm):
                 data[f] = v.upper()
         return data
 
+    LOGO_TYPES = {'png': b'\x89PNG\r\n\x1a\n', 'jpg': b'\xff\xd8\xff', 'jpeg': b'\xff\xd8\xff', 'webp': b'RIFF', 'svg': None}
+    LOGO_MAX = 3 * 1024 * 1024
+
+    def clean_business_logo(self):
+        f = self.cleaned_data.get('business_logo')
+        if not f or getattr(f, '_committed', False):  # nothing new uploaded (or the logo was cleared)
+            return f
+        ext = f.name.rsplit('.', 1)[-1].lower() if '.' in f.name else ''
+        if ext not in self.LOGO_TYPES:
+            raise forms.ValidationError('Upload a PNG, JPG, WebP or SVG image.')
+        if f.size > self.LOGO_MAX:
+            raise forms.ValidationError('The logo must be 3 MB or smaller.')
+        f.seek(0)
+        data = f.read()
+        f.seek(0)
+        if ext == 'svg':
+            from .branding import svg_is_safe
+            if not svg_is_safe(data):
+                raise forms.ValidationError('This SVG contains scripts or external content and cannot be used.')
+            return f
+        magic = self.LOGO_TYPES[ext]
+        if not data.startswith(magic) or (ext == 'webp' and data[8:12] != b'WEBP'):
+            raise forms.ValidationError('The file is not a valid image of that type.')
+        try:
+            from io import BytesIO
+            from PIL import Image
+            Image.open(BytesIO(data)).verify()
+        except Exception:
+            raise forms.ValidationError('The image could not be read.')
+        return f
+
     def clean_manpower_resource_display_default(self):
         return (self.cleaned_data.get('manpower_resource_display_default') or
                 getattr(self.instance, 'manpower_resource_display_default', '') or 'designation')
@@ -52,7 +83,7 @@ class BusinessProfileForm(StyledForm):
 class ClientForm(StyledForm):
     class Meta:
         model = Client
-        fields = ['name', 'address', 'country_ref', 'state_ref', 'district_ref', 'pin_code', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
+        fields = ['name', 'brand_name', 'address', 'country_ref', 'state_ref', 'district_ref', 'pin_code', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
                   'terms_mode', 'terms_text', 'tax_treatment', 'gstin', 'state_code', 'state_name', 'lut_number',
                   'vendor_code', 'invoice_format', 'cin_llpin', 'nda_signed_date', 'nda_expiry_date', 'active', 'notes']
         labels = {'name': 'Bill To (customer name)', 'invoice_format': 'Default invoice format'}

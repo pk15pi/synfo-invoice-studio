@@ -4,8 +4,12 @@ from reporting import periods as report_periods
 
 
 def brand_name(request):
-    name = BusinessProfile.objects.filter(pk=1).values_list('name', flat=True).first()
-    return {'brand_name': name or 'QuantBud'}
+    from .branding import logo_url
+    profile = BusinessProfile.objects.filter(pk=1).first()
+    name = profile.name if profile else ''
+    return {'brand_name': name or 'QuantBud',
+            'business_brand': (profile.brand_name if profile else '') or '',
+            'business_logo_url': logo_url(profile) if profile else ''}
 
 
 def page_help(request):

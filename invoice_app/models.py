@@ -36,6 +36,11 @@ class BusinessProfile(models.Model):
     signature_image = models.ImageField(
         upload_to='signatures/', blank=True,
         help_text='PNG with transparent background works best. If empty, the bundled default signature is used.')
+    business_logo = models.FileField(
+        'Business logo', upload_to='branding/', blank=True,
+        help_text='PNG, JPG, WebP or SVG, up to 3 MB. Shown on the left of the app header (not on PDFs).')
+    brand_name = models.CharField('Brand name', max_length=120, blank=True,
+                                  help_text='Short trading / brand name shown next to the header logo.')
     signature_text = models.CharField('Name below signature', max_length=180, default='QuantBud LLP', blank=True)
     footer_text = models.CharField(max_length=180, default='Thank you for your business!', blank=True)
     invoice_prefix = models.CharField(max_length=20, default='QB')
@@ -215,6 +220,9 @@ class Client(models.Model):
         (MONTHLY_FIXED, '3 - Monthly amount, Unit Price blank (Amount = monthly amount)'),
     ]
     name = models.CharField('Company / customer name', max_length=180)
+    brand_name = models.CharField('Brand name', max_length=120, blank=True,
+                                  help_text='Optional alias / trade name. Shown with the customer name and searchable; '
+                                            'invoices keep printing the customer name.')
     address = models.TextField(blank=True, help_text='One line per PDF line, e.g. street / city, state / country - zip')
     country = models.CharField(max_length=80, blank=True,
                                help_text='Legacy text; kept in sync with the Country dropdown when one is chosen.')
@@ -298,8 +306,14 @@ class Client(models.Model):
         self.pin_code = (self.pin_code or '').strip()
         super().save(*args, **kwargs)
 
+    @property
+    def display_name(self):
+        """Legal name with the brand alias, e.g. 'Acme Pvt Ltd (Acme)'."""
+        b = (self.brand_name or '').strip()
+        return f'{self.name} ({b})' if b and b.lower() != (self.name or '').strip().lower() else self.name
+
     def __str__(self):
-        return self.name
+        return self.display_name
 
 
 def client_document_upload_to(instance, filename):

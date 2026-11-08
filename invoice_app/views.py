@@ -1068,3 +1068,21 @@ def geo_districts(request):
     sid = request.GET.get('state') or ''
     rows = list(District.objects.filter(state_id=sid).values_list('pk', 'name')) if sid.isdigit() else []
     return JsonResponse({'options': rows})
+
+
+def business_logo(request):
+    """Serve the header logo from the business profile (public display image for this local app)."""
+    import mimetypes
+    from django.http import FileResponse, Http404
+    profile = BusinessProfile.objects.filter(pk=1).first()
+    f = profile.business_logo if profile else None
+    if not f or not f.storage.exists(f.name):
+        raise Http404
+    ext = f.name.rsplit('.', 1)[-1].lower()
+    ctype = {'svg': 'image/svg+xml', 'webp': 'image/webp', 'png': 'image/png'}.get(ext) or \
+        mimetypes.guess_type(f.name)[0] or 'application/octet-stream'
+    resp = FileResponse(f.open('rb'), content_type=ctype)
+    resp['Content-Security-Policy'] = "default-src 'none'; style-src 'unsafe-inline'; img-src data:"
+    resp['X-Content-Type-Options'] = 'nosniff'
+    resp['Cache-Control'] = 'max-age=86400'
+    return resp

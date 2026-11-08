@@ -807,3 +807,10 @@ main>*{min-width:0}
 .qb-combo-list li.qb-combo-empty{color:#6d7d89;cursor:default}
 @media(max-width:760px){.ca-row.ca-two{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:480px){.ca-field{grid-template-columns:96px minmax(0,1fr)}}
+
+/* ---- t63u: header logo + customer brand alias ---- */
+.topbar .brand{display:inline-flex;align-items:center;gap:10px;min-width:0}
+.topbar .brand .brand-logo{display:block;height:40px;width:auto;max-width:160px;object-fit:contain;flex:0 0 auto}
+.topbar .brand .brand-text{display:inline-flex;align-items:baseline;gap:8px;white-space:nowrap}
+.client-alias{color:#4a6377;font-size:12px;font-weight:600;margin:2px 0 0}
+@media(max-width:640px){.topbar .brand .brand-logo{height:32px;max-width:120px}}
