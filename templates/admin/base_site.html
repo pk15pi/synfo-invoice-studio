@@ -11,7 +11,7 @@
 {% block nav-global %}{% endblock %}
 
 {% block extrastyle %}{{ block.super }}<style>{% include "invoice_app/_page_help_styles.html" %}.qb-admin-back-row{margin:0 0 12px}.qb-admin-back-row a{display:inline-block;padding:7px 12px;border:1px solid #ccd7e2;border-radius:6px;color:#23445f;text-decoration:none;font-weight:600}.qb-admin-back-row a:hover{background:#eef4f8}.qb-header-back{display:inline-flex;align-items:center}</style>{% endblock %}
-{% block content %}<div class="qb-admin-back-row"><a href="{% url 'home' %}" data-history-back aria-label="Go back to the previous page">&larr; Back</a></div>{{ block.super }}{% endblock %}
+{% block content %}<div class="qb-admin-back-row"><a href="{% url 'home' %}" data-history-back aria-label="Go back to the previous page" title="Go back to the previous page"><svg class="qb-back-ico" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Back</span></a></div>{{ block.super }}{% endblock %}
 {% block footer %}
   {% include "invoice_app/_page_help_dialog.html" %}
   <script>{% include "invoice_app/_page_help_script.html" %}</script>

@@ -750,3 +750,14 @@ main>*{min-width:0}
   .standard-period-filter>.compact-filter-label>span{flex:0 0 96px}
   .standard-period-filter .field,.rp-bar .standard-period-filter select,.rp-bar .standard-period-filter input{flex:1 1 auto;min-width:0;max-width:100%}
 }@media(min-width:641px){.standard-period-filter>.compact-filter-label{max-width:none;flex-shrink:0}.standard-period-filter input[type="date"]{width:150px;min-width:150px;max-width:150px}}
+
+/* ---- Page help "?" + Back: reserve their own corner so they never cover heading actions ---- */
+.page-heading.qb-help-heading-anchor,.hero.qb-help-heading-anchor,.qb-help-heading-anchor{position:relative;padding-right:156px!important}
+.qb-help-heading-anchor>.qb-header-controls{position:absolute;top:14px;right:14px;z-index:2;display:flex;gap:8px;align-items:center}
+@media(max-width:640px){
+  .page-heading.qb-help-heading-anchor,.hero.qb-help-heading-anchor,.qb-help-heading-anchor{padding-right:16px!important;padding-top:60px!important}
+  .qb-help-heading-anchor>.qb-header-controls{top:12px;right:12px}
+}
+/* Back control: go-back arrow icon */
+[data-history-back]{display:inline-flex;align-items:center;gap:6px}
+[data-history-back] .qb-back-ico{flex:0 0 auto;display:block}
