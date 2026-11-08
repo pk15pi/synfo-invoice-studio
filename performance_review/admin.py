@@ -72,3 +72,10 @@ class RecruiterActivityHistoryAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# Remaining models (Daily Brief) get the shared generated admin; history is read-only.
+from invoice_app.admin_auto import register_all  # noqa: E402
+
+register_all('performance_review', read_only=('DailyBriefHistory',))
+

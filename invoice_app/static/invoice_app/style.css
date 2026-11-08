@@ -811,6 +811,32 @@ main>*{min-width:0}
 /* ---- t63u: header logo + customer brand alias ---- */
 .topbar .brand{display:inline-flex;align-items:center;gap:10px;min-width:0}
 .topbar .brand .brand-logo{display:block;height:40px;width:auto;max-width:160px;object-fit:contain;flex:0 0 auto}
-.topbar .brand .brand-text{display:inline-flex;align-items:baseline;gap:8px;white-space:nowrap}
+.topbar .brand>.brand-text{display:inline-flex;align-items:baseline;gap:8px;white-space:nowrap;margin:0;font-size:inherit;font-weight:inherit;color:inherit;letter-spacing:inherit}
 .client-alias{color:#4a6377;font-size:12px;font-weight:600;margin:2px 0 0}
 @media(max-width:640px){.topbar .brand .brand-logo{height:32px;max-width:120px}}
+
+/* ---- t64u: elegant menus with light animation (main nav + all dropdowns) ---- */
+.topbar{box-shadow:0 1px 0 rgba(23,53,74,.04),0 6px 18px -14px rgba(23,53,74,.35)}
+.topbar nav.groups>a,.topbar nav.groups>.navgroup>a{position:relative;letter-spacing:.01em;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease}
+.topbar nav.groups>a::after,.topbar nav.groups>.navgroup>a::after{content:"";position:absolute;left:10px;right:10px;bottom:4px;height:2px;border-radius:2px;background:linear-gradient(90deg,#0B5394,#3d7fb8);transform:scaleX(0);transform-origin:left center;opacity:0;transition:transform .22s ease,opacity .22s ease}
+.topbar nav.groups>a:hover::after,.topbar nav.groups>a:focus-visible::after,
+.topbar nav.groups>.navgroup:hover>a::after,.topbar nav.groups>.navgroup:focus-within>a::after{transform:scaleX(1);opacity:1}
+.topbar nav.groups>.navgroup:hover>a,.topbar nav.groups>.navgroup:focus-within>a{background:#edf4f9;color:#164b78}
+.topbar nav a:focus-visible{outline:2px solid #8fb4d0;outline-offset:1px}
+/* dropdown: always rendered, faded/slid in instead of display toggling */
+.navmenu{display:block!important;visibility:hidden;opacity:0;transform:translateY(6px) scale(.985);transform-origin:top right;pointer-events:none;
+ z-index:60;margin-top:6px;padding:6px;border:1px solid #dfe8ef;border-radius:12px;background:rgba(255,255,255,.98);
+ box-shadow:0 18px 38px -18px rgba(16,43,62,.45),0 4px 12px -6px rgba(16,43,62,.18);
+ transition:opacity .18s ease,transform .18s ease,visibility 0s linear .18s}
+.navmenu::before{content:"";position:absolute;left:0;right:0;top:-10px;height:10px}/* hover bridge over the gap */
+.navgroup:hover>.navmenu,.navgroup:focus-within>.navmenu{visibility:visible;opacity:1;transform:none;pointer-events:auto;transition:opacity .18s ease,transform .18s ease,visibility 0s}
+.topbar nav .navmenu a{position:relative;color:#2a3f50!important;font-weight:600;border-radius:8px;transition:background-color .15s ease,color .15s ease,padding-left .15s ease,box-shadow .15s ease}
+.topbar nav .navmenu a:hover,.topbar nav .navmenu a:focus-visible{background:linear-gradient(90deg,#eaf3f9,#f5f9fc);color:#0B5394!important;padding-left:14px!important;box-shadow:inset 3px 0 0 #0B5394}
+.topbar nav .navmenu a+a{margin-top:1px}
+.qb-help-trigger,.qb-header-back{transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease}
+.qb-header-back:hover,.qb-help-trigger:hover{box-shadow:0 3px 10px -4px rgba(23,75,120,.35)}
+@media(max-width:850px){.navmenu{transform:translateY(6px);transform-origin:top center;margin-top:0}}
+@media(prefers-reduced-motion:reduce){
+ .topbar nav a,.topbar nav a::after,.navmenu,.navgroup:hover>.navmenu,.navgroup:focus-within>.navmenu,.topbar nav .navmenu a,.qb-help-trigger,.qb-header-back{transition:none!important}
+ .navmenu{transform:none!important}
+}
