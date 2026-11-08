@@ -814,7 +814,7 @@ NON_PAGE_ROUTES = {
     "em:payroll_revise", "em:payroll_refresh_attendance", "em:payslip", "em:salary_payment_add",
     "em:salary_payment_cancel", "em:salary_pay_all", "em:export_register_csv", "att:template", "att:holiday_delete",
     "att:application_action", "att:carry_forward", "att:register_export", "att:balances_export", "exp:expense_payment",
-    "exp:expense_cancel", "exp:expense_finalize", "exp:expense_attach", "exp:claim_action", "exp:claim_reimburse", "exp:claim_attach",
+    "exp:expense_cancel", "exp:expense_finalize", "geo_states", "geo_districts", "exp:expense_attach", "exp:claim_action", "exp:claim_reimburse", "exp:claim_attach",
     "exp:att_view", "exp:att_download", "exp:att_replace", "exp:att_delete", "exp:vendor_toggle", "exp:category_toggle",
     "exp:category_delete", "exp:vendor_quick_add", "client_document", "client_delete", "client_toggle", "project_toggle",
     "project_delete", "description_template_toggle", "description_template_delete", "format_template_preview",

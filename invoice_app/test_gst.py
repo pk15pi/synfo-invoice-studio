@@ -64,7 +64,7 @@ class GstinTests(TestCase):
             gst.validate_gstin('06AABFQ2999K1ZX')
 
     def test_client_form_autofills_state(self):
-        f = ClientForm(data={'name': 'Desi Co', 'country': 'India', 'tax_treatment': 'domestic_gst',
+        f = ClientForm(data={'name': 'Desi Co', 'country_ref': __import__('invoice_app.models', fromlist=['Country']).Country.objects.get(iso2='IN').pk, 'state_ref': __import__('invoice_app.models', fromlist=['State']).State.objects.get(country__iso2='IN', name='Karnataka').pk, 'tax_treatment': 'domestic_gst',
                              'gstin': gstin('29').lower(), 'default_terms_days': 30,
                              'billing_type': Client._meta.get_field('billing_type').default,
                              'terms_mode': Client._meta.get_field('terms_mode').default})

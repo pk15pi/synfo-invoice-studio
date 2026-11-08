@@ -52,7 +52,7 @@ class BusinessProfileForm(StyledForm):
 class ClientForm(StyledForm):
     class Meta:
         model = Client
-        fields = ['name', 'address', 'country', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
+        fields = ['name', 'address', 'country_ref', 'state_ref', 'district_ref', 'pin_code', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
                   'terms_mode', 'terms_text', 'tax_treatment', 'gstin', 'state_code', 'state_name', 'lut_number',
                   'vendor_code', 'invoice_format', 'cin_llpin', 'nda_signed_date', 'nda_expiry_date', 'active', 'notes']
         labels = {'name': 'Bill To (customer name)', 'invoice_format': 'Default invoice format'}
@@ -72,6 +72,51 @@ class ClientForm(StyledForm):
             models_Q(is_active=True) | models_Q(pk=current or 0)).order_by('name')
         fmt.empty_label = 'Default (QuantBud Standard / Tax Invoice)'
         self._add_doc_links()
+        self._setup_address()
+
+    ADDRESS_BLOCK = ('name', 'country_ref', 'state_ref', 'district_ref', 'pin_code')
+
+    def _setup_address(self):
+        from .models import Country, District, State
+        cf, sf, df = self.fields['country_ref'], self.fields['state_ref'], self.fields['district_ref']
+        cf.required = True
+        cf.queryset = Country.objects.all()
+        cf.empty_label = 'Select country'
+        sf.empty_label = 'Select state'
+        df.empty_label = 'Select district'
+        sf.queryset = State.objects.select_related('country')
+        df.queryset = District.objects.select_related('state')
+        if not self.instance.pk and not self.is_bound:
+            india = Country.objects.filter(iso2='IN').first()
+            if india:
+                self.initial.setdefault('country_ref', india.pk)
+        # Only the options that belong to the current country / state are rendered;
+        # the page fetches the others when the country / state changes.
+        def val(name):
+            v = self.data.get(self.add_prefix(name)) if self.is_bound else (
+                self.initial.get(name) or getattr(self.instance, f'{name}_id', None))
+            return int(v) if str(v or '').isdigit() else None
+        cid, sid = val('country_ref'), val('state_ref')
+        sf.widget.choices = [('', 'Select state')] + list(State.objects.filter(country_id=cid).values_list('pk', 'name')) if cid else [('', 'Select state')]
+        df.widget.choices = [('', 'Select district')] + list(District.objects.filter(state_id=sid).values_list('pk', 'name')) if sid else [('', 'Select district')]
+        from django.urls import reverse
+        cf.widget.attrs.update({'data-combo': 'country'})
+        sf.widget.attrs.update({'data-combo': 'state', 'data-src': reverse('geo_states')})
+        df.widget.attrs.update({'data-combo': 'district', 'data-src': reverse('geo_districts')})
+        self.fields['pin_code'].widget.attrs.update({'inputmode': 'numeric', 'maxlength': 12, 'autocomplete': 'postal-code',
+                                                     'placeholder': '6-digit PIN (India)'})
+        self.fields['pin_code'].help_text = ''
+        sf.help_text = 'Required for India.'
+
+    def _clean_address(self, data):
+        country, state, district = data.get('country_ref'), data.get('state_ref'), data.get('district_ref')
+        if state and country and state.country_id != country.pk:
+            self.add_error('state_ref', 'Choose a state from the selected country.')
+            state = None
+        if country and country.iso2 == 'IN' and not state and 'state_ref' not in self.errors:
+            self.add_error('state_ref', 'State is required for India.')
+        if district and (not state or district.state_id != state.pk):
+            self.add_error('district_ref', 'Choose a district from the selected state.')
 
     nda_file = forms.FileField(label='NDA document', required=False, help_text='PDF, JPG or PNG.')
     mca_file = forms.FileField(label='MCA document', required=False, help_text='PDF, JPG or PNG (e.g. MCA master data / incorporation certificate).')
@@ -108,6 +153,7 @@ class ClientForm(StyledForm):
         s, e = data.get('nda_signed_date'), data.get('nda_expiry_date')
         if s and e and e < s:
             self.add_error('nda_expiry_date', 'Expiry date cannot be before the signed date.')
+        self._clean_address(data)
         return data
 
     def save_documents(self, client):

@@ -26,7 +26,7 @@ class ClientDocumentTests(TestCase):
         from employee_management.storage import private_storage
         private_storage.__dict__.pop('base_location', None)
         private_storage.__dict__.pop('location', None)
-        self.client_obj = Client.objects.create(name='Acme Docs Ltd')
+        self.client_obj = Client.objects.create(name='Acme Docs Ltd', country_ref_id=__import__('invoice_app.models', fromlist=['Country']).Country.objects.get(iso2='US').pk)
 
     def post_data(self, **extra):
         init = ClientForm(instance=self.client_obj).initial

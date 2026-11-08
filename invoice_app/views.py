@@ -1050,3 +1050,21 @@ def line_description(request):
         billing_month=month)
     return JsonResponse({'project': project.pk if project else None,
                          'type': project.invoice_description_type if project else '', 'description': text})
+
+
+def geo_states(request):
+    """JSON options for the State dropdown of one country."""
+    from django.http import JsonResponse
+    from .models import State
+    cid = request.GET.get('country') or ''
+    rows = list(State.objects.filter(country_id=cid).values_list('pk', 'name')) if cid.isdigit() else []
+    return JsonResponse({'options': rows})
+
+
+def geo_districts(request):
+    """JSON options for the District dropdown of one state."""
+    from django.http import JsonResponse
+    from .models import District
+    sid = request.GET.get('state') or ''
+    rows = list(District.objects.filter(state_id=sid).values_list('pk', 'name')) if sid.isdigit() else []
+    return JsonResponse({'options': rows})

@@ -3,7 +3,7 @@
 <div><a class="button secondary" href="{% url 'client_edit' client.pk %}">{% icon "edit" %} Edit</a> <a class="button primary" href="{% url 'new_invoice' %}?client={{ client.pk }}">&#43; Invoice</a></div></div>
 <section class="panel"><div class="form-grid">
 <div><small class="muted">Address</small><br>{{ client.address|linebreaksbr }}</div>
-<div><small class="muted">Country</small><br>{{ client.country|default:"-" }}</div>
+<div><small class="muted">Country</small><br>{{ client.country_ref.name|default:client.country|default:"-" }}</div><div><small class="muted">State</small><br>{{ client.state_ref.name|default:"-" }}</div><div><small class="muted">District</small><br>{{ client.district_ref.name|default:"-" }}</div><div><small class="muted">PIN</small><br>{{ client.pin_code|default:"-" }}</div>
 <div><small class="muted">Contact</small><br>{{ client.contact_person|default:"-" }} {{ client.phone }}</div>
 <div><small class="muted">Email</small><br>{{ client.email|default:"-" }}</div>
 <div><small class="muted">Tax information</small><br>{{ client.tax_id|default:"-" }}</div>

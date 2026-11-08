@@ -231,7 +231,7 @@ class ViewTests(Fixture):
             self.assertContains(r, h)
 
     def test_customer_crud(self):
-        r = self.client.post(reverse('client_add'), {'name': 'Acme', 'address': 'x', 'country': 'India',
+        r = self.client.post(reverse('client_add'), {'name': 'Acme', 'address': 'x', 'country_ref': __import__('invoice_app.models', fromlist=['Country']).Country.objects.get(iso2='IN').pk, 'state_ref': __import__('invoice_app.models', fromlist=['State']).State.objects.get(country__iso2='IN', name='Haryana').pk,
                                                      'contact_person': 'A', 'phone': '1', 'email': 'a@b.co',
                                                      'tax_id': 'T', 'billing_type': 'per_day', 'terms_mode': 'custom', 'terms_text': '15', 'notes': ''})
         c = Client.objects.get(name='Acme')
@@ -427,7 +427,7 @@ class BillingTypeTests(TestCase):
         self.assertNotContains(r, '0.00</td><td class="num">150000')
 
     def test_customer_form_saves_billing_type(self):
-        r = self.client.post(reverse('client_add'), {'name': 'Mode3 Co', 'billing_type': Client.MONTHLY_FIXED,
+        r = self.client.post(reverse('client_add'), {'name': 'Mode3 Co', 'country_ref': __import__('invoice_app.models', fromlist=['Country']).Country.objects.get(iso2='US').pk, 'billing_type': Client.MONTHLY_FIXED,
                                                      'terms_mode': 'custom', 'terms_text': '31'})
         self.assertEqual(r.status_code, 302)
         self.assertEqual(Client.objects.get(name='Mode3 Co').billing_type, Client.MONTHLY_FIXED)

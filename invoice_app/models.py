@@ -161,6 +161,50 @@ class InvoiceFormatTemplate(models.Model):
         return snap
 
 
+class Country(models.Model):
+    """ISO 3166-1 countries (seeded from invoice_app/data/geo_seed.json)."""
+    iso2 = models.CharField(max_length=2, unique=True)
+    iso3 = models.CharField(max_length=3, blank=True)
+    name = models.CharField(max_length=100, unique=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name_plural = 'countries'
+
+    def __str__(self):
+        return self.name
+
+
+class State(models.Model):
+    """States / provinces. India: all states and UTs from LGD; others: ISO 3166-2 top-level subdivisions."""
+    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name='states')
+    code = models.CharField(max_length=20, blank=True)
+    lgd_code = models.CharField(max_length=10, blank=True)
+    name = models.CharField(max_length=120)
+    kind = models.CharField(max_length=60, blank=True)
+
+    class Meta:
+        ordering = ['name']
+        unique_together = [('country', 'name')]
+
+    def __str__(self):
+        return self.name
+
+
+class District(models.Model):
+    """Districts (India: LGD district list)."""
+    state = models.ForeignKey(State, on_delete=models.CASCADE, related_name='districts')
+    lgd_code = models.CharField(max_length=10, blank=True)
+    name = models.CharField(max_length=120)
+
+    class Meta:
+        ordering = ['name']
+        unique_together = [('state', 'name')]
+
+    def __str__(self):
+        return self.name
+
+
 class Client(models.Model):
     MONTHLY_PRORATED = 'monthly_prorated'
     PER_DAY = 'per_day'
@@ -172,7 +216,15 @@ class Client(models.Model):
     ]
     name = models.CharField('Company / customer name', max_length=180)
     address = models.TextField(blank=True, help_text='One line per PDF line, e.g. street / city, state / country - zip')
-    country = models.CharField(max_length=80, blank=True)
+    country = models.CharField(max_length=80, blank=True,
+                               help_text='Legacy text; kept in sync with the Country dropdown when one is chosen.')
+    country_ref = models.ForeignKey(Country, verbose_name='Country', null=True, blank=True, on_delete=models.PROTECT,
+                                    related_name='clients')
+    state_ref = models.ForeignKey(State, verbose_name='State', null=True, blank=True, on_delete=models.PROTECT,
+                                  related_name='clients')
+    district_ref = models.ForeignKey(District, verbose_name='District', null=True, blank=True,
+                                     on_delete=models.PROTECT, related_name='clients')
+    pin_code = models.CharField('PIN', max_length=12, blank=True)
     contact_person = models.CharField(max_length=120, blank=True)
     email = models.EmailField(blank=True)
     phone = models.CharField('Contact number', max_length=60, blank=True)
@@ -241,6 +293,9 @@ class Client(models.Model):
             self.state_code = derived
         if self.state_code and not self.state_name:
             self.state_name = gst.STATES.get(self.state_code, '')
+        if self.country_ref_id:
+            self.country = self.country_ref.name
+        self.pin_code = (self.pin_code or '').strip()
         super().save(*args, **kwargs)
 
     def __str__(self):

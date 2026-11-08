@@ -390,14 +390,14 @@ class MasterTests(TestCase):
 
     def test_client_form_fields(self):
         t = InvoiceFormatTemplate.objects.get(code='timesheet')
-        f = ClientForm({'name': 'New C', 'billing_type': Client._meta.get_field('billing_type').default,
+        f = ClientForm({'country_ref': __import__('invoice_app.models', fromlist=['Country']).Country.objects.get(iso2='US').pk, 'name': 'New C', 'billing_type': Client._meta.get_field('billing_type').default,
                         'terms_mode': 'custom', 'vendor_code': 'V-1', 'invoice_format': t.pk, 'active': 'on'})
         self.assertTrue(f.is_valid(), f.errors)
         c = f.save()
         self.assertEqual((c.vendor_code, c.invoice_format), ('V-1', t))
         t.is_active = False
         t.save()
-        self.assertFalse(ClientForm({'name': 'New D', 'billing_type': c.billing_type, 'terms_mode': 'custom',
+        self.assertFalse(ClientForm({'country_ref': __import__('invoice_app.models', fromlist=['Country']).Country.objects.get(iso2='US').pk, 'name': 'New D', 'billing_type': c.billing_type, 'terms_mode': 'custom',
                                      'invoice_format': t.pk}).is_valid())
-        self.assertTrue(ClientForm({'name': c.name, 'billing_type': c.billing_type, 'terms_mode': 'custom',
+        self.assertTrue(ClientForm({'country_ref': __import__('invoice_app.models', fromlist=['Country']).Country.objects.get(iso2='US').pk, 'name': c.name, 'billing_type': c.billing_type, 'terms_mode': 'custom',
                                     'invoice_format': t.pk}, instance=c).is_valid())
