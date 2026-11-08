@@ -4,12 +4,10 @@
         <p class="eyebrow">Expense Management</p>
         <h1>Expense dashboard</h1>
     </div>
-    <div class="heading-actions"><a class="button secondary" href="{% url 'exp:all' %}">View all expenses</a><a
-            class="button secondary" href="{% url 'exp:reports' %}">Expense reports</a><a class="button secondary"
-            href="{% url 'exp:categories' %}">Manage categories</a><a class="button secondary"
-            href="{% url 'exp:vendors' %}">Manage vendors</a><a class="button secondary"
-            href="{% url 'exp:claim_new' %}">+ Employee claim</a><a class="button primary"
+    <div class="heading-actions"><a class="button secondary" href="{% url 'exp:claim_new' %}">+ Employee claim</a><a class="button primary"
             href="{% url 'exp:expense_new' %}">+ Company expense</a></div>
+</div>
+<div class="xm-cards">
     <div class="xm-card"><span class="muted">Total expenses this month</span><strong>{{ cards.month_total|money }}</strong><small>{{ cards.month_label }}</small></div>
     <div class="xm-card"><span class="muted">Total expenses this financial year</span><strong>{{ cards.fy_total|money }}</strong><small>{{ cards.fy_label }}</small></div>
     <a class="xm-card" href="{% url 'exp:review' %}?status=pending"><span class="muted">Pending employee
@@ -18,7 +16,7 @@
             claims</span><strong>{{ cards.approved.0 }}</strong><small>{{ cards.approved.1|money }} approved</small></a>
     <a class="xm-card" href="{% url 'exp:review' %}?status=reimbursed"><span class="muted">Reimbursed employee
             claims</span><strong>{{ cards.reimbursed.0 }}</strong><small>{{ cards.reimbursed.1|money }}</small></a>
-    <a class="xm-card" href="{% url 'exp:all' %}?type=company&period={{ f.period }}"><span class="muted">Total company
+    <a class="xm-card" href="{% url 'exp:all' %}?type=company{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}"><span class="muted">Total company
             expenses</span><strong>{{ cards.company_total|money }}</strong><small>{{ cards.company_count }} bills
             &middot; {{ cards.company_outstanding|money }} outstanding</small></a>
     <a class="xm-card" href="{% url 'exp:report' 'employee' %}"><span class="muted">Total employee

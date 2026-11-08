@@ -269,7 +269,9 @@ def expense_cancel(request, pk):
 def expense_attach(request, pk):
     exp = get_object_or_404(CompanyExpense, pk=pk)
     errs = services.validate_uploads(request.FILES.getlist('attachments'))
-    if errs:
+    if not exp.can_add_attachments:
+        messages.error(request, 'This expense is cancelled; documents can no longer be added.')
+    elif errs:
         messages.error(request, ' '.join(errs))
     elif not request.FILES.getlist('attachments'):
         messages.error(request, 'Choose at least one file.')
@@ -304,6 +306,9 @@ def attachment_file(request, kind, pk, mode='view'):
 @local_only
 def attachment_replace(request, kind, pk):
     att, parent_pk, back = _att(kind, pk)
+    if not getattr(att, ATT[kind][1]).attachments_editable:
+        messages.error(request, 'This record is finalized or closed, so its documents are locked. You can still view or download them.')
+        return redirect(back, parent_pk)
     if request.method == 'POST':
         f = request.FILES.get('file')
         if not f:
@@ -322,6 +327,9 @@ def attachment_replace(request, kind, pk):
 @local_only
 def attachment_delete(request, kind, pk):
     att, parent_pk, back = _att(kind, pk)
+    if not getattr(att, ATT[kind][1]).attachments_editable:
+        messages.error(request, 'This record is finalized or closed, so its documents are locked. You can still view or download them.')
+        return redirect(back, parent_pk)
     if request.method == 'POST':
         services.delete_attachment(att)
         messages.success(request, 'Attachment deleted.')
@@ -484,7 +492,9 @@ def claim_attach(request, pk):
     claim = get_object_or_404(C, pk=pk)
     files = request.FILES.getlist('attachments')
     errs = services.validate_uploads(files)
-    if errs or not files:
+    if not claim.can_add_attachments:
+        messages.error(request, f'This claim is {claim.get_status_display().lower()}; documents can no longer be added.')
+    elif errs or not files:
         messages.error(request, ' '.join(errs) or 'Choose at least one file.')
     else:
         n = _save_uploads(request, claim, CLAIM_DOC_TYPES)

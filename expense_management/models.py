@@ -243,6 +243,20 @@ class CompanyExpense(models.Model):
     def is_cancelled(self):
         return self.payment_status == self.CANCELLED
 
+    @property
+    def is_editable(self):
+        """Only an unposted, live draft may be edited (finalized bills are in the ledger)."""
+        return self.is_draft and not self.is_cancelled
+
+    @property
+    def attachments_editable(self):
+        """Existing documents may be replaced/deleted only while the bill is still a draft."""
+        return self.is_editable
+
+    @property
+    def can_add_attachments(self):
+        return not self.is_cancelled
+
     def compute_total(self):
         return q2(self.amount_before_tax + self.gst_amount + self.other_taxes - self.discount)
 
@@ -465,6 +479,18 @@ class EmployeeExpenseClaim(models.Model):
         if paid <= 0:
             return 'none'
         return 'full' if self.outstanding_amount <= 0 else 'partial'
+
+    @property
+    def is_editable(self):
+        return self.status in self.EDITABLE
+
+    @property
+    def attachments_editable(self):
+        return self.is_editable
+
+    @property
+    def can_add_attachments(self):
+        return self.status not in (self.CANCELLED, self.REJECTED)
 
     @property
     def status_label(self):

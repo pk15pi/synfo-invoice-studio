@@ -207,6 +207,9 @@ class AttachmentTests(TransactionTestCase):
 
     def test_upload_view_download_replace_delete(self):
         e = self.expense()
+        # Documents can be replaced/deleted only while the expense is a draft.
+        CompanyExpense.objects.filter(pk=e.pk).update(is_draft=True)
+        e.refresh_from_db()
         att = services.add_attachment(e, pdf(), 'vendor_invoice')
         path = Path(att.file.path)
         self.assertTrue(path.exists())
