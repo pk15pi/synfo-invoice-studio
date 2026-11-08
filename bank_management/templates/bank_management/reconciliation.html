@@ -1,6 +1,6 @@
-{% extends 'bank_management/base_bank.html' %}{% block bk_title %}Reconciliation{% endblock %}{% block bk %}
+{% extends 'bank_management/base_bank.html' %}{% load filter_ui %}{% block bk_title %}Reconciliation{% endblock %}{% block bk %}
 <div class="page-heading"><p class="eyebrow">{{ b }}</p><h1>Bank reconciliation as of {{ s.end|date:"d M Y" }}</h1></div>
-<form class="panel filters" method="get">{% include 'bank_management/_period_filter.html' %}<button class="button secondary">Show</button> <span class="muted">Balances are as of the period end ({{ f.label }}).</span></form>
+<form class="qb-filter-form panel filters" method="get" data-filter-form>{% include 'bank_management/_period_filter.html' %}{% filter_actions %} <span class="muted">Balances are as of the period end ({{ f.label }}).</span></form>
 <div class="panel"><table><tbody>
 <tr><td>Book balance (ledger {{ b.ledger_account.code }})</td><td class="num">{{ s.book_balance }}</td></tr>
 <tr><td>Statement balance ({{ s.statement_basis }})</td><td class="num">{{ s.statement_balance }}</td></tr>

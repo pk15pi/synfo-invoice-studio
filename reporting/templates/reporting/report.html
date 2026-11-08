@@ -1,11 +1,11 @@
-{% extends 'invoice_app/base.html' %}{% block title %}{{ rep.title }} - Reports{% endblock %}{% block content %}{% include 'reporting/_style.html' %}
+{% extends 'invoice_app/base.html' %}{% load filter_ui %}{% block title %}{{ rep.title }} - Reports{% endblock %}{% block content %}{% include 'reporting/_style.html' %}
 {% include 'reporting/_nav.html' %}
 <div class="page-heading split"><div><p class="eyebrow">{{ rep.section }} report</p><h1>{{ rep.title }}</h1>
 <p class="rp-basis"><b>Period:</b> {{ rep.period.label }} ({{ rep.period.range_text }}) &middot; <b>Date basis:</b> {{ rep.basis }}{% for k,v in rep.filters %} &middot; <b>{{ k }}:</b> {{ v }}{% endfor %}</p>{% if rep.section != 'Ledger' %}<p class="rp-links"><a href="{% url 'reporting:section' 'ledger' %}">See ledger reports</a> (trial balance, P&amp;L, balance sheet from the general ledger)</p>{% endif %}</div><div class="heading-actions">{% include 'reporting/_exports.html' %}</div></div>
-<form method="get" class="rp-bar">
+<form method="get" class="qb-filter-form rp-bar" data-filter-form>
 {% if not no_period %}{% include 'reporting/_period.html' %}{% endif %}
-{% if 'fy_ab' in filters %}<label>FY A<select name="fy_a">{% for y,l in fy_choices %}<option value="{{ y }}"{% if g.fy_a == y|stringformat:"s" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label><label>FY B<select name="fy_b">{% for y,l in fy_choices %}<option value="{{ y }}"{% if g.fy_b == y|stringformat:"s" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endif %}
-{% if 'client' in filters %}<label>Client<select name="client"><option value="">All</option>{% for i,n in clients %}<option value="{{ i }}"{% if g.client == i|stringformat:"s" %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>{% endif %}
+{% if filters|length > 3 %}<details class="more-filters" {% more_filters_open "fy_a,fy_b,client,project,consultant,employee,department,designation,status,account,vendor,category,group_by,by" %}><summary>More filters</summary><div class="more-filters-body">{% endif %}{% if 'fy_ab' in filters %}<label>FY A<select name="fy_a">{% for y,l in fy_choices %}<option value="{{ y }}"{% if g.fy_a == y|stringformat:"s" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label><label>FY B<select name="fy_b">{% for y,l in fy_choices %}<option value="{{ y }}"{% if g.fy_b == y|stringformat:"s" %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endif %}
+{% if 'client' in filters %}<label>Customer<select name="client"><option value="">All</option>{% for i,n in clients %}<option value="{{ i }}"{% if g.client == i|stringformat:"s" %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>{% endif %}
 {% if 'project' in filters %}<label>Project<select name="project"><option value="">All</option>{% for i,n in projects %}<option value="{{ i }}"{% if g.project == i|stringformat:"s" %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>{% endif %}
 {% if 'consultant' in filters %}<label>Consultant<input name="consultant" value="{{ g.consultant|default:'' }}"></label>{% endif %}
 {% if 'employee' in filters %}<label>Employee<select name="employee"><option value="">All</option>{% for i,n in employees %}<option value="{{ i }}"{% if g.employee == i|stringformat:"s" %} selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>{% endif %}
@@ -19,6 +19,6 @@
 {% if 'claim_status' in filters %}<label>Claim status<select name="status"><option value="">All</option>{% for k,l in claim_statuses %}<option value="{{ k }}"{% if g.status == k %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endif %}
 {% if 'group_by' in filters %}<label>Subtotal by<select name="group_by"><option value="">None</option>{% for k in group_opts %}<option value="{{ k }}"{% if g.group_by == k %} selected{% endif %}>{{ k|title }}</option>{% endfor %}</select></label>{% endif %}
 {% if 'by' in filters %}<label>Trend by<select name="by">{% for k in trend_opts %}<option value="{{ k }}"{% if g.by == k %} selected{% endif %}>{{ k|title }}</option>{% endfor %}</select></label>{% endif %}
-<button class="button primary" type="submit">Apply</button> <a href="?">Reset</a></form>
+{% if filters|length > 3 %}</div></details>{% endif %}{% filter_actions %}</form>
 {% include 'reporting/_body.html' %}
 {% endblock %}

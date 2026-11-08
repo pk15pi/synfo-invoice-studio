@@ -709,3 +709,44 @@ main>*{min-width:0}
 }
 
 .global-back-row{display:flex;justify-content:flex-end;margin:10px 0 6px}.global-back-row .button{min-height:36px}
+
+/* ---- Shared filter bars (filter_ui): dates, who/what, status, search, then Apply/Clear ---- */
+.qb-filter-form{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0}
+.qb-filter-form>*{order:20}
+.qb-filter-form>.standard-period-filter,.qb-filter-form>label:has(input[type="date"]),.qb-filter-form>label:has(select[name="month"]),.qb-filter-form>label:has(select[name="year"]),.qb-filter-form>label:has(select[name="fy"]),.qb-filter-form>label:has(select[name="prior"]){order:0}
+.qb-filter-form>label:has(select[name="status"]),.qb-filter-form>label:has(select[name$="_status"]),.qb-filter-form>label:has(select[name="state"]){order:30}
+.qb-filter-form>label:has(input[name="q"]),.qb-filter-form>label:has(input[type="search"]){order:40}
+.qb-filter-form>details.more-filters{order:45}
+.qb-filter-form>.filter-actions{order:50}
+.filter-actions{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.filter-actions .filter-restore{font-size:12px;margin-left:4px}
+.filter-summary{order:60;flex-basis:100%;margin:2px 0 0;font-size:12px;color:#536779}
+.more-filters{flex-basis:100%;min-width:0}
+.more-filters>summary{cursor:pointer;font-size:12px;font-weight:700;color:#0B5394;width:max-content}
+.more-filters-body{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
+.qb-filter-form>.compact-filter-label,.more-filters-body>.compact-filter-label,.list-filters>.compact-filter-label{flex:0 1 auto}
+.qb-filter-form>.compact-filter-label:has(input[name="q"]),.more-filters-body>.compact-filter-label:has(input[name="q"]),.list-filters>.compact-filter-label:has(input[type="search"]){flex:1 1 240px}
+.list-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+.list-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+@media(max-width:640px){
+  .qb-filter-form>label,.qb-filter-form .compact-filter-label,.more-filters-body>label{flex:1 1 100%;white-space:normal;min-width:0}
+  .qb-filter-form .field,.qb-filter-form select,.qb-filter-form input{max-width:100%;min-width:0}
+}
+.standard-period-filter [hidden],.qb-filter-form [hidden]{display:none!important}
+.rp-bar .compact-filter-label{flex-direction:row;align-items:center}
+.rp-bar .compact-filter-label>.field{flex:0 1 auto}
+
+/* ---- Shared period picker: one compact line (mode + its follow-on controls), other filters on the next line ---- */
+.standard-period-filter{display:flex;flex:1 1 100%;flex-wrap:nowrap;align-items:center;gap:10px;min-width:0;max-width:100%}
+.standard-period-filter>.compact-filter-label,.rp-bar .standard-period-filter>.compact-filter-label{display:inline-flex;flex-direction:row;align-items:center;flex:0 0 auto;gap:5px;white-space:nowrap;margin:0}
+.standard-period-filter>.compact-filter-label[hidden]{display:none!important}
+.standard-period-filter .field,.rp-bar .standard-period-filter select,.rp-bar .standard-period-filter input{flex:0 0 auto;width:auto;min-width:110px;max-width:220px;height:35px;min-height:35px;padding:6px 8px;font-size:12px;box-sizing:border-box}
+.standard-period-filter select[name="period_mode"]{min-width:128px}
+.standard-period-filter input[type="date"]{min-width:140px}
+@media(max-width:1100px){.standard-period-filter{flex-wrap:wrap}}
+@media(max-width:640px){
+  .standard-period-filter{flex-direction:column;align-items:stretch;gap:6px}
+  .standard-period-filter>.compact-filter-label,.rp-bar .standard-period-filter>.compact-filter-label{display:flex;width:100%;white-space:normal}
+  .standard-period-filter>.compact-filter-label>span{flex:0 0 96px}
+  .standard-period-filter .field,.rp-bar .standard-period-filter select,.rp-bar .standard-period-filter input{flex:1 1 auto;min-width:0;max-width:100%}
+}@media(min-width:641px){.standard-period-filter>.compact-filter-label{max-width:none;flex-shrink:0}.standard-period-filter input[type="date"]{width:150px;min-width:150px;max-width:150px}}

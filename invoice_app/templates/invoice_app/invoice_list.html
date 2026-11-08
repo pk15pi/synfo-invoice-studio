@@ -1,4 +1,4 @@
-{% extends 'invoice_app/base.html' %}{% block content %}
+{% extends 'invoice_app/base.html' %}{% load filter_ui %}{% block content %}
 <div class="page-heading split"><h1>Invoices</h1><a class="button primary" href="{% url 'new_invoice' %}">&#43; New invoice</a></div>
 <section class="panel invoice-list-filters">
 <div class="invoice-filter-toolbar">
@@ -9,9 +9,9 @@
 <a href="?period=last6"{% if period == 'last6' %} class="on" aria-current="page"{% endif %} title="Includes the current calendar month and previous five months">Last 6 months</a>
 </nav>
 </div>
-<form method="get" class="invoice-period-form panel">
+<form method="get" class="qb-filter-form invoice-period-form panel" data-filter-form>
 {% include 'invoice_app/_standard_period_filter.html' %}
-<button class="button primary" type="submit">Filter</button><a class="button secondary" href="{% url 'invoice_list' %}">Clear</a>
+{% filter_actions %}
 </form>
 {% if filter_error %}<p class="message error" role="alert">{{ filter_error }}</p>{% endif %}
 <p class="muted invoice-filter-summary">{{ invoices|length }} invoice{{ invoices|length|pluralize }} shown{% if selected_standard_period %} for {{ selected_standard_period.label }} ({{ selected_standard_period.range_text }}){% elif period == 'last3' %} from the current and previous two calendar months{% elif period == 'last6' %} from the current and previous five calendar months{% elif period == 'previous' %} from the previous calendar month{% endif %}.</p>

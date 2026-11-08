@@ -1,4 +1,4 @@
-<form method="get" class="panel pr-filters daily-brief-filters">
+{% load filter_ui %}<form method="get" class="qb-filter-form panel pr-filters daily-brief-filters" data-filter-form>
   {% include 'invoice_app/_standard_period_filter.html' %}
   <label>Recruiter
     <select class="field" name="recruiter"><option value="">All recruiters</option>{% for employee in recruiters %}<option value="{{ employee.pk }}"{% if selected_recruiter == employee.pk|stringformat:'s' %} selected{% endif %}>{{ employee.employee_id }} · {{ employee.full_name }}</option>{% endfor %}</select>
@@ -6,7 +6,6 @@
   <label>Search recruiter <input class="field" type="search" name="recruiter_search" value="{{ recruiter_search }}" placeholder="Name or employee ID"></label>
   <label>Search JD Number <input class="field" type="search" name="jd_search" value="{{ jd_search }}" placeholder="e.g. 07-01"></label>
   {% if page_sizes %}<label>Rows per page <select class="field" name="page_size">{% for size in page_sizes %}<option value="{{ size }}"{% if page_size == size %} selected{% endif %}>{{ size }}</option>{% endfor %}</select></label>{% endif %}
-  <button class="button primary" type="submit">Apply</button>
-  <a class="button secondary" href="{% if analytics_page %}{% url 'performance_review:daily_brief_analytics' %}{% else %}{% url 'performance_review:daily_brief_records' %}{% endif %}">Reset</a>
+  {% filter_actions %}
   <span class="muted daily-brief-period-label">Showing {{ period.label }}</span>
 </form>

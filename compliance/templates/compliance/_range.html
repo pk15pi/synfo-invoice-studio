@@ -1,5 +1,5 @@
-<form class="panel filters" method="get">
+{% load filter_ui %}<form class="qb-filter-form panel filters" method="get" data-filter-form>
   {% include 'invoice_app/_standard_period_filter.html' %}
   {% block extra %}{% endblock %}
-  <button class="button secondary">Show</button>
+  {% filter_actions %}
 </form>

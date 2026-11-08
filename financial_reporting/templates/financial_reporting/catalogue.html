@@ -1,9 +1,9 @@
-{% extends "invoice_app/base.html" %}
+{% extends "invoice_app/base.html" %}{% load filter_ui %}
 {% block title %}Report Catalogue{% endblock %}
 {% block content %}
 <h1>Report Catalogue</h1>
 <p>Period: <strong>{{ period.label }}</strong> ({{ period.range_text }})</p>
-<form method="get" class="filter-form">
+<form method="get" class="qb-filter-form filter-form" data-filter-form>
   <label>Search <input name="q" value="{{ query }}" maxlength="100"></label>
   <label>Category
     <select name="category">
@@ -14,7 +14,7 @@
     </select>
   </label>
   {% include 'invoice_app/_standard_period_filter.html' %}
-  <button type="submit">Filter</button>
+  {% filter_actions %}
 </form>
 {% if page.object_list %}
 <div class="table-wrap">

@@ -1,7 +1,7 @@
-{% extends 'accounting/base_acc.html' %}{% block acc_title %}Ledger{% endblock %}{% block acc %}
+{% extends 'accounting/base_acc.html' %}{% load filter_ui %}{% block acc_title %}Ledger{% endblock %}{% block acc %}
 <div class="page-heading"><p class="eyebrow">Account ledger</p><h1>{% if acct %}{{ acct }}{% else %}Ledger{% endif %}</h1></div>
-<form class="panel filters compact-filters" method="get" action="{% url 'acc:ledger_pick' %}"><label class="compact-filter-label"><span>Account</span><select class="field" name="account">{% for a in accounts %}<option value="{{ a.pk }}" {% if acct.pk == a.pk %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>{% endfor %}</select></label>
-{% include 'accounting/_period_filter.html' %}<button class="button secondary">Show</button></form>
+<form class="qb-filter-form panel filters compact-filters" method="get" action="{% url 'acc:ledger_pick' %}" data-filter-form><label class="compact-filter-label"><span>Account</span><select class="field" name="account">{% for a in accounts %}<option value="{{ a.pk }}" {% if acct.pk == a.pk %}selected{% endif %}>{{ a.code }} {{ a.name }}</option>{% endfor %}</select></label>
+{% include 'accounting/_period_filter.html' %}{% filter_actions %}</form>
 {% if data %}<div class="panel"><p class="muted">{{ f.label }} ({{ f.range_text }}). Balances shown in the account's normal direction ({% if acct.debit_normal %}debit{% else %}credit{% endif %}).</p>
 <table id="ldg"><thead><tr><th>Date</th><th>Entry</th><th>Narration</th><th class="acc-num">Debit</th><th class="acc-num">Credit</th><th class="acc-num">Balance</th></tr></thead><tbody>
 <tr data-sort-ignore><td colspan="5"><em>Opening balance</em></td><td class="acc-num">{{ data.opening }}</td></tr>

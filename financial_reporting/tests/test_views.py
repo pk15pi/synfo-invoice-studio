@@ -18,7 +18,11 @@ class FinancialReportingViewTests(TestCase):
         dashboard = self.client.get(reverse('financial_reporting:dashboard'))
         self.assertEqual(dashboard.status_code, 200)
         self.assertContains(dashboard, 'Financial Reports &amp; Audit Centre')
-        self.assertContains(dashboard, 'Current financial year')
+        # Period choice is the shared picker; the current FY is shown as the reporting period.
+        from reporting import periods
+        self.assertContains(dashboard, 'Reporting period')
+        self.assertContains(dashboard, periods.fy_label(periods.fy_start_year(periods.today())))
+        self.assertContains(dashboard, '<option value="financial" selected>Financial year</option>')
 
         catalogue = self.client.get(reverse('financial_reporting:catalogue'))
         self.assertEqual(catalogue.status_code, 200)

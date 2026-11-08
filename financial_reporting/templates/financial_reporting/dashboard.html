@@ -1,4 +1,4 @@
-{% extends "invoice_app/base.html" %}
+{% extends "invoice_app/base.html" %}{% load filter_ui %}
 {% load static %}
 {% block title %}Financial Reports &amp; Audit Centre{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'financial_reporting/dashboard.css' %}">{% endblock %}
@@ -10,10 +10,10 @@
   </div>
   <a class="button primary" href="{% url 'financial_reporting:catalogue' %}">Browse report catalogue</a>
 </header>
-<form method="get" class="fr-filter panel">
+<form method="get" class="qb-filter-form fr-filter panel" data-filter-form>
   <div class="fr-filter-title"><h2>Reporting period</h2><p>Choose the dates and reporting interval to view.</p></div>
   {% include 'invoice_app/_standard_period_filter.html' %}
-  <div class="fr-filter-action"><button class="button secondary" type="submit">Apply period</button><button class="button primary" type="submit" name="export" value="xlsx">Export to Excel</button></div>
+  <div class="fr-filter-action">{% filter_actions %}<button class="button primary" type="submit" name="export" value="xlsx">Export to Excel</button></div>
 </form>
 <div class="fr-summary">
   <article class="fr-metric"><span>Financial year</span><strong>{{ period.label }}</strong><small>{{ period.range_text }}</small></article>

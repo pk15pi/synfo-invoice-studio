@@ -1,8 +1,8 @@
-{% extends 'compliance/base_c.html' %}{% block c_title %}Compliance check{% endblock %}{% block c %}
+{% extends 'compliance/base_c.html' %}{% load filter_ui %}{% block c_title %}Compliance check{% endblock %}{% block c %}
 <div class="page-heading"><p class="eyebrow">Compliance &middot; read-only</p><h1>Compliance check</h1></div>
-<form class="panel filters" method="get">{% include 'invoice_app/_standard_period_filter.html' %}
+<form class="qb-filter-form panel filters" method="get" data-filter-form>{% include 'invoice_app/_standard_period_filter.html' %}
 <label><input type="checkbox" name="which" value="invoices" {% if 'invoices' in which %}checked{% endif %}> Invoices</label> <label><input type="checkbox" name="which" value="payslips" {% if 'payslips' in which %}checked{% endif %}> Payslips</label>
-<select class="field" name="status"><option value="">All results</option>{% for k, l in labels.items %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select> <button class="button secondary">Check</button></form>
+<label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="">All results</option>{% for k, l in labels.items %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label> {% filter_actions %}</form>
 <div class="panel"><p>OK: {{ summary.ok }} &middot; <span class="st-mismatch">Mismatch: {{ summary.mismatch }}</span> &middot; <span class="st-not_configured">Rule not configured: {{ summary.not_configured }}</span> <span class="muted">(tolerance &plusmn;&#8377;1; finalized documents only; nothing is changed)</span></p>
 <div class="table-wrap"><table><thead><tr><th>Type</th><th>Document</th><th>Date</th><th>Item</th><th class="num">Actual</th><th class="num">Expected by rule</th><th>Result</th><th>Note</th></tr></thead><tbody>
 {% for r in rows %}<tr><td>{{ r.kind }}</td><td>{{ r.doc }}</td><td>{{ r.date|date:"d-m-Y" }}</td><td>{{ r.item }}</td><td class="num">{{ r.actual }}</td><td class="num">{{ r.expected|default_if_none:"-" }}</td><td class="st-{{ r.status }}">{{ r.label }}</td><td class="muted">{{ r.note }}</td></tr>

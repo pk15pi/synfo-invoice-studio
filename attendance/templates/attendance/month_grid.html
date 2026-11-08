@@ -1,11 +1,11 @@
-{% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+{% extends "invoice_app/base.html" %}{% load filter_ui %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Attendance &amp; Leave</p><h1>{{ e.employee_id }} {{ e.full_name }} &middot; {{ label }}</h1>
 {% if locked %}<p class="muted"><b>Locked:</b> payroll for this month is finalized. Start a payroll revision to change attendance.</p>{% endif %}</div>
 <div><a class="button secondary" href="{% url 'att:application_new' %}?employee={{ e.pk }}">Record leave</a></div></div>
 {% include "attendance/_nav.html" %}
-<form method="get" class="panel"><select class="field" onchange="location='{% url 'att:daily' %}'.replace('/attendance/','/attendance/employee/'+this.value+'/')+'?year={{ y }}&month={{ m }}'">{% for x in employees %}<option value="{{ x.pk }}" {% if x.pk == e.pk %}selected{% endif %}>{{ x.employee_id }} {{ x.full_name }}</option>{% endfor %}</select>
-<select class="field" name="month">{% for n, l in months %}<option value="{{ n }}" {% if n == m %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-<select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select> <button class="button secondary">Show</button></form>
+<form method="get" class="qb-filter-form panel" data-filter-form><select class="field" onchange="location='{% url 'att:daily' %}'.replace('/attendance/','/attendance/employee/'+this.value+'/')+'?year={{ y }}&month={{ m }}'">{% for x in employees %}<option value="{{ x.pk }}" {% if x.pk == e.pk %}selected{% endif %}>{{ x.employee_id }} {{ x.full_name }}</option>{% endfor %}</select>
+<label class="compact-filter-label"><span>Month</span><select class="field" name="month">{% for n, l in months %}<option value="{{ n }}" {% if n == m %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label class="compact-filter-label"><span>Year</span><select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select></label> {% filter_actions %}</form>
 <div class="panel"><b>Summary:</b> Working days {{ summary.working_days }} &middot; Present {{ summary.present }} &middot; Half days {{ summary.half_days }} &middot; Paid leave {{ summary.paid_leave }} &middot; LWP {{ summary.lwp }} &middot; Absent {{ summary.absent }} &middot; Holidays {{ summary.holidays }} &middot; Week offs {{ summary.week_offs }} &middot; <b>Payable {{ summary.payable_days }}</b>{% if summary.unmarked %} ({{ summary.unmarked }} unmarked working day(s) counted as present){% endif %}</div>
 <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}">
 <div class="table-wrap"><table><thead><tr><th>Date</th><th>Status</th><th>Leave type</th><th>In</th><th>Out</th><th>Note</th></tr></thead><tbody>

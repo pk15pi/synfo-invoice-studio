@@ -1,8 +1,8 @@
-{% extends "invoice_app/base.html" %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
+{% extends "invoice_app/base.html" %}{% load filter_ui %}{% block title %}Attendance &middot; QuantBud{% endblock %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Attendance &amp; Leave</p><h1>Holidays {{ y }}</h1><p class="muted">Weekly off: <b>{{ settings.description }}</b></p></div>
 <div><a class="button primary" href="{% url 'att:holiday_new' %}">Add holiday</a> <a class="button secondary" href="{% url 'att:weekly_off' %}">Change weekly off</a></div></div>
 {% include "attendance/_nav.html" %}
-<form method="get" class="panel compact-filters"><label class="compact-filter-label"><span>Year</span><select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select></label> <button class="button secondary">Show</button></form>
+<form method="get" class="qb-filter-form panel compact-filters" data-filter-form><label class="compact-filter-label"><span>Year</span><select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select></label> {% filter_actions %}</form>
 <div class="panel"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Day</th><th>Name</th><th>Optional</th><th></th></tr></thead><tbody>
 {% for h in rows %}<tr><td>{{ h.date|date:"d-m-Y" }}</td><td>{{ h.date|date:"l" }}</td><td>{{ h.name }}</td><td>{{ h.optional|yesno:"Yes," }}</td><td><a href="{% url 'att:holiday_edit' h.pk %}">Edit</a>
 <form method="post" action="{% url 'att:holiday_delete' h.pk %}" style="display:inline" onsubmit="return confirm('Remove holiday?')">{% csrf_token %}<button class="button secondary">Remove</button></form></td></tr>

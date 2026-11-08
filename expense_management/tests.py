@@ -392,8 +392,15 @@ class PageTests(Base):
                 reverse('exp:vendors'), reverse('exp:vendor_new'), reverse('exp:vendor_detail', args=[self.vendor.pk]),
                 reverse('exp:categories'), reverse('exp:category_new'), reverse('exp:subcategory_new', args=[self.tech.pk]),
                 reverse('exp:reports')]
+        urls.remove(reverse('exp:expense_edit', args=[e.pk]))
         for u in urls:
             self.assertEqual(self.client.get(u).status_code, 200, u)
+        # Finalized expenses are read-only: edit sends you back to the record; drafts stay editable.
+        self.assertRedirects(self.client.get(reverse('exp:expense_edit', args=[e.pk])),
+                             reverse('exp:expense_detail', args=[e.pk]))
+        draft = self.expense()
+        CompanyExpense.objects.filter(pk=draft.pk).update(is_draft=True)
+        self.assertEqual(self.client.get(reverse('exp:expense_edit', args=[draft.pk])).status_code, 200)
         self.assertContains(self.client.get('/'), 'Expense Management')
 
     def test_create_expense_via_form_with_payment_and_attachment(self):
@@ -407,8 +414,17 @@ class PageTests(Base):
         e = CompanyExpense.objects.get(description='Form VPS')
         self.assertRedirects(r, reverse('exp:expense_detail', args=[e.pk]))
         self.assertEqual(e.total_amount, D('1180.00'))
-        self.assertEqual(e.payment_status, CompanyExpense.PAID)
         self.assertEqual(e.attachments.count(), 1)
+        # New expenses are saved as drafts; finalize posts them, then payment is recorded.
+        self.assertTrue(e.is_draft)
+        self.client.post(reverse('exp:expense_finalize', args=[e.pk]))
+        e.refresh_from_db()
+        self.assertFalse(e.is_draft)
+        self.assertEqual(e.payment_status, CompanyExpense.UNPAID)
+        self.client.post(reverse('exp:expense_payment', args=[e.pk]),
+                         {'payment_date': '2026-05-11', 'method': 'upi', 'amount': '1180'})
+        e.refresh_from_db()
+        self.assertEqual(e.payment_status, CompanyExpense.PAID)
 
     def test_claim_form_and_review_actions(self):
         r = self.client.post(reverse('exp:claim_new'), {

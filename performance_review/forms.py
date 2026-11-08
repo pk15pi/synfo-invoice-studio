@@ -113,7 +113,12 @@ class DailyBriefForm(forms.ModelForm):
             'employee_id')
         self.fields['recruiter'].label_from_instance = lambda e: f'{e.employee_id} · {e.full_name}'
         self.fields['activity_date'].initial = self.fields['activity_date'].initial or timezone.localdate
+        self.fields['achieved'].required = False
         self.duplicate_record = None
+
+    def clean_achieved(self):
+        value = self.cleaned_data.get('achieved')
+        return 0 if value in (None, '') else value
 
     def clean(self):
         cleaned = super().clean()

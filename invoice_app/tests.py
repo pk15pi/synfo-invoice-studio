@@ -781,7 +781,9 @@ class InvoiceListDateFilterTests(TestCase):
         all_invoices = self.get()
         self.assertEqual(len(all_invoices.context['financial_year_options']), 5)
         self.assertContains(all_invoices, 'FY 2026-27')
-        self.assertContains(all_invoices, 'onchange="this.form.submit()"')
+        # The FY choice now lives in the shared period picker and is applied with the Apply button.
+        self.assertContains(all_invoices, '<option value="financial" selected>Financial year</option>')
+        self.assertContains(all_invoices, '<button class="button primary" type="submit">Apply</button>')
 
     def test_financial_year_filter_rejects_year_outside_last_five_options(self):
         self.invoice('APR20', '2020-04-01')

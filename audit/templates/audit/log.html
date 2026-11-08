@@ -1,13 +1,13 @@
-{% extends 'invoice_app/base.html' %}{% block title %}Audit log &middot; QuantBud{% endblock %}
+{% extends 'invoice_app/base.html' %}{% load filter_ui %}{% block title %}Audit log &middot; QuantBud{% endblock %}
 {% block content %}<style>.a-ch{font-size:12px;max-width:520px;word-break:break-word}.a-ch del{color:#b3261e}.a-ch ins{color:#1b6e2b;text-decoration:none}</style>
 <h1>{% if obj %}History: {{ obj }}{% else %}Audit log{% endif %}</h1>
 <p class="muted">Append-only record of changes to financial and sensitive data. This app has no login, so every event is attributed to <strong>{{ operator }}</strong>. Sensitive numbers are masked (last 4 only); passwords and secrets are never logged. Bulk database updates that bypass the model layer are not captured.</p>
-{% if not obj %}<form method="get" class="filters"><select name="app"><option value="">All apps</option>{% for a in apps %}<option {% if f.app == a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
-<input name="model" placeholder="Model" value="{{ f.model }}"><input name="object_id" placeholder="Object id" value="{{ f.object_id }}" size="8">
-<select name="action"><option value="">All actions</option>{% for k,l in actions %}<option value="{{ k }}" {% if f.action == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-<select name="source"><option value="">All sources</option>{% for k,l in sources %}<option value="{{ k }}" {% if f.source == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
-{% include 'invoice_app/_standard_period_filter.html' %}<input name="q" placeholder="Search object / reason" value="{{ f.q }}">
-<button type="submit">Filter</button> <a href="{% url 'audit:log' %}">Reset</a> &middot; <a href="{% url 'audit:export' %}?{{ qs }}">Export CSV</a></form>{% else %}<p><a href="{% url 'audit:log' %}">&larr; Full audit log</a></p>{% endif %}
+{% if not obj %}<form method="get" class="qb-filter-form filters" data-filter-form><label class="compact-filter-label"><span>Area</span><select name="app"><option value="">All apps</option>{% for a in apps %}<option {% if f.app == a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select></label>
+<label class="compact-filter-label"><span>Record type</span><input name="model" placeholder="Model" value="{{ f.model }}"></label><label class="compact-filter-label"><span>Record ID</span><input name="object_id" placeholder="Object id" value="{{ f.object_id }}" size="8"></label>
+<label class="compact-filter-label"><span>Action</span><select name="action"><option value="">All actions</option>{% for k,l in actions %}<option value="{{ k }}" {% if f.action == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+<label class="compact-filter-label"><span>Source</span><select name="source"><option value="">All sources</option>{% for k,l in sources %}<option value="{{ k }}" {% if f.source == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+{% include 'invoice_app/_standard_period_filter.html' %}<label class="compact-filter-label"><span>Search</span><input name="q" placeholder="Search object / reason" value="{{ f.q }}"></label>
+{% filter_actions %} &middot; <a href="{% url 'audit:export' %}?{{ qs }}">Export CSV</a></form>{% else %}<p><a href="{% url 'audit:log' %}">&larr; Full audit log</a></p>{% endif %}
 <table class="table" data-server-sort="orm"><thead><tr><th data-sort-key="timestamp" data-sort-type="date">When (IST)</th><th>Operator</th><th data-sort-key="source">Source</th><th data-sort-key="object">Object</th><th data-sort-key="action" data-sort-type="status">Action</th><th>Changes (old &rarr; new)</th><th data-sort-key="reason">Reason</th><th data-sort-key="path">Path</th></tr></thead><tbody>
 {% for e in page %}<tr><td>{{ e.timestamp|date:"d-m-Y H:i:s" }}</td><td>{{ operator }}</td><td>{{ e.get_source_display }}</td>
 <td><a href="{% url 'audit:history' e.app_label e.model e.object_id|default:'-' %}">{{ e.app_label }}.{{ e.model }} #{{ e.object_id }}</a><br><span class="muted">{{ e.object_repr }}</span></td>

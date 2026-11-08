@@ -1,4 +1,4 @@
-{% extends 'expense_management/xm_base.html' %}{% load exp_tags %}{% block xm_title %}Expense dashboard{% endblock %}{% block xm %}
+{% extends 'expense_management/xm_base.html' %}{% load filter_ui %}{% load exp_tags %}{% block xm_title %}Expense dashboard{% endblock %}{% block xm %}
 <div class="page-heading split expense-dashboard-heading">
     <div>
         <p class="eyebrow">Expense Management</p>
@@ -25,9 +25,9 @@
             reimbursements</span><strong>{{ cards.reimb_total|money }}</strong><small>{{ cards.reimb_count }}
             payments</small></a>
 </div>
-<form class="panel filters dashboard-period-filters" method="get">
+<form class="qb-filter-form panel filters dashboard-period-filters" method="get" data-filter-form>
     {% include 'invoice_app/_standard_period_filter.html' %}
-    <button class="button secondary" type="submit">Apply</button>
+    {% filter_actions %}
     <span class="muted">Showing <b>{{ f.label }}</b> ({{ f.start|date:"d-m-Y" }} &ndash; {{ f.end|date:"d-m-Y" }})</span>
 </form>
 

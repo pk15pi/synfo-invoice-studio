@@ -1,11 +1,11 @@
-{% extends 'invoice_app/base.html' %}{% load em_tags %}{% block content %}
+{% extends 'invoice_app/base.html' %}{% load filter_ui %}{% load em_tags %}{% block content %}
 <div class="page-heading"><p class="eyebrow">Payroll</p><h1>Reports</h1></div>
-<form method="get" class="panel filters compact-filters"><label class="compact-filter-label"><span>Report</span><select class="field" name="report">
+<form method="get" class="qb-filter-form panel filters compact-filters" data-filter-form><label class="compact-filter-label"><span>Report</span><select class="field" name="report">
 <option value="monthly" {% if kind == 'monthly' %}selected{% endif %}>Monthly payroll summary</option><option value="department" {% if kind == 'department' %}selected{% endif %}>Department-wise salary</option><option value="history" {% if kind == 'history' %}selected{% endif %}>Employee salary history</option><option value="joining" {% if kind == 'joining' %}selected{% endif %}>Joining / leaving (year)</option></select></label>
 <label class="compact-filter-label"><span>Month</span><select class="field" name="month">{% for i, n in months %}<option value="{{ i }}" {% if i == m %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
 <label class="compact-filter-label"><span>Year</span><select class="field" name="year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select></label>
 <label class="compact-filter-label"><span>Employee</span><select class="field" name="employee"><option value="">All (history report)</option>{% for e in employees %}<option value="{{ e.pk }}" {% if eid == e.pk|stringformat:"s" %}selected{% endif %}>{{ e }}</option>{% endfor %}</select></label>
-<button class="button secondary">Show</button>{% if headers %}<button class="button secondary" name="export" value="xlsx">Export Excel</button>{% endif %}</form>
+{% filter_actions %}{% if headers %}<button class="button secondary" name="export" value="xlsx">Export Excel</button>{% endif %}</form>
 <div class="panel">{% if headers %}<div class="table-wrap"><table><thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}</tr></thead><tbody>
 {% for r in rows %}<tr>{% for c in r %}<td {% if forloop.counter0|in_list:money %}class="num"{% endif %}>{{ c|default_if_none:"" }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="{{ headers|length }}" class="empty">No data.</td></tr>{% endfor %}</tbody></table></div>
 {% else %}<p class="empty">{% if kind == 'history' %}Choose an employee.{% else %}No payroll for {{ label }}.{% endif %}</p>{% endif %}</div>{% endblock %}

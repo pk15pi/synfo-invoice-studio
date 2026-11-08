@@ -1,6 +1,6 @@
-<form method="get" class="panel pr-filters">
+{% load filter_ui %}<form method="get" class="qb-filter-form panel pr-filters" data-filter-form>
   {% include 'invoice_app/_standard_period_filter.html' %}
-  <button class="button primary">Apply</button>
+  {% filter_actions %}
   {% if export_controls %}<button class="button secondary" name="export" value="xlsx">Export Excel</button><button class="button secondary" name="export" value="pdf">Export PDF</button>{% endif %}
   <span class="muted">Showing {{ period.label }}</span>
 </form>

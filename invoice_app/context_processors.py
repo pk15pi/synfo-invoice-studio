@@ -22,14 +22,40 @@ def page_help(request):
     }
 
 
+def _window(current, back=5, forward=1, selected=None):
+    """Newest first: next `forward` years, the current one and the previous `back`; plus an
+    out-of-window year already chosen in the URL so the picker never loses the user's selection."""
+    years = list(range(current + forward, current - back - 1, -1))
+    try:
+        sel = int(selected) if selected else None
+    except (TypeError, ValueError):
+        sel = None
+    if sel and 1900 <= sel <= 9998 and sel not in years:
+        years = sorted(years + [sel], reverse=True)
+    return years
+
+
+FY_MONTH_ORDER = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+FY_QUARTERS = [('Q1', 'Q1 (Apr\u2013Jun)'), ('Q2', 'Q2 (Jul\u2013Sep)'), ('Q3', 'Q3 (Oct\u2013Dec)'), ('Q4', 'Q4 (Jan\u2013Mar)')]
+FY_HALVES = [('H1', 'H1 (Apr\u2013Sep)'), ('H2', 'H2 (Oct\u2013Mar)')]
+
+
 def standard_period_filter(request):
     """Shared choices for the application's calendar and Indian FY filters."""
+    t = report_periods.today()
+    g = getattr(request, 'GET', {})
+    cur_fy = report_periods.fy_start_year(t)
+    months = dict(report_periods.MONTH_CHOICES)
     return {
-        'standard_calendar_year_choices': report_periods.calendar_year_choices(),
+        'standard_calendar_year_choices': _window(t.year, selected=g.get('calendar_year')),
         'standard_month_choices': report_periods.MONTH_CHOICES,
-        'standard_fy_choices': report_periods.fy_choices(),
-        'standard_current_calendar_year': report_periods.today().year,
-        'standard_current_fy': report_periods.fy_start_year(report_periods.today()),
+        'standard_fy_month_choices': [(m, months[m]) for m in FY_MONTH_ORDER],
+        'standard_fy_quarter_choices': FY_QUARTERS,
+        'standard_fy_half_choices': FY_HALVES,
+        'standard_fy_choices': [(y, report_periods.fy_label(y)) for y in _window(cur_fy, selected=g.get('fy'))],
+        'standard_current_calendar_year': t.year,
+        'standard_current_fy': cur_fy,
+        'standard_current_month': t.month,
     }
 
 

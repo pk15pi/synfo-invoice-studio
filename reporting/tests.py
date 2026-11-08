@@ -412,18 +412,22 @@ class LabelPersistenceTests(Base):
     def test_fy_only_selects_fy_not_today(self):
         for url in (reverse('reporting:dashboard'), reverse('reporting:report', args=['rev_summary'])):
             r = self.client.get(url + '?fy=2025')
-            self.assertContains(r, '<option value="fy" selected>')
-            self.assertNotContains(r, '<option value="today" selected>')
-            self.assertContains(r, '<option value="2025" selected>')
+            # Legacy ?fy= links resolve to the FY and the shared picker shows that FY selected.
+            self.assertContains(r, '<option value="financial" selected>Financial year</option>')
+            self.assertContains(r, '<option value="2025" selected>FY 2025-26</option>')
             self.assertContains(r, 'FY 2025-26')
 
     def test_default_and_explicit(self):
+        cur = P.fy_start_year(P.today())
         r = self.client.get(reverse('reporting:dashboard'))
-        self.assertContains(r, '<option value="current_fy" selected>')
+        self.assertContains(r, '<option value="financial" selected>Financial year</option>')
+        self.assertContains(r, f'<option value="{cur}" selected>{P.fy_label(cur)}</option>')
+        self.assertContains(r, '<option value="full_fy" selected>Full year</option>')
+        # Legacy period links still resolve (shown in the report's period line).
         r = self.client.get(reverse('reporting:dashboard') + '?period=prev_month')
-        self.assertContains(r, '<option value="prev_month" selected>')
+        self.assertContains(r, P.resolve({'period': 'prev_month'}).label)
         r = self.client.get(reverse('reporting:dashboard') + '?month=2025-05')
-        self.assertContains(r, '<option value="month" selected>')
+        self.assertContains(r, 'May 2025')
 
     def test_exports_use_same_label(self):
         from openpyxl import load_workbook
