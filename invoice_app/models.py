@@ -1142,25 +1142,53 @@ class CreditNote(models.Model):
 
 
 class InvoiceEmailTemplate(models.Model):
-    """Reusable subject or body text for customer invoice emails."""
+    """Reusable subject/body text for invoice and salary-slip emails (Shared)."""
     SUBJECT, BODY = 'subject', 'body'
     KIND_CHOICES = [(SUBJECT, 'Subject'), (BODY, 'Body')]
+    COMMON, CUSTOMER, SALARY = 'common', 'customer', 'salary'
+    CATEGORY_CHOICES = [
+        (COMMON, 'Common'),
+        (CUSTOMER, 'Customer'),
+        (SALARY, 'Salary'),
+    ]
+    category = models.CharField(
+        max_length=10, choices=CATEGORY_CHOICES, default=CUSTOMER, db_index=True)
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, db_index=True)
     name = models.CharField(max_length=120)
-    text = models.TextField(help_text='Optional placeholders: {invoice_number}, {customer_name}, '
-                                      '{customer_brand}, {invoice_date}, {grand_total}.')
+    text = models.TextField(
+        help_text='Optional placeholders depend on use: invoice ({invoice_number}, '
+                  '{customer_name}, {customer_brand}, {invoice_date}, {invoice_month}, '
+                  '{invoice_year}, {grand_total}, {month}, {year}); salary '
+                  '({employee_name}, {employee_id}, {salary_month}, {salary_year}, '
+                  '{month}, {year}).')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['kind', 'name', 'id']
+        ordering = ['category', 'kind', 'name', 'id']
+        verbose_name = 'Email template'
+        verbose_name_plural = 'Email templates'
 
     def __str__(self):
-        return f'{self.get_kind_display()}: {self.name}'
+        return f'{self.get_category_display()} / {self.get_kind_display()}: {self.name}'
+
+    @classmethod
+    def for_customer(cls, kind):
+        return cls.objects.filter(
+            kind=kind,
+            category__in=(cls.COMMON, cls.CUSTOMER),
+        ).order_by('name')
+
+    @classmethod
+    def for_salary_default(cls, kind):
+        return cls.objects.filter(
+            kind=kind,
+            category__in=(cls.COMMON, cls.SALARY),
+        ).order_by('name')
 
 
 class InvoiceEmailDefaults(models.Model):
-    """Singleton (pk=1) remembering the last subject/body choice for Add Customer."""
+    """Singleton (pk=1): last Add-Customer invoice email choice + salary-slip defaults."""
     subject_template = models.ForeignKey(
         InvoiceEmailTemplate, null=True, blank=True, on_delete=models.SET_NULL,
         related_name='+', limit_choices_to={'kind': 'subject'})
@@ -1171,14 +1199,22 @@ class InvoiceEmailDefaults(models.Model):
         related_name='+', limit_choices_to={'kind': 'body'})
     use_custom_body = models.BooleanField(default=False)
     custom_body = models.TextField(blank=True)
+    salary_subject_template = models.ForeignKey(
+        InvoiceEmailTemplate, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', limit_choices_to={'kind': 'subject'},
+        verbose_name='Salary slip subject default')
+    salary_body_template = models.ForeignKey(
+        InvoiceEmailTemplate, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', limit_choices_to={'kind': 'body'},
+        verbose_name='Salary slip body default')
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = 'Invoice email defaults'
-        verbose_name_plural = 'Invoice email defaults'
+        verbose_name = 'Email template defaults'
+        verbose_name_plural = 'Email template defaults'
 
     def __str__(self):
-        return 'Invoice email defaults'
+        return 'Email template defaults'
 
     @classmethod
     def current(cls):

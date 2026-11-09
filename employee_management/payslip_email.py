@@ -1,4 +1,5 @@
 """Send finalized payslip PDFs to employee email addresses via Microsoft 365 SMTP."""
+import calendar
 from datetime import date
 
 from django.core.mail import EmailMessage, get_connection
@@ -105,6 +106,54 @@ def _company_name():
     return 'QuantBud'
 
 
+def payslip_placeholder_values(payroll):
+    """Values for salary email templates (and Common {month}/{year})."""
+    employee = payroll.employee
+    year = payroll.period.year
+    month = payroll.period.month
+    month_name = calendar.month_name[month]
+    return {
+        '{employee_name}': (payroll.snap_name or getattr(employee, 'full_name', '') or '').strip(),
+        '{employee_id}': (getattr(employee, 'employee_id', None) or '').strip(),
+        '{salary_month}': month_name,
+        '{salary_year}': str(year),
+        '{month}': month_name,
+        '{year}': str(year),
+    }
+
+
+def apply_payslip_placeholders(text, payroll):
+    from invoice_app.invoice_email import apply_placeholder_map
+    return apply_placeholder_map(text, payslip_placeholder_values(payroll))
+
+
+def resolve_payslip_subject_body(payroll):
+    """Salary defaults from Shared Email templates; else legacy hardcoded text."""
+    from invoice_app.models import InvoiceEmailDefaults
+    company = _company_name()
+    month_label = payroll.period.label
+    employee = payroll.employee
+    defaults = InvoiceEmailDefaults.current()
+    subj_tpl = defaults.salary_subject_template
+    body_tpl = defaults.salary_body_template
+    if subj_tpl and (subj_tpl.text or '').strip():
+        subject = apply_payslip_placeholders(subj_tpl.text, payroll)
+    else:
+        subject = f'Salary slip — {month_label}'
+    if body_tpl and (body_tpl.text or '').strip():
+        body = apply_payslip_placeholders(body_tpl.text, payroll)
+    else:
+        body = (
+            f'Dear {payroll.snap_name or employee.full_name},\n\n'
+            f'Please find attached your salary slip for {month_label}.\n\n'
+            f'This message was sent by {company}. '
+            f'If you have questions about this payslip, reply to this email or contact HR.\n\n'
+            f'Regards,\n{company}\n'
+        )
+    return subject, body
+
+
+
 def send_payslip(payroll, *, connection=None):
     """Attach the existing payslip PDF and email it. Always writes a PayslipEmailLog row.
 
@@ -128,15 +177,7 @@ def send_payslip(payroll, *, connection=None):
         cfg = EC.load_config()
         mapped = EC.require_ready(cfg)
         pdf_bytes, filename = payslip_for(payroll)
-        company = _company_name()
-        subject = f'Salary slip — {month_label}'
-        body = (
-            f'Dear {payroll.snap_name or employee.full_name},\n\n'
-            f'Please find attached your salary slip for {month_label}.\n\n'
-            f'This message was sent by {company}. '
-            f'If you have questions about this payslip, reply to this email or contact HR.\n\n'
-            f'Regards,\n{company}\n'
-        )
+        subject, body = resolve_payslip_subject_body(payroll)
         conn = connection or get_connection(
             host=mapped['HOST'],
             port=mapped['PORT'],

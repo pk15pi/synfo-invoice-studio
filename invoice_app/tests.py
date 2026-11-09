@@ -851,10 +851,24 @@ class IconActionTests(TestCase):
     def test_customer_row_actions_are_accessible_icons(self):
         c = Client.objects.create(name='Icon Co', default_terms_days=30)
         html = self.client.get(reverse('clients')).content.decode()
-        for label in ('Deactivate', 'Edit', 'Delete'):
+        for label in ('Deactivate', 'Edit'):
             self.assertIn(f'title="{label}" aria-label="{label}"', html)
         self.assertIn('<svg class="ico ico-edit"', html)
         self.assertIn(reverse('client_edit', args=[c.pk]), html)
         self.assertNotIn('>Edit</a>', html)
-        self.assertIn("return confirm('Delete this customer", html)
-        self.assertIn('class="icon-btn danger"', html)
+        self.assertNotIn('client_delete', html)
+        self.assertNotIn('aria-label="Delete"', html)
+        self.assertNotIn('Delete this customer', html)
+        self.assertIn("return confirm('Deactivate customer Icon Co?", html)
+
+    def test_activate_deactivate_confirm_includes_brand(self):
+        active = Client.objects.create(
+            name='Active Co', brand_name='BrandX', default_terms_days=30)
+        inactive = Client.objects.create(
+            name='Idle Co', brand_name='Quiet', active=False, default_terms_days=30)
+        html = self.client.get(reverse('clients')).content.decode()
+        self.assertIn(
+            "return confirm('Deactivate customer Active Co (BrandX)?", html)
+        self.assertIn(
+            "return confirm('Activate customer Idle Co (Quiet)?", html)
+        self.assertNotIn('client_delete', html)

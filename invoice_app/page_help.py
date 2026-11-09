@@ -44,7 +44,7 @@ _add("clients", "Customer list", "Find customer records and open customer-specif
      related=["Customer records are used by invoices, projects, manpower deployments and recruitment agreements."])
 _add("client_add client_edit", "Add or edit customer", "Enter the customer identity, billing preferences, contact information and invoice email settings.",
      "This page stores the customer master used by invoices and client workflows, including To/CC/BCC and email subject/body for invoice mailing.",
-     ["Enter the customer name and applicable address/tax details.", "Choose the billing type and payment terms where shown.", "In Invoice email, set To/CC/BCC and choose a subject/body template or custom text (optional Save as template).", "Review required fields and save. The last subject/body choice becomes the default for new customers."],
+     ["Enter the customer name and applicable address/tax details.", "Choose the billing type and payment terms where shown.", "In Invoice email, set To/CC/BCC and choose a subject/body template or custom text (optional Save as template). Placeholders include {invoice_month} and {invoice_year} from the invoice date.", "Review required fields and save. The last subject/body choice becomes the default for new customers."],
      rules=["Use the correct legal/customer name and verified tax details.", "Billing type and due terms affect later invoice calculations or due dates."],
      related=["Invoices, projects, manpower deployments and recruitment placements can refer to this customer."])
 _add("client_detail", "Customer details", "Review one customer and the work linked to that record.",
@@ -289,12 +289,12 @@ _add("em:payroll_detail em:payroll_edit", "Payroll record", "Review or edit a pa
      ["Confirm employee and period.", "Review each component and source note.", "Save only supported corrections; finalize after review."],
      rules=["Finalized payroll changes should use the revision workflow. Confirm impacts to payslips, payments and accounting."],
      related=["Payroll dashboard, salary structures, attendance, payslips and salary payments."])
-_add("invoice_email_templates invoice_email_template_add invoice_email_template_edit", "Email templates",
-     "Manage reusable subject and body text for invoice emails.",
-     "Templates appear in Customer Add/Edit invoice-email dropdowns and are used when mailing invoice PDFs.",
-     ["Filter by Subject or Body if needed.", "Add or edit a template name and text.", "Optional placeholders: {invoice_number}, {customer_name}, {customer_brand}, {invoice_date}, {grand_total}.", "Delete only when no customer still uses the template."],
-     rules=["Deleting a template that customers still reference is blocked.", "Saving a template from Customer Add/Edit also creates a row here."],
-     related=["Email invoices and Add/Edit customer."])
+_add("email_templates email_template_add email_template_edit invoice_email_templates invoice_email_template_add invoice_email_template_edit", "Email templates",
+     "Manage reusable subject and body text for invoice and salary-slip emails (Shared).",
+     "Categories control where a template appears: Common (customer dropdowns and salary defaults), Customer (invoice only), Salary (salary defaults only).",
+     ["Filter by Type (Subject/Body) and Category.", "Add or edit Category, Type, Name and Text.", "Optional placeholders: {invoice_number}, {customer_name}, {customer_brand}, {invoice_date}, {invoice_month}, {invoice_year}, {grand_total}, {month}, {year}, {employee_name}, {employee_id}, {salary_month}, {salary_year}.", "Use as salary default on a Common or Salary template so Email salary slips uses it for every employee.", "Delete only when no customer references it and it is not a salary default."],
+     rules=["Deleting a template that customers still reference or that is a salary default is blocked.", "Saving a template from Customer Add/Edit creates a Customer-category row.", "Salary slips always use the Shared salary default subject/body — not per employee."],
+     related=["Email invoices, Email salary slips, and Add/Edit customer."])
 _add("invoice_email", "Email invoices", "Filter finalized invoices by period and email each customer their invoice PDF.",
      "Each row is one invoice. Send uses the customer's To/CC/BCC and subject/body template or custom text. Send is used the first time; after any attempt the button becomes Resend.",
      ["Choose the period with the shared Yearly / Financial year / Custom date picker.",
@@ -839,7 +839,7 @@ NON_PAGE_ROUTES = {
     "exp:category_delete", "exp:vendor_quick_add", "client_document", "client_delete", "client_toggle", "project_toggle",
     "project_delete", "description_template_toggle", "description_template_delete", "format_template_preview",
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
-    "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json", "invoice_email_template_delete",
+    "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json", "invoice_email_template_delete", "email_template_delete", "email_template_set_salary_default",
 }
 
 # Shared guidance for pages that use the standardized calendar/FY period controls.

@@ -119,6 +119,48 @@ class InvoiceEmailTemplateSendTests(TestCase):
         self.assertEqual(msg.subject, 'Invoice INV-PH for Acme Corp')
         self.assertIn('Hello Acme, total 1000.00 on 15 Oct 2026.', msg.body)
 
+    def test_invoice_month_year_from_invoice_date(self):
+        """{invoice_month}/{invoice_year} come from invoice_date (not today)."""
+        subj = InvoiceEmailTemplate.objects.create(
+            kind=InvoiceEmailTemplate.SUBJECT, name='Month subj',
+            text='AC-Support_Invoice for the Month of {invoice_month}',
+        )
+        body = InvoiceEmailTemplate.objects.create(
+            kind=InvoiceEmailTemplate.BODY, name='Month body',
+            text='Period {invoice_month} {invoice_year}.',
+        )
+        self.customer.invoice_email_subject_template = subj
+        self.customer.invoice_email_body_template = body
+        self.customer.invoice_email_use_custom_subject = False
+        self.customer.invoice_email_use_custom_body = False
+        self.customer.save()
+        inv = self._invoice('INV-MONTH')  # invoice_date=2026-10-15
+        self.assertEqual(inv.invoice_date.month, 10)
+        mail.outbox.clear()
+        IE.send_invoice(inv)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.subject, 'AC-Support_Invoice for the Month of October')
+        self.assertIn('Period October 2026.', msg.body)
+        vals = IE.placeholder_values(inv)
+        self.assertEqual(vals['{invoice_month}'], 'October')
+        self.assertEqual(vals['{invoice_year}'], '2026')
+
+
+    def test_month_year_aliases_on_invoice(self):
+        subj = InvoiceEmailTemplate.objects.create(
+            category=InvoiceEmailTemplate.CUSTOMER,
+            kind=InvoiceEmailTemplate.SUBJECT, name='Alias subj',
+            text='Month {month} Year {year}',
+        )
+        self.customer.invoice_email_subject_template = subj
+        self.customer.invoice_email_use_custom_subject = False
+        self.customer.save()
+        inv = self._invoice('INV-ALIAS')
+        mail.outbox.clear()
+        IE.send_invoice(inv)
+        self.assertEqual(mail.outbox[0].subject, 'Month October Year 2026')
+
+
     def test_custom_subject_body(self):
         self.customer.invoice_email_use_custom_subject = True
         self.customer.invoice_email_custom_subject = 'Custom {invoice_number}'

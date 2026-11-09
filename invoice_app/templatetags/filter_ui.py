@@ -16,7 +16,7 @@ LABELS = {
     'month': 'Month', 'year': 'Year', 'date': 'Date', 'app': 'Area', 'model': 'Record type',
     'object_id': 'Record ID', 'action': 'Action', 'source': 'Source', 'type': 'Type',
     'payment_status': 'Payment status', 'claim_status': 'Claim status', 'invoice_status': 'Invoice/payment state',
-    'kind': 'Type', 'mode': 'Mode', 'report': 'Report', 'sensitivity': 'Sensitivity', 'state': 'State',
+    'kind': 'Kind', 'mode': 'Mode', 'report': 'Report', 'sensitivity': 'Sensitivity', 'state': 'State',
     'prior': 'Prior period rows', 'candidate': 'Candidate', 'designation': 'Designation', 'method': 'Billing method',
     'group_by': 'Subtotal by', 'by': 'Trend by', 'dataset': 'Dataset', 'cols': 'Columns', 'project': 'Project',
     'consultant': 'Consultant', 'recruiter': 'Recruiter', 'recruiter_search': 'Recruiter search',

@@ -416,7 +416,7 @@ main button:not([class]):hover,main input[type=submit]:not([class]):hover{border
 .message.warning{background:#fff8e9}
 .badge{padding:3px 9px;border-radius:999px;font-size:11px;line-height:1.5}
 .segmented a,nav.segmented a{border-color:#d7e1e9;border-radius:7px;background:#fff}
-.segmented a.on,nav.segmented a.on{background:#174b78;border-color:#174b78}
+.segmented a.on,nav.segmented a.on{background:#174b78;border-color:#174b78}.filters .segmented{display:flex;flex:0 0 auto;flex-wrap:nowrap;align-items:center;gap:4px}.filters .segmented a{display:inline-block;white-space:nowrap}
 .filters{gap:9px}
 .tag{background:#edf5fa;border-color:#d6e7f1;color:#286b9c}
 .total-preview{border-color:#286b9c}

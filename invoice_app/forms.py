@@ -205,11 +205,11 @@ class ClientForm(StyledForm):
         self.fields['invoice_email_custom_body'].widget = forms.Textarea(attrs={'class': 'field', 'rows': 5})
         self.fields['invoice_email_custom_subject'].help_text = f'Placeholders: {ph}'
         self.fields['invoice_email_custom_body'].help_text = f'Placeholders: {ph}'
-        self.fields['invoice_email_subject_template'].queryset = InvoiceEmailTemplate.objects.filter(
-            kind=InvoiceEmailTemplate.SUBJECT).order_by('name')
+        self.fields['invoice_email_subject_template'].queryset = InvoiceEmailTemplate.for_customer(
+            InvoiceEmailTemplate.SUBJECT)
         self.fields['invoice_email_subject_template'].empty_label = '— Select subject template —'
-        self.fields['invoice_email_body_template'].queryset = InvoiceEmailTemplate.objects.filter(
-            kind=InvoiceEmailTemplate.BODY).order_by('name')
+        self.fields['invoice_email_body_template'].queryset = InvoiceEmailTemplate.for_customer(
+            InvoiceEmailTemplate.BODY)
         self.fields['invoice_email_body_template'].empty_label = '— Select body template —'
         self.fields['save_subject_template_name'].widget.attrs.setdefault('class', 'field')
         self.fields['save_body_template_name'].widget.attrs.setdefault('class', 'field')
@@ -278,6 +278,7 @@ class ClientForm(StyledForm):
         custom_subj = (self.cleaned_data.get('invoice_email_custom_subject') or '').strip()
         if subj_name and custom_subj:
             tpl = InvoiceEmailTemplate.objects.create(
+                category=InvoiceEmailTemplate.CUSTOMER,
                 kind=InvoiceEmailTemplate.SUBJECT, name=subj_name[:120], text=custom_subj)
             client.invoice_email_subject_template = tpl
             client.invoice_email_use_custom_subject = False
@@ -286,6 +287,7 @@ class ClientForm(StyledForm):
         custom_body = (self.cleaned_data.get('invoice_email_custom_body') or '').strip()
         if body_name and custom_body:
             tpl = InvoiceEmailTemplate.objects.create(
+                category=InvoiceEmailTemplate.CUSTOMER,
                 kind=InvoiceEmailTemplate.BODY, name=body_name[:120], text=custom_body)
             client.invoice_email_body_template = tpl
             client.invoice_email_use_custom_body = False
@@ -528,7 +530,7 @@ class InvoiceDescriptionTemplateForm(StyledForm):
 class InvoiceEmailTemplateForm(StyledForm):
     class Meta:
         model = InvoiceEmailTemplate
-        fields = ['kind', 'name', 'text']
+        fields = ['category', 'kind', 'name', 'text']
         labels = {'kind': 'Type', 'text': 'Text'}
         widgets = {'text': forms.Textarea(attrs={'rows': 6})}
 
@@ -536,7 +538,9 @@ class InvoiceEmailTemplateForm(StyledForm):
         super().__init__(*args, **kwargs)
         from .invoice_email import PLACEHOLDERS
         self.fields['text'].help_text = (
-            'Optional placeholders: ' + ', '.join(PLACEHOLDERS) + '.'
+            'Optional placeholders: ' + ', '.join(PLACEHOLDERS) + '. '
+            '{month}/{year} follow the invoice date or salary month. '
+            'Salary-only: {employee_name}, {employee_id}, {salary_month}, {salary_year}.'
         )
 
     def clean_name(self):

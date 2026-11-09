@@ -990,10 +990,11 @@ def format_template_delete(request, pk):
 # --- Description Template Master + Memo/Description rendering endpoint ---
 
 
-def invoice_email_templates(request):
-    """Master list of invoice email subject/body templates."""
+def email_templates(request):
+    """Shared master list of email subject/body templates (invoice + salary)."""
     from django.db.models import Count
     from .invoice_email import PLACEHOLDERS
+    from .models import InvoiceEmailDefaults
     qs = InvoiceEmailTemplate.objects.annotate(
         n_subj=Count('clients_using_as_subject', distinct=True),
         n_body=Count('clients_using_as_body', distinct=True),
@@ -1003,58 +1004,109 @@ def invoice_email_templates(request):
         qs = qs.filter(kind=kind)
     else:
         kind = 'all'
-    qs = qs.order_by('kind', 'name', 'id')
-    return render(request, 'invoice_app/invoice_email_templates.html', {
+    category = (request.GET.get('category') or 'all').strip().lower()
+    if category in (
+        InvoiceEmailTemplate.COMMON,
+        InvoiceEmailTemplate.CUSTOMER,
+        InvoiceEmailTemplate.SALARY,
+    ):
+        qs = qs.filter(category=category)
+    else:
+        category = 'all'
+    qs = qs.order_by('category', 'kind', 'name', 'id')
+    defaults = InvoiceEmailDefaults.current()
+    return render(request, 'invoice_app/email_templates.html', {
         'templates': qs,
         'kind': kind,
+        'category': category,
         'placeholders': PLACEHOLDERS,
+        'salary_subject_id': defaults.salary_subject_template_id,
+        'salary_body_id': defaults.salary_body_template_id,
     })
 
 
-def invoice_email_template_edit(request, pk=None):
+def email_template_edit(request, pk=None):
     obj = get_object_or_404(InvoiceEmailTemplate, pk=pk) if pk else None
     form = InvoiceEmailTemplateForm(request.POST or None, instance=obj)
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, 'Email template saved.')
-        return redirect('invoice_email_templates')
+        return redirect('email_templates')
     return render(request, 'invoice_app/form_page.html', {
         'form': form,
         'title': 'Edit email template' if obj else 'Add email template',
-        'back': 'invoice_email_templates',
+        'back': 'email_templates',
     })
 
 
 @require_POST
-def invoice_email_template_delete(request, pk):
+def email_template_delete(request, pk):
     from django.db.models import Q
     from .models import InvoiceEmailDefaults
     t = get_object_or_404(InvoiceEmailTemplate, pk=pk)
+    defaults = InvoiceEmailDefaults.current()
+    if (
+        defaults.salary_subject_template_id == t.pk
+        or defaults.salary_body_template_id == t.pk
+    ):
+        messages.error(
+            request,
+            '"{}" is the salary-slip default and cannot be deleted. '
+            'Choose another salary default first.'.format(t.name),
+        )
+        return redirect('email_templates')
     in_use = Client.objects.filter(
         Q(invoice_email_subject_template=t) | Q(invoice_email_body_template=t)
     ).count()
     if in_use:
         messages.error(
             request,
-            f'"{t.name}" is assigned to {in_use} customer(s) and cannot be deleted. '
-            'Clear or change those customers' invoice email template first.',
+            '"{}" is assigned to {} customer(s) and cannot be deleted. '
+            "Clear or change those customers' invoice email template first.".format(t.name, in_use),
         )
-        return redirect('invoice_email_templates')
-    defaults = InvoiceEmailDefaults.objects.filter(pk=1).first()
-    if defaults:
-        changed = False
-        if defaults.subject_template_id == t.pk:
-            defaults.subject_template = None
-            changed = True
-        if defaults.body_template_id == t.pk:
-            defaults.body_template = None
-            changed = True
-        if changed:
-            defaults.save()
+        return redirect('email_templates')
+    changed = False
+    if defaults.subject_template_id == t.pk:
+        defaults.subject_template = None
+        changed = True
+    if defaults.body_template_id == t.pk:
+        defaults.body_template = None
+        changed = True
+    if changed:
+        defaults.save()
     name = t.name
     t.delete()
     messages.success(request, f'Email template "{name}" deleted.')
-    return redirect('invoice_email_templates')
+    return redirect('email_templates')
+
+
+@require_POST
+def email_template_set_salary_default(request, pk):
+    from .models import InvoiceEmailDefaults
+    t = get_object_or_404(InvoiceEmailTemplate, pk=pk)
+    if t.category not in (InvoiceEmailTemplate.COMMON, InvoiceEmailTemplate.SALARY):
+        messages.error(
+            request,
+            'Only Common or Salary templates can be the salary-slip default.',
+        )
+        return redirect('email_templates')
+    defaults = InvoiceEmailDefaults.current()
+    if t.kind == InvoiceEmailTemplate.SUBJECT:
+        defaults.salary_subject_template = t
+    else:
+        defaults.salary_body_template = t
+    defaults.save()
+    messages.success(
+        request,
+        f'"{t.name}" is now the salary-slip {t.get_kind_display().lower()} default.',
+    )
+    return redirect('email_templates')
+
+
+# Back-compat aliases used by any leftover imports
+invoice_email_templates = email_templates
+invoice_email_template_edit = email_template_edit
+invoice_email_template_delete = email_template_delete
 
 
 

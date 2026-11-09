@@ -277,3 +277,79 @@ class PayslipEmailPageTests(Base):
             r3 = self.client.post(reverse('em:payslip_email_send_json', args=[slip2.pk]), {'skip_if_sent': '0'})
         self.assertEqual(r3.json()['status'], 'failed')
         self.assertFalse(PayslipEmailLog.objects.filter(payroll=slip2, success=True).exists())
+
+
+class PayslipEmailTemplateDefaultTests(Base):
+    """Shared salary defaults apply to every employee (no per-employee picker)."""
+
+    def setUp(self):
+        super().setUp()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.cfg = Path(self.tmp.name) / 'email.json'
+        self.env = mock.patch.dict(
+            'os.environ',
+            {'QB_EMAIL_CONFIG_FILE': str(self.cfg), 'QB_EMAIL_PASSWORD': ''},
+            clear=False,
+        )
+        self.env.start()
+        EC.save_config({
+            'host': 'smtp.office365.com', 'port': 587, 'user': 'support@synfowebs.com',
+            'from_email': 'support@synfowebs.com', 'password': 'test-secret-pw',
+            'use_tls': True, 'use_ssl': False, 'send_gap_seconds': 30,
+        })
+        self.emp2 = self.make_emp(first_name='Bob', last_name='Two')
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+        super().tearDown()
+
+    def _slip(self, year=2026, month=10, email='asha@example.com', pan='ABCDE1234F', emp=None):
+        emp = emp or self.emp
+        emp.work_email = email
+        emp.pan_number = pan
+        emp.save()
+        if not emp.salary_structures.exists():
+            self.structure(emp=emp)
+        period, _ = PayrollPeriod.objects.get_or_create(year=year, month=month, defaults={'divisor': 'actual'})
+        engine.generate(period)
+        slip = EmployeePayroll.objects.get(period=period, employee=emp, is_current=True)
+        if slip.status != EmployeePayroll.FINALIZED:
+            engine.finalize([slip])
+            slip.refresh_from_db()
+        return slip
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_salary_default_templates_used_for_all(self):
+        from invoice_app.models import InvoiceEmailDefaults, InvoiceEmailTemplate
+        subj = InvoiceEmailTemplate.objects.create(
+            category=InvoiceEmailTemplate.SALARY, kind=InvoiceEmailTemplate.SUBJECT,
+            name='Sal Subj', text='Slip {employee_name} {salary_month} {salary_year}')
+        body = InvoiceEmailTemplate.objects.create(
+            category=InvoiceEmailTemplate.SALARY, kind=InvoiceEmailTemplate.BODY,
+            name='Sal Body', text='Hello {employee_id} for {month} {year}')
+        d = InvoiceEmailDefaults.current()
+        d.salary_subject_template = subj
+        d.salary_body_template = body
+        d.save()
+
+        slip1 = self._slip(2026, 10, email='ann@example.com', emp=self.emp)
+        slip2 = self._slip(2026, 10, email='bob@example.com', emp=self.emp2)
+        mail.outbox.clear()
+        with mock.patch.object(PE, 'payslip_for', return_value=(b'%PDF-1.4', 'slip.pdf')):
+            PE.send_payslip(slip1)
+            PE.send_payslip(slip2)
+        self.assertEqual(len(mail.outbox), 2)
+        self.assertTrue(mail.outbox[0].subject.startswith('Slip '))
+        self.assertIn('October 2026', mail.outbox[0].subject)
+        self.assertIn('October 2026', mail.outbox[1].subject)
+        self.assertIn('for October 2026', mail.outbox[0].body)
+        self.assertIn('for October 2026', mail.outbox[1].body)
+        self.assertNotEqual(mail.outbox[0].subject, mail.outbox[1].subject)
+
+        page = self.client.get(reverse('em:payslip_email'), {
+            'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10'})
+        self.assertEqual(page.status_code, 200)
+        html = page.content.decode().lower()
+        self.assertNotIn('name="invoice_email_subject_template"', html)
+        self.assertNotIn('select subject template', html)

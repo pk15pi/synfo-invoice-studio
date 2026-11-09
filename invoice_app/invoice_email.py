@@ -3,6 +3,7 @@
 Reuses employee_management.email_config (same Shared → Settings SMTP + send gap).
 Supports To/CC/BCC and per-customer subject/body templates or custom text.
 """
+import calendar
 import re
 from email.utils import parseaddr
 
@@ -29,7 +30,15 @@ PLACEHOLDERS = (
     '{customer_name}',
     '{customer_brand}',
     '{invoice_date}',
+    '{invoice_month}',
+    '{invoice_year}',
     '{grand_total}',
+    '{month}',
+    '{year}',
+    '{employee_name}',
+    '{employee_id}',
+    '{salary_month}',
+    '{salary_year}',
 )
 
 _SPLIT_RE = re.compile(r'[,;]+')
@@ -167,20 +176,31 @@ def _company_name():
 def placeholder_values(invoice):
     client = invoice.client
     brand = (getattr(client, 'brand_name', None) or '').strip()
+    inv_date = invoice.invoice_date
+    month = calendar.month_name[inv_date.month] if inv_date else ''
+    year = str(inv_date.year) if inv_date else ''
     return {
         '{invoice_number}': invoice.invoice_number or '',
         '{customer_name}': client.name or '',
         '{customer_brand}': brand,
-        '{invoice_date}': invoice.invoice_date.strftime('%d %b %Y') if invoice.invoice_date else '',
+        '{invoice_date}': inv_date.strftime('%d %b %Y') if inv_date else '',
+        '{invoice_month}': month,
+        '{invoice_year}': year,
         '{grand_total}': f'{invoice.grand_total:.2f}' if invoice.grand_total is not None else '',
+        '{month}': month,
+        '{year}': year,
     }
 
 
-def apply_placeholders(text, invoice):
+def apply_placeholder_map(text, values):
     result = text or ''
-    for key, value in placeholder_values(invoice).items():
+    for key, value in values.items():
         result = result.replace(key, value)
     return result
+
+
+def apply_placeholders(text, invoice):
+    return apply_placeholder_map(text, placeholder_values(invoice))
 
 
 def resolve_subject(client, invoice):

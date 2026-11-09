@@ -1,0 +1,33 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Shared</p><h1>Email templates</h1>
+<p class="muted">Subject and body text for invoice and salary-slip emails. Categories control where a template appears: <b>Common</b> (both), <b>Customer</b> (invoice only), <b>Salary</b> (salary defaults only). Placeholders: {% for p in placeholders %}<code>{{ p }}</code> {% endfor %}</p></div>
+<a class="button primary" href="{% url 'email_template_add' %}">&#43; Add template</a></div>
+<section class="panel"><div class="filters">
+<span class="segmented" aria-label="Type"><a href="?kind=all&amp;category={{ category }}" class="{% if kind == 'all' %}on{% endif %}">All</a><a href="?kind=subject&amp;category={{ category }}" class="{% if kind == 'subject' %}on{% endif %}">Subject</a><a href="?kind=body&amp;category={{ category }}" class="{% if kind == 'body' %}on{% endif %}">Body</a></span>
+<span class="segmented" aria-label="Category"><a href="?category=all&amp;kind={{ kind }}" class="{% if category == 'all' %}on{% endif %}">All categories</a><a href="?category=common&amp;kind={{ kind }}" class="{% if category == 'common' %}on{% endif %}">Common</a><a href="?category=customer&amp;kind={{ kind }}" class="{% if category == 'customer' %}on{% endif %}">Customer</a><a href="?category=salary&amp;kind={{ kind }}" class="{% if category == 'salary' %}on{% endif %}">Salary</a></span>
+</div>
+{% if templates %}<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Category</th><th>Type</th><th>Preview</th><th></th></tr></thead>
+{% paginate templates as qb_pg1 %}<tbody>
+{% for t in qb_pg1 %}
+<tr>
+<td><b>{{ t.name }}</b>{% if t.pk == salary_subject_id or t.pk == salary_body_id %} <span class="badge ok">Salary default</span>{% endif %}</td>
+<td>{{ t.get_category_display }}</td>
+<td>{{ t.get_kind_display }}</td>
+<td><code>{{ t.text|truncatechars:80 }}</code></td>
+<td>
+<a class="button secondary" href="{% url 'email_template_edit' t.pk %}">Edit</a>
+{% if t.category == 'common' or t.category == 'salary' %}
+<form class="inline" method="post" action="{% url 'email_template_set_salary_default' t.pk %}" style="display:inline">{% csrf_token %}
+<button class="button secondary" type="submit">Use as salary default</button></form>
+{% endif %}
+<form class="inline" method="post" action="{% url 'email_template_delete' t.pk %}" style="display:inline">{% csrf_token %}
+<button class="button secondary" type="submit" onclick="return confirm('Delete this email template?')">Delete</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody></table>{% pager qb_pg1 %}</div>
+{% else %}<div class="empty">No email templates{% if kind != 'all' or category != 'all' %} for this filter{% endif %}.</div>{% endif %}
+</section>
+{% endblock %}

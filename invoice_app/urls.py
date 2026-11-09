@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 from . import views_invoice_email as vie
@@ -59,10 +60,22 @@ urlpatterns = [
     path('invoice/<int:pk>/payments/add/', views.payment_edit, name='payment_add'),
     path('invoice/<int:pk>/payments/<int:payment_pk>/edit/', views.payment_edit, name='payment_edit'),
     path('invoice/<int:pk>/payments/<int:payment_pk>/delete/', views.payment_delete, name='payment_delete'),
-    path('invoices/email-templates/', views.invoice_email_templates, name='invoice_email_templates'),
-    path('invoices/email-templates/add/', views.invoice_email_template_edit, name='invoice_email_template_add'),
-    path('invoices/email-templates/<int:pk>/edit/', views.invoice_email_template_edit, name='invoice_email_template_edit'),
-    path('invoices/email-templates/<int:pk>/delete/', views.invoice_email_template_delete, name='invoice_email_template_delete'),
+    path('shared/email-templates/', views.email_templates, name='email_templates'),
+    path('shared/email-templates/add/', views.email_template_edit, name='email_template_add'),
+    path('shared/email-templates/<int:pk>/edit/', views.email_template_edit, name='email_template_edit'),
+    path('shared/email-templates/<int:pk>/delete/', views.email_template_delete, name='email_template_delete'),
+    path('shared/email-templates/<int:pk>/salary-default/', views.email_template_set_salary_default,
+         name='email_template_set_salary_default'),
+    # Legacy Invoice Management URLs → Shared (GET bookmarks; POST still handled here)
+    path('invoices/email-templates/', RedirectView.as_view(pattern_name='email_templates', permanent=False),
+         name='invoice_email_templates'),
+    path('invoices/email-templates/add/', RedirectView.as_view(pattern_name='email_template_add', permanent=False),
+         name='invoice_email_template_add'),
+    path('invoices/email-templates/<int:pk>/edit/',
+         RedirectView.as_view(pattern_name='email_template_edit', permanent=False),
+         name='invoice_email_template_edit'),
+    path('invoices/email-templates/<int:pk>/delete/', views.email_template_delete,
+         name='invoice_email_template_delete'),
     path('invoices/email/', vie.invoice_email_list, name='invoice_email'),
     path('invoices/email/<int:pk>/send/', vie.invoice_email_send, name='invoice_email_send'),
     path('invoices/email/<int:pk>/send.json', vie.invoice_email_send_json, name='invoice_email_send_json'),

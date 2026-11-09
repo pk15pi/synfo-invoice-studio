@@ -8,7 +8,7 @@ The billing type is set on the customer and applies to every project row. Change
 {% if customer_form %}
 <fieldset class="customer-invoice-email-block" style="margin-top:18px" data-invoice-email-form>
 <legend>Invoice email</legend>
-<p class="muted" style="margin-top:0">Used when emailing invoice PDFs. One message is sent with To, CC and BCC together. Placeholders: {invoice_number}, {customer_name}, {customer_brand}, {invoice_date}, {grand_total}.</p>
+<p class="muted" style="margin-top:0">Used when emailing invoice PDFs. One message is sent with To, CC and BCC together. Placeholders: {invoice_number}, {customer_name}, {customer_brand}, {invoice_date}, {invoice_month}, {invoice_year}, {grand_total}, {month}, {year}. Salary-only: {employee_name}, {employee_id}, {salary_month}, {salary_year}.</p>
 <div class="form-grid">
 {% for field in form %}
 {% if field.name in form.INVOICE_EMAIL_BLOCK %}
