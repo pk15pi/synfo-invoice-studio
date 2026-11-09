@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_invoice_email as vie
 
 urlpatterns = [
     path('invoicing/', views.dashboard, name='dashboard'),
@@ -58,6 +59,9 @@ urlpatterns = [
     path('invoice/<int:pk>/payments/add/', views.payment_edit, name='payment_add'),
     path('invoice/<int:pk>/payments/<int:payment_pk>/edit/', views.payment_edit, name='payment_edit'),
     path('invoice/<int:pk>/payments/<int:payment_pk>/delete/', views.payment_delete, name='payment_delete'),
+    path('invoices/email/', vie.invoice_email_list, name='invoice_email'),
+    path('invoices/email/<int:pk>/send/', vie.invoice_email_send, name='invoice_email_send'),
+    path('invoices/email/<int:pk>/send.json', vie.invoice_email_send_json, name='invoice_email_send_json'),
     path('receipts/', views.receipts, name='receipts'),
     # legacy URL kept: renders with a one-off number, nothing is saved
     path('invoice/<int:pk>/pdf/<str:manual_number>/', views.invoice_pdf, name='invoice_pdf_manual'),

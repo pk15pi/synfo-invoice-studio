@@ -501,8 +501,8 @@ class EmailSettingsForm(StyledForm, forms.Form):
     use_ssl = forms.BooleanField(required=False, initial=False, label='Use SSL (port 465)')
     send_gap_seconds = forms.IntegerField(
         min_value=0, max_value=600, initial=30,
-        label='Gap between salary-slip emails (seconds)',
-        help_text='Used by Send to all on Email salary slips: wait this many seconds after each email before the next. '
+        label='Gap between emails (seconds)',
+        help_text='Used by Send to all on Email salary slips and Email invoices: wait this many seconds after each email before the next. '
                   'Bulk send ignores this gap. Default 30.',
     )
 

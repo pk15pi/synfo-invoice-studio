@@ -1,5 +1,5 @@
 {% extends 'invoice_app/base.html' %}{% load filter_ui %}{% block content %}
-<div class="page-heading split"><h1>Invoices</h1><a class="button primary" href="{% url 'new_invoice' %}">&#43; New invoice</a></div>
+<div class="page-heading split"><h1>Invoices</h1><div class="filters" style="margin:0"><a class="button secondary" href="{% url 'invoice_email' %}">Email invoices</a><a class="button primary" href="{% url 'new_invoice' %}">&#43; New invoice</a></div></div>
 <section class="panel invoice-list-filters">
 <div class="invoice-filter-toolbar">
 <nav class="segmented" aria-label="Quick invoice date filters">

@@ -289,6 +289,15 @@ _add("em:payroll_detail em:payroll_edit", "Payroll record", "Review or edit a pa
      ["Confirm employee and period.", "Review each component and source note.", "Save only supported corrections; finalize after review."],
      rules=["Finalized payroll changes should use the revision workflow. Confirm impacts to payslips, payments and accounting."],
      related=["Payroll dashboard, salary structures, attendance, payslips and salary payments."])
+_add("invoice_email", "Email invoices", "Filter finalized invoices by period and email each customer their invoice PDF.",
+     "Each row is one invoice. Resend always emails the current finalized invoice PDF via Microsoft 365 SMTP.",
+     ["Choose the period with the shared Yearly / Financial year / Custom date picker.",
+      "Confirm the customer email address.",
+      "Use Resend for one invoice, or Send to all / Bulk send for the filtered set."],
+     rules=["Only finalized non-cancelled invoices are listed.",
+            "Outgoing email password is set under Shared → Settings; it is never shown after save.",
+            "Send to all waits the shared gap; Bulk send does not."],
+     related=["Invoice list, customer email field and Shared → Settings outgoing email."])
 _add("em:payslip_email", "Email salary slips", "Filter finalized payslips by period and email each employee their salary slip PDF.",
      "Each row is one employee and salary month. Resend always emails the current finalized slip PDF via Microsoft 365 SMTP.",
      ["Choose the period with the shared Yearly / Financial year / Custom date picker.", "Confirm the employee email address.", "Use Resend to generate and send the payslip PDF."],
@@ -304,7 +313,7 @@ _add("em:reports", "Payroll reports", "Filter payroll reporting by period and ex
      ["Choose the reporting period and any available employee/status filters.", "Apply the filters and review totals.", "Use the export action if you need a copy."],
      rules=["Exports reflect the selected filters; verify period and employee scope before sharing."],
      related=["Payroll, payslips, salary payments and compliance reports."])
-_add("em:settings", "Payroll settings", "Review payroll rules, configuration, and outgoing Microsoft 365 email used for salary slips.",
+_add("em:settings", "Payroll settings", "Review payroll rules, configuration, and outgoing Microsoft 365 email used for salary slips and invoices.",
      "Settings control configured payroll defaults and rules.",
      ["Review the active rules and effective dates.", "Create or edit a rule only from an approved payroll policy.", "Review a draft payroll after changing settings."],
      rules=["A settings change may affect future payroll generation. It does not by itself revise finalized payroll."],
@@ -829,7 +838,7 @@ NON_PAGE_ROUTES = {
     "exp:category_delete", "exp:vendor_quick_add", "client_document", "client_delete", "client_toggle", "project_toggle",
     "project_delete", "description_template_toggle", "description_template_delete", "format_template_preview",
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
-    "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual",
+    "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json",
 }
 
 # Shared guidance for pages that use the standardized calendar/FY period controls.
@@ -844,7 +853,7 @@ _period_filter_routes = (
     "exp:dashboard exp:all exp:reports exp:report acc:journal acc:ledger bank:transactions bank:reconciliation "
     "bank:book reporting:dashboard reporting:section reporting:report reporting:custom "
     "financial_reporting:dashboard financial_reporting:catalogue compliance:check compliance:gst_input "
-    "compliance:gst_output compliance:payroll compliance:tds audit:log invoice_list receipts manpower_deployments "
+    "compliance:gst_output compliance:payroll compliance:tds audit:log invoice_list invoice_email receipts manpower_deployments "
     "performance_review:dashboard performance_review:records performance_review:reports "
     "performance_review:daily_brief_records performance_review:daily_brief_analytics"
 )

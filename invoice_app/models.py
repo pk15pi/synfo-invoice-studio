@@ -1109,3 +1109,24 @@ class CreditNote(models.Model):
             self.number = f'CN-{self.invoice.invoice_number}-{n}'
         self.total = q2(self.taxable_amount + self.cgst_amount + self.sgst_amount + self.igst_amount)
         super().save(*args, **kwargs)
+
+class InvoiceEmailLog(models.Model):
+    """One attempt to email a finalized invoice PDF to a customer."""
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='email_logs')
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='invoice_email_logs')
+    recipient_email = models.EmailField(blank=True)
+    sent_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    success = models.BooleanField(default=False, db_index=True)
+    error = models.CharField(max_length=500, blank=True)
+    invoice_number = models.CharField(max_length=40, blank=True)
+
+    class Meta:
+        ordering = ['-sent_at', '-id']
+        indexes = [
+            models.Index(fields=['invoice', 'success', '-sent_at'], name='invoice_email_latest_idx'),
+        ]
+
+    def __str__(self):
+        state = 'ok' if self.success else 'fail'
+        return f'{self.invoice_number or self.invoice_id} {state}'
+

@@ -10,7 +10,7 @@
 {% for r in qb_pg1 %}<tr><td>{{ r.name }}</td><td>{{ r.get_side_display }}</td><td>{% if r.calculation == 'percent' %}{{ r.rate|floatformat:-4 }}%{% else %}{{ r.rate|floatformat:2 }} fixed{% endif %}</td><td>{{ r.get_base_display }}{% if r.base_ceiling %} (cap {{ r.base_ceiling }}){% endif %}</td><td>{% if r.applies_if_gross_from %}&ge; {{ r.applies_if_gross_from }} {% endif %}{% if r.applies_if_gross_upto %}&le; {{ r.applies_if_gross_upto }}{% endif %}</td><td>{{ r.effective_from|date:"d-m-Y" }} - {{ r.effective_to|date:"d-m-Y"|default:"open" }}</td><td>{{ r.active|yesno:"Yes,No" }}</td><td><a class="icon-btn" href="{% url 'em:rule_edit' r.pk %}" title="Edit" aria-label="Edit">{% icon "edit" %}</a></td></tr>
 {% empty %}<tr><td colspan="8" class="empty">No rules configured.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div><div class="panel form-panel shared-settings-form" style="margin-top:18px">
 <div class="panel-head"><h2>Outgoing email (Microsoft 365)</h2></div>
-<p class="muted">Used to send salary slips from <code>support@synfowebs.com</code>. Host <code>smtp.office365.com</code>, port <code>587</code>, STARTTLS.
+<p class="muted">Used to send salary slips and invoices from <code>support@synfowebs.com</code>. Host <code>smtp.office365.com</code>, port <code>587</code>, STARTTLS.
 Authenticated SMTP must be enabled on the mailbox; if MFA is on, use an app password. Saved to <code>{{ email_pub.config_file }}</code> (outside the project); env <code>QB_EMAIL_*</code> overrides the file. The password is never shown after save.</p>
 <form method="post">{% csrf_token %}{{ email_form.non_field_errors }}
 <input type="hidden" name="save_email" value="1">

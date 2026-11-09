@@ -186,7 +186,7 @@ class PayslipEmailPageTests(Base):
         get = self.client.get(reverse('em:settings'))
         self.assertNotContains(get, 'new-secret-value')
         self.assertContains(get, 'Password saved')
-        self.assertContains(get, 'Gap between salary-slip emails')
+        self.assertContains(get, 'Gap between emails')
         cfg = EC.load_config()
         self.assertEqual(cfg['password'], 'new-secret-value')
         self.assertEqual(EC.public_config()['send_gap_seconds'], 45)
