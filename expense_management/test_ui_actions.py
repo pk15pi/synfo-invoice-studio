@@ -90,3 +90,14 @@ class ExpenseUIActionTests(Base):
                          {'payment_date': '2026-05-15', 'method': 'upi', 'amount': str(d.total_amount)})
         d.refresh_from_db()
         self.assertEqual(d.payment_status, CompanyExpense.PAID)
+
+    def test_all_expenses_cancel_uses_secondary_button(self):
+        d = self.draft()
+        r = self.client.get(reverse('exp:all'))
+        self.assertContains(r, 'class="xm-cancel"')
+        self.assertContains(r, '<summary class="button secondary">Cancel</summary>')
+        # Neighbouring Edit uses the same button classes
+        self.assertContains(r, f'href="{reverse("exp:expense_edit", args=[d.pk])}"')
+        self.assertContains(r, 'class="button secondary"')
+        # Popover confirm submit stays a secondary button
+        self.assertContains(r, '>Cancel entry</button>')
