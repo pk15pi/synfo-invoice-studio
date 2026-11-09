@@ -8,4 +8,27 @@
 <p class="muted">No statutory rates are built in. Enter the PF, ESI, Professional Tax or TDS rules that apply to you, as advised by your accountant. Employee deductions reduce net salary; employer contributions are shown separately and do not.</p>
 <div class="table-wrap"><table><thead><tr><th>Name</th><th>Side</th><th>Calculation</th><th>Base / cap</th><th>Applies when gross</th><th>Effective</th><th>Active</th><th></th></tr></thead>{% paginate rules as qb_pg1 %}<tbody>
 {% for r in qb_pg1 %}<tr><td>{{ r.name }}</td><td>{{ r.get_side_display }}</td><td>{% if r.calculation == 'percent' %}{{ r.rate|floatformat:-4 }}%{% else %}{{ r.rate|floatformat:2 }} fixed{% endif %}</td><td>{{ r.get_base_display }}{% if r.base_ceiling %} (cap {{ r.base_ceiling }}){% endif %}</td><td>{% if r.applies_if_gross_from %}&ge; {{ r.applies_if_gross_from }} {% endif %}{% if r.applies_if_gross_upto %}&le; {{ r.applies_if_gross_upto }}{% endif %}</td><td>{{ r.effective_from|date:"d-m-Y" }} - {{ r.effective_to|date:"d-m-Y"|default:"open" }}</td><td>{{ r.active|yesno:"Yes,No" }}</td><td><a class="icon-btn" href="{% url 'em:rule_edit' r.pk %}" title="Edit" aria-label="Edit">{% icon "edit" %}</a></td></tr>
-{% empty %}<tr><td colspan="8" class="empty">No rules configured.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>{% endblock %}
+{% empty %}<tr><td colspan="8" class="empty">No rules configured.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div><div class="panel form-panel shared-settings-form" style="margin-top:18px">
+<div class="panel-head"><h2>Outgoing email (Microsoft 365)</h2></div>
+<p class="muted">Used to send salary slips from <code>support@synfowebs.com</code>. Host <code>smtp.office365.com</code>, port <code>587</code>, STARTTLS.
+Authenticated SMTP must be enabled on the mailbox; if MFA is on, use an app password. Saved to <code>{{ email_pub.config_file }}</code> (outside the project); env <code>QB_EMAIL_*</code> overrides the file. The password is never shown after save.</p>
+<form method="post">{% csrf_token %}{{ email_form.non_field_errors }}
+<input type="hidden" name="save_email" value="1">
+<div class="form-grid">
+<div class="form-field"><label for="{{ email_form.host.id_for_label }}">{{ email_form.host.label }}</label>{{ email_form.host }}{% for e in email_form.host.errors %}<small class="error">{{ e }}</small>{% endfor %}</div>
+<div class="form-field"><label for="{{ email_form.port.id_for_label }}">{{ email_form.port.label }}</label>{{ email_form.port }}{% for e in email_form.port.errors %}<small class="error">{{ e }}</small>{% endfor %}</div>
+<div class="form-field"><label for="{{ email_form.user.id_for_label }}">{{ email_form.user.label }}</label>{{ email_form.user }}{% for e in email_form.user.errors %}<small class="error">{{ e }}</small>{% endfor %}</div>
+<div class="form-field"><label for="{{ email_form.from_email.id_for_label }}">{{ email_form.from_email.label }}</label>{{ email_form.from_email }}{% for e in email_form.from_email.errors %}<small class="error">{{ e }}</small>{% endfor %}</div>
+<div class="form-field"><label for="{{ email_form.password.id_for_label }}">{{ email_form.password.label }}</label>{{ email_form.password }}
+<small>{% if email_pub.password_from_env %}Set via QB_EMAIL_PASSWORD.{% elif email_pub.password_set %}Password saved &mdash; leave empty to keep it.{% else %}Not set yet.{% endif %} {{ email_form.password.help_text }}</small>
+{% for e in email_form.password.errors %}<small class="error">{{ e }}</small>{% endfor %}</div>
+{% if email_pub.password_set and not email_pub.password_from_env %}<div class="form-field check-field">{{ email_form.clear_password }} <label for="{{ email_form.clear_password.id_for_label }}">{{ email_form.clear_password.label }}</label></div>{% endif %}
+<div class="form-field check-field">{{ email_form.use_tls }} <label for="{{ email_form.use_tls.id_for_label }}">{{ email_form.use_tls.label }}</label></div>
+<div class="form-field check-field">{{ email_form.use_ssl }} <label for="{{ email_form.use_ssl.id_for_label }}">{{ email_form.use_ssl.label }}</label></div>
+<div class="form-field"><label for="{{ email_form.send_gap_seconds.id_for_label }}">{{ email_form.send_gap_seconds.label }}</label>{{ email_form.send_gap_seconds }}
+<small>{{ email_form.send_gap_seconds.help_text }}</small>
+{% for e in email_form.send_gap_seconds.errors %}<small class="error">{{ e }}</small>{% endfor %}</div>
+</div>
+<div class="form-actions"><button class="button primary" type="submit">Save email settings</button></div>
+</form></div>
+{% endblock %}

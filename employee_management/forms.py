@@ -486,3 +486,23 @@ class AdvanceRepaymentForm(StyledForm, forms.Form):
 
 class AdvanceReasonForm(StyledForm, forms.Form):
     reason = forms.CharField(max_length=240)
+class EmailSettingsForm(StyledForm, forms.Form):
+    host = forms.CharField(max_length=255, label='SMTP host', initial='smtp.office365.com')
+    port = forms.IntegerField(min_value=1, max_value=65535, label='Port', initial=587)
+    user = forms.CharField(max_length=255, label='Username', initial='support@synfowebs.com')
+    from_email = forms.EmailField(label='From address', initial='support@synfowebs.com')
+    password = forms.CharField(
+        max_length=512, required=False, label='Password',
+        widget=forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'}),
+        help_text='Leave empty to keep the saved password. Microsoft 365 may require an app password if MFA is on.',
+    )
+    clear_password = forms.BooleanField(required=False, label='Clear saved password')
+    use_tls = forms.BooleanField(required=False, initial=True, label='Use STARTTLS (port 587)')
+    use_ssl = forms.BooleanField(required=False, initial=False, label='Use SSL (port 465)')
+    send_gap_seconds = forms.IntegerField(
+        min_value=0, max_value=600, initial=30,
+        label='Gap between salary-slip emails (seconds)',
+        help_text='Used by Send to all on Email salary slips: wait this many seconds after each email before the next. '
+                  'Bulk send ignores this gap. Default 30.',
+    )
+

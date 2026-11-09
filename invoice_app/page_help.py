@@ -289,6 +289,11 @@ _add("em:payroll_detail em:payroll_edit", "Payroll record", "Review or edit a pa
      ["Confirm employee and period.", "Review each component and source note.", "Save only supported corrections; finalize after review."],
      rules=["Finalized payroll changes should use the revision workflow. Confirm impacts to payslips, payments and accounting."],
      related=["Payroll dashboard, salary structures, attendance, payslips and salary payments."])
+_add("em:payslip_email", "Email salary slips", "Filter finalized payslips by period and email each employee their salary slip PDF.",
+     "Each row is one employee and salary month. Resend always emails the current finalized slip PDF via Microsoft 365 SMTP.",
+     ["Choose the period with the shared Yearly / Financial year / Custom date picker.", "Confirm the employee email address.", "Use Resend to generate and send the payslip PDF."],
+     rules=["Only finalized current payslips are listed.", "Outgoing email password is set under Shared → Settings; it is never shown on screen.", "Failed sends stay Not sent."],
+     related=["Payslips, payroll settings and employee profile email fields."])
 _add("em:payslips", "Payslips", "Select a payroll month or financial year to view/download the available payslips, and export quarterly salary TDS Excel for your CA.",
      "This page provides period-based payslip access, ZIP downloads, and Indian FY quarter exports (Q1 Apr-Jun … Q4 Jan-Mar). Export Q1–Q4 build one Excel row per employee from finalized current payslips; the file includes full PAN for CA salary TDS only.",
      ["Choose the financial year.", "Download monthly or full-year payslip ZIPs.", "Use Export Q1–Q4 for the CA salary TDS workbook (one row per employee)."],
@@ -299,7 +304,7 @@ _add("em:reports", "Payroll reports", "Filter payroll reporting by period and ex
      ["Choose the reporting period and any available employee/status filters.", "Apply the filters and review totals.", "Use the export action if you need a copy."],
      rules=["Exports reflect the selected filters; verify period and employee scope before sharing."],
      related=["Payroll, payslips, salary payments and compliance reports."])
-_add("em:settings", "Payroll settings", "Review payroll rules and configuration used by payroll workflows.",
+_add("em:settings", "Payroll settings", "Review payroll rules, configuration, and outgoing Microsoft 365 email used for salary slips.",
      "Settings control configured payroll defaults and rules.",
      ["Review the active rules and effective dates.", "Create or edit a rule only from an approved payroll policy.", "Review a draft payroll after changing settings."],
      rules=["A settings change may affect future payroll generation. It does not by itself revise finalized payroll."],
@@ -815,7 +820,7 @@ NON_PAGE_ROUTES = {
     "document_generation:clause_action", "em:advance_action", "em:department_toggle", "em:department_delete",
     "em:employee_photo", "em:contact_delete", "em:document_view", "em:document_download", "em:document_delete",
     "em:payroll_generate", "em:payroll_refresh_drafts", "em:period_update", "em:payroll_finalize", "em:payslip_zip",
-    "em:payslip_year_zip", "em:payslip_quarter_tds", "em:export_register", "em:export_bank", "em:payroll_finalize_one", "em:payroll_delete",
+    "em:payslip_year_zip", "em:payslip_quarter_tds", "em:payslip_email_send", "em:payslip_email_send_json", "em:export_register", "em:export_bank", "em:payroll_finalize_one", "em:payroll_delete",
     "em:payroll_revise", "em:payroll_refresh_attendance", "em:payslip", "em:salary_payment_add",
     "em:salary_payment_cancel", "em:salary_pay_all", "em:export_register_csv", "att:template", "att:holiday_delete",
     "att:application_action", "att:carry_forward", "att:register_export", "att:balances_export", "exp:expense_payment",

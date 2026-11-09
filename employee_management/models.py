@@ -915,3 +915,24 @@ class AdvanceRepayment(models.Model):
 
     class Meta:
         ordering = ['date', 'id']
+class PayslipEmailLog(models.Model):
+    """One attempt to email a finalized payslip PDF to an employee."""
+    payroll = models.ForeignKey(EmployeePayroll, on_delete=models.CASCADE, related_name='email_logs')
+    employee = models.ForeignKey(Employee, on_delete=models.PROTECT, related_name='payslip_email_logs')
+    recipient_email = models.EmailField(blank=True)
+    sent_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    success = models.BooleanField(default=False, db_index=True)
+    error = models.CharField(max_length=500, blank=True)
+    period_year = models.PositiveSmallIntegerField()
+    period_month = models.PositiveSmallIntegerField()
+
+    class Meta:
+        ordering = ['-sent_at', '-id']
+        indexes = [
+            models.Index(fields=['payroll', 'success', '-sent_at'], name='payslip_email_latest_idx'),
+        ]
+
+    def __str__(self):
+        state = 'ok' if self.success else 'fail'
+        return f'{self.employee_id} {self.period_year}-{self.period_month:02d} {state}'
+

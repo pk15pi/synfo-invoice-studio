@@ -94,3 +94,14 @@ QB_INSTANCE_NAME = os.environ.get('QB_INSTANCE_NAME', 'Invoice Studio')
 BACKUP_DIR = Path(os.environ.get('QB_BACKUP_DIR') or (r'E:\QuantBud_Backups' if os.name == 'nt'
                                                        else BASE_DIR.parent / 'QuantBud_Backups'))
 BACKUP_KEEP_LAST = int(os.environ.get('QB_BACKUP_KEEP_LAST', '10'))
+
+# Outgoing email (Microsoft 365 / GoDaddy). Password from env QB_EMAIL_PASSWORD or ~/.quantbud/email.json — never hardcode.
+EMAIL_HOST = os.environ.get('QB_EMAIL_HOST', 'smtp.office365.com')
+EMAIL_PORT = int(os.environ.get('QB_EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.environ.get('QB_EMAIL_USE_TLS', '1') == '1'
+EMAIL_USE_SSL = os.environ.get('QB_EMAIL_USE_SSL', '0') == '1'
+EMAIL_HOST_USER = os.environ.get('QB_EMAIL_USER', 'support@synfowebs.com')
+EMAIL_HOST_PASSWORD = os.environ.get('QB_EMAIL_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('QB_EMAIL_FROM', EMAIL_HOST_USER)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+

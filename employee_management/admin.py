@@ -2,4 +2,4 @@
 (see invoice_app/admin_auto.py: sensitive numbers masked, files not linked, history read-only)."""
 from invoice_app.admin_auto import register_all
 
-register_all('employee_management', read_only=('EmployeeChangeLog',))
+register_all('employee_management', read_only=('EmployeeChangeLog', 'PayslipEmailLog'))

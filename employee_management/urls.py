@@ -3,6 +3,7 @@ from django.urls import path
 from . import views as v
 from . import views_advances as av
 from . import views_hubs as h
+from . import views_email as ve
 from .security import local_only
 
 app_name = 'em'
@@ -65,6 +66,9 @@ urlpatterns = [
     p('bank-details/', h.bank_details, 'bank_details'),
     p('payroll/salary-structures/', h.salary_structures, 'salary_structures'),
     p('payroll/payslips/', h.payslips, 'payslips'),
+    p('payroll/email-slips/', ve.email_slips, 'payslip_email'),
+    p('payroll/email-slips/<int:rid>/send/', ve.email_slip_send, 'payslip_email_send'),
+    p('payroll/email-slips/<int:rid>/send.json', ve.email_slip_send_json, 'payslip_email_send_json'),
     p('payroll/payslips/tds/q<int:quarter>.xlsx', h.payslip_quarter_tds, 'payslip_quarter_tds'),
     p('storage/', h.storage, 'storage'),
     p('payroll/period/<int:pid>/register.csv', v.export_register_csv, 'export_register_csv'),

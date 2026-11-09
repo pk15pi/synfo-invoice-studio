@@ -285,13 +285,24 @@ def salary_new(request, pk, from_id=None):
 
 # ------------------------------------------------------------------ settings
 def payroll_settings(request):
+    from .views_email import email_settings_context, handle_email_settings_post
     s = PayrollSettings.current()
+    if request.method == 'POST' and request.POST.get('save_email'):
+        ok, email_form, pub = handle_email_settings_post(request)
+        if ok:
+            return redirect('em:settings')
+        form = PayrollSettingsForm(instance=s)
+        return render(request, T + 'settings.html', {
+            'form': form, 'rules': StatutoryRule.objects.all(),
+            'email_form': email_form, 'email_pub': pub})
     form = PayrollSettingsForm(request.POST or None, request.FILES or None, instance=s)
     if request.method == 'POST' and form.is_valid():
         form.save()
         messages.success(request, 'Payroll settings saved.')
         return redirect('em:settings')
-    return render(request, T + 'settings.html', {'form': form, 'rules': StatutoryRule.objects.all()})
+    ctx = {'form': form, 'rules': StatutoryRule.objects.all()}
+    ctx.update(email_settings_context(request))
+    return render(request, T + 'settings.html', ctx)
 
 
 def rule_form(request, pk=None):
