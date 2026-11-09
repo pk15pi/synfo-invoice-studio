@@ -415,9 +415,9 @@ _add("exp:dashboard", "Expense dashboard", "Review company expenses and employee
      ["Set period/year/month filters and apply them.", "Review expense and claim totals.", "Open the relevant list or report to investigate a figure."],
      rules=["Dashboard totals follow the selected period and recorded statuses."],
      related=["All expenses, employee claims, vendors and expense reports."])
-_add("exp:all", "All expenses", "Search and review company expenses across categories and statuses.",
-     "This is the central register for company-paid expense entries.",
-     ["Use date, category, vendor or status filters to narrow the list.", "Draft entries can be edited and finalized from their detail page.", "Finalized entries can receive payments; cancelled entries remain read-only history."],
+_add("exp:all", "All expenses", "Search and review company expenses and employee claims across categories and statuses.",
+     "This is the central register for company-paid expense entries and employee claims.",
+     ["Row 1: search, type (company/claim) and company payment status.", "Date period: yearly, financial year or a custom range — leave blank for all dates.", "More filters: claim workflow status, category, vendor, employee and department (comboboxes). Active filters appear as removable chips.", "Draft company expenses can be edited and finalized from their detail page; cancelled entries remain read-only history."],
      rules=["Draft expenses stay out of the accounting ledger and financial reports until finalized.", "Retain source evidence when finalizing or recording payment."],
      related=["Expense dashboard, vendors, accounting and financial reports."])
 _add("exp:expense_new exp:expense_edit", "Add or edit company expense", "Record a company expense with its category, payee, amount and source details.",

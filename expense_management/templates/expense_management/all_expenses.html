@@ -1,14 +1,53 @@
-{% extends 'expense_management/xm_base.html' %}{% load pagination_ui %}{% load filter_ui %}{% load exp_tags %}{% load ui_icons %}{% block xm_title %}All expenses{% endblock %}{% block xm %}
+{% extends 'expense_management/xm_base.html' %}{% load pagination_ui %}{% load filter_ui %}{% load exp_tags %}{% load ui_icons %}{% load static %}{% block xm_title %}All expenses{% endblock %}{% block xm %}
 <div class="page-heading split"><div><p class="eyebrow">Expense Management</p><h1>All expenses</h1></div>
 <div><a class="button secondary" href="{% url 'exp:claim_new' %}">Add Employee Claim</a> <a class="button primary" href="{% url 'exp:expense_new' %}">+ Company expense</a></div></div>
-<form class="qb-filter-form panel filters all-expenses-filters" method="get" data-filter-form><label class="compact-filter-label"><span>Search</span><input class="field" name="q" value="{{ q }}" placeholder="Search ID, invoice no, vendor, employee, description, txn ref"></label>
-<label class="compact-filter-label"><span>Type</span><select class="field" name="type"><option value="">Company + claims</option><option value="company" {% if kind == 'company' %}selected{% endif %}>Company expenses</option><option value="claim" {% if kind == 'claim' %}selected{% endif %}>Employee claims</option></select></label>
-<label class="compact-filter-label"><span>Payment status</span><select class="field" name="payment_status"><option value="">Any expense status</option>{% for k, l in pay_statuses %}<option value="{{ k }}" {% if params.payment_status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-{% include 'expense_management/_period_filter.html' %}
-<details class="more-filters" {% more_filters_open "claim_status,category,vendor,employee,department" %}><summary>More filters</summary><div class="more-filters-body"><label class="compact-filter-label"><span>Claim status</span><select class="field" name="claim_status"><option value="">Any claim status</option>{% for k, l in claim_statuses %}<option value="{{ k }}" {% if params.claim_status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
-{% include 'expense_management/_entity_filters.html' %}
-</div></details>
-{% filter_actions %}</form>
+<form class="qb-filter-form panel filters all-expenses-filters" method="get" data-filter-form>
+  {# Row 1 — primary (unchanged controls) #}
+  <div class="ae-filter-row ae-filter-primary">
+    <label class="compact-filter-label"><span>Search</span><input class="field" name="q" value="{{ q }}" placeholder="Search ID, invoice no, vendor, employee, description, txn ref"></label>
+    <label class="compact-filter-label"><span>Type</span><select class="field" name="type" data-combo="ae-type"><option value="">Company + claims</option><option value="company" {% if kind == 'company' %}selected{% endif %}>Company expenses</option><option value="claim" {% if kind == 'claim' %}selected{% endif %}>Employee claims</option></select></label>
+    <label class="compact-filter-label"><span>Payment status</span><select class="field" name="payment_status" data-combo="ae-payment-status"><option value="">Any expense status</option>{% for k, l in pay_statuses %}<option value="{{ k }}" {% if params.payment_status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+  </div>
+
+  {# Row 2 — date period, clearly labelled (standard picker kept; wrapped so it no longer jumps ahead of Search) #}
+  <div class="ae-filter-row ae-filter-period">
+    <span class="ae-filter-group-label">Date period</span>
+    <div class="ae-period-wrap">{% include 'expense_management/_period_filter.html' %}</div>
+  </div>
+
+  <details class="more-filters" {% more_filters_open "claim_status,category,vendor,employee,department" %}>
+    <summary>More filters</summary>
+    <div class="more-filters-body ae-more-grouped">
+      <div class="ae-filter-group">
+        <span class="ae-filter-group-label">Claim workflow</span>
+        <label class="compact-filter-label"><span>Claim status</span><select class="field" name="claim_status" data-combo="ae-claim-status"><option value="">Any claim status</option>{% for k, l in claim_statuses %}<option value="{{ k }}" {% if params.claim_status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+      </div>
+      <div class="ae-filter-group">
+        <span class="ae-filter-group-label">Category</span>
+        <label class="compact-filter-label"><span>Category</span><select class="field" name="category" data-combo="ae-category"><option value="">All categories</option>{% for c in categories %}<option value="{{ c.pk }}" {% if params.category == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></label>
+      </div>
+      <div class="ae-filter-group">
+        <span class="ae-filter-group-label">Vendor / Paid by</span>
+        <label class="compact-filter-label"><span>Vendor</span><select class="field" name="vendor" data-combo="ae-vendor"><option value="">All vendors</option>{% for v in vendors_all %}<option value="{{ v.pk }}" {% if params.vendor == v.pk|stringformat:"s" %}selected{% endif %}>{{ v.name }}</option>{% endfor %}</select></label>
+        <label class="compact-filter-label"><span>Employee</span><select class="field" name="employee" data-combo="ae-employee"><option value="">All employees</option>{% for e in employees_all %}<option value="{{ e.pk }}" {% if params.employee == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.employee_id }} {{ e.full_name }}</option>{% endfor %}</select></label>
+      </div>
+      <div class="ae-filter-group">
+        <span class="ae-filter-group-label">Organisation</span>
+        <label class="compact-filter-label"><span>Department</span><select class="field" name="department" data-combo="ae-department"><option value="">All departments</option>{% for d in departments_all %}<option value="{{ d.pk }}" {% if params.department == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
+      </div>
+    </div>
+  </details>
+
+  {% filter_actions %}
+  {% if filter_chips %}
+  <div class="ae-filter-chips" aria-label="Active filters">
+    {% for chip in filter_chips %}
+    <a class="ae-chip" href="{{ chip.url }}" title="Remove {{ chip.label }} filter">{{ chip.label }}: {{ chip.value }} <span aria-hidden="true">&times;</span></a>
+    {% endfor %}
+    <a class="ae-chip ae-chip-clear" href="{% url 'exp:all' %}">Clear all</a>
+  </div>
+  {% endif %}
+</form>
 <div class="panel"><p class="muted">{{ total_rows }} record(s){% if has_dates %} &middot; {{ f.label }}{% endif %}{% if truncated %} (showing first 500){% endif %}. Cancelled company expenses are shown for history. Use Cancel to remove a mistaken company expense from totals while keeping its history.</p>
 <div class="table-wrap"><table id="all-table" data-server-sort="expense"><thead><tr><th data-sort-key="id">Expense ID</th><th data-sort-key="date" data-sort-type="date">Date</th><th data-sort-key="type">Type</th><th data-sort-key="category">Category</th><th data-sort-key="party">Vendor / Employee</th><th data-sort-key="reference">Invoice / Claim No.</th><th class="num" data-sort-key="amount" data-sort-type="currency">Amount</th><th data-sort-key="status" data-sort-type="status">Status</th><th>Actions</th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
 {% for r in qb_pg1 %}<tr><td><a href="{{ r.url }}">{{ r.id }}</a></td><td>{{ r.date|date:"d-m-Y" }}</td><td><span class="xm-type {{ r.kind }}">{% if r.kind == 'company' %}Company Expense{% else %}Employee Claim{% endif %}</span></td><td>{{ r.category }}</td><td>{{ r.party }}</td><td>{{ r.ref }}</td><td class="num">{{ r.amount|money:r.currency }}</td><td><span class="badge st-{{ r.status_key }}">{{ r.status }}</span></td><td><div class="xm-row-actions">
@@ -16,4 +55,6 @@
 {% if r.can_edit %}<a class="icon-btn" title="Edit" aria-label="Edit" href="{% if r.kind == 'company' %}{% url 'exp:expense_edit' r.pk %}{% else %}{% url 'exp:claim_edit' r.pk %}{% endif %}">{% icon 'edit' %}</a>{% endif %}
 {% if r.can_cancel %}<details class="xm-cancel"><summary class="icon-btn danger" title="Cancel" aria-label="Cancel">{% icon 'deactivate' %}</summary><form method="post" action="{% if r.kind == 'company' %}{% url 'exp:expense_cancel' r.pk %}{% else %}{% url 'exp:claim_action' r.pk 'cancel' %}{% endif %}" onsubmit="return confirm('Cancel {{ r.id }}? It will be excluded from totals and kept in history.')">{% csrf_token %}{% if r.kind == 'claim' %}<input type="hidden" name="next" value="{{ current_url }}">{% endif %}<label>Reason <input class="field" name="reason" required maxlength="300" placeholder="Why is this entry wrong?"></label><button class="button secondary" type="submit">Cancel entry</button></form></details>{% endif %}
 </div></td></tr>
-{% empty %}<tr><td colspan="9" class="empty">No expenses match.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>{% endblock %}
+{% empty %}<tr><td colspan="9" class="empty">No expenses match.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
+<script src="{% static 'invoice_app/combobox.js' %}"></script>
+{% endblock %}

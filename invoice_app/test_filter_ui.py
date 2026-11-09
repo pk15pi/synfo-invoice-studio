@@ -91,3 +91,60 @@ class FilterBarTests(TestCase):
         self.assertNotIn('Add project', bar)
         self.assertIn('<div class="list-actions">', html)
         self.assertIn('<span>Search</span>', bar)
+
+
+class SearchFieldWidthCssTests(TestCase):
+    """Shared Search box is a fixed compact width in source and collected static CSS."""
+
+    def test_shared_style_declares_non_overlapping_180px_search(self):
+        from django.conf import settings
+        from pathlib import Path as P
+        src = P(settings.BASE_DIR) / "invoice_app" / "static" / "invoice_app" / "style.css"
+        text = src.read_text(encoding="utf-8")
+        self.assertIn("Shared compact Search field width", text)
+        # Wrapper is a fixed column; input fills the wrapper (prevents label+input overflow).
+        self.assertIn("flex:0 0 auto", text)
+        self.assertIn("width:180px", text)
+        self.assertIn("flex-direction:column", text)
+        self.assertIn("width:100%", text)
+        self.assertIn("max-width:100%", text)
+        self.assertIn(".all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name=\"q\"])", text)
+        # t56u left-of-control rules must NOT force Search into a row (that was the overlap).
+        self.assertIn(':not(:has(>input[name="q"])):not(:has(>input[type="search"]))', text)
+        # No dual fixed-180px !important on the input (that caused the overlap).
+        self.assertNotIn("width:180px !important", text)
+        self.assertNotIn("compact-filter-label:has(input[name=\"q\"]){flex:1 1 240px}", text)
+
+    def test_list_pages_search_markup_is_label_wrapped(self):
+        """Search should sit in a labelled control (label above input), not a bare wide input."""
+        pages = {
+            "/expenses/all/": "ae-filter-primary",
+            "/expenses/claims/": "compact-filter-label",
+            "/expenses/claims/review/": "compact-filter-label",
+            "/receipts/": None,
+            "/recruitment/": None,
+            "/manpower/": None,
+            "/employees/": None,
+            "/audit/": "compact-filter-label",
+        }
+        for url, marker in pages.items():
+            with self.subTest(url=url):
+                r = self.client.get(url)
+                self.assertEqual(r.status_code, 200, url)
+                body = r.content.decode()
+                self.assertIn("invoice_app/style.css", body)
+                # Prefer name=q; some pages use type=search without name=q.
+                self.assertTrue(
+                    'name="q"' in body or 'type="search"' in body,
+                    f"{url} has no search field",
+                )
+                if marker:
+                    self.assertIn(marker, body)
+                # If name=q exists, it should be inside a <label> (stacked via CSS).
+                if 'name="q"' in body:
+                    self.assertRegex(
+                        body,
+                        r"<label[^>]*>[\s\S]{0,160}?<input[^>]*name=\"q\"",
+                        msg=f"{url}: Search input not inside a label",
+                    )
+

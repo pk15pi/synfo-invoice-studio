@@ -98,11 +98,89 @@ def dashboard(request):
 
 
 # --------------------------------------------------------------------------- all expenses
+
+def _all_expenses_filter_chips(request):
+    """Removable active-filter chips for All expenses (one query param each; Clear all is separate)."""
+    from urllib.parse import urlencode
+    g = request.GET
+    path = reverse('exp:all')
+    chips = []
+    simple = [
+        ('q', 'Search'),
+        ('type', 'Type'),
+        ('payment_status', 'Payment status'),
+        ('claim_status', 'Claim status'),
+        ('category', 'Category'),
+        ('vendor', 'Vendor'),
+        ('employee', 'Employee'),
+        ('department', 'Department'),
+    ]
+    period_keys = ('period_mode', 'calendar_year', 'calendar_month', 'fy', 'period_type',
+                   'period_value', 'date_from', 'date_to', 'period', 'month')
+
+    def chip_url(drop_keys):
+        q = []
+        for key in g.keys():
+            if key in drop_keys or key == 'page':
+                continue
+            for val in g.getlist(key):
+                if val != '':
+                    q.append((key, val))
+        return path + (('?' + urlencode(q)) if q else '')
+
+    type_labels = {'company': 'Company expenses', 'claim': 'Employee claims'}
+    for key, label in simple:
+        raw = (g.get(key) or '').strip()
+        if not raw:
+            continue
+        value = raw
+        if key == 'type':
+            value = type_labels.get(raw, raw)
+        elif key == 'payment_status':
+            value = dict([('draft', 'Draft'), *CompanyExpense.STATUSES]).get(raw, raw)
+        elif key == 'claim_status':
+            value = dict(C.STATUSES).get(raw, raw)
+        elif key == 'category':
+            hit = ExpenseCategory.objects.filter(pk=raw).first()
+            value = hit.name if hit else raw
+        elif key == 'vendor':
+            hit = Vendor.objects.filter(pk=raw).first()
+            value = hit.name if hit else raw
+        elif key == 'employee':
+            hit = Employee.objects.filter(pk=raw).first()
+            value = (f'{hit.employee_id} {hit.full_name}' if hit else raw)
+        elif key == 'department':
+            hit = Department.objects.filter(pk=raw).first()
+            value = hit.name if hit else raw
+        chips.append({'key': key, 'label': label, 'value': value, 'url': chip_url({key})})
+
+    if any((g.get(k) or '').strip() for k in period_keys):
+        try:
+            label = reports.parse_filters(g).get('label') or 'Custom period'
+        except Exception:
+            label = 'Custom period'
+        if label != 'All dates':
+            chips.append({'key': 'period', 'label': 'Period', 'value': label, 'url': chip_url(set(period_keys))})
+    return chips
+
+
 @local_only
 def all_expenses(request):
     g = request.GET
-    has_dates = any(g.get(k) for k in ('period_mode', 'period', 'fy', 'month', 'date_from', 'date_to'))
-    f = reports.parse_filters(g) if has_dates else dict(reports.parse_filters({'period': 'custom', 'date_from': '1900-01-01', 'date_to': '2999-12-31'}), label='All dates')
+    has_dates = any(g.get(k) for k in (
+        'period_mode', 'period', 'fy', 'month', 'date_from', 'date_to',
+        'calendar_year', 'calendar_month', 'period_type', 'period_value'))
+    if has_dates:
+        f = reports.parse_filters(g)
+    else:
+        # All dates, but still honour category / vendor / employee / department from the query string
+        # (previously those were dropped when no period params were present).
+        merged = g.copy()  # QueryDict.copy() is mutable
+        merged['period_mode'] = 'custom'
+        merged['date_from'] = '1900-01-01'
+        merged['date_to'] = '2999-12-31'
+        f = reports.parse_filters(merged)
+        f['label'] = 'All dates'
     kind, q = g.get('type', ''), (g.get('q') or '').strip()
     pay_status, claim_status = g.get('payment_status', ''), g.get('claim_status', '')
     rows = []
@@ -160,7 +238,8 @@ def all_expenses(request):
     ctx.update(rows=rows[:500], truncated=len(rows) > 500, total_rows=len(rows), q=q, kind=kind,
                pay_statuses=[('draft', 'Draft'), *CompanyExpense.STATUSES],
                claim_statuses=C.STATUSES, has_dates=has_dates,
-               current_url=request.get_full_path())
+               current_url=request.get_full_path(),
+               filter_chips=_all_expenses_filter_chips(request))
     return render(request, 'expense_management/all_expenses.html', ctx)
 
 

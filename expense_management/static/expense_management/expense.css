@@ -11,7 +11,8 @@
 .all-expenses-filters .xm-period-control>span{font-size:10px}
 .all-expenses-filters{display:flex;align-items:center;gap:7px;padding:12px 14px;margin-bottom:12px;flex-wrap:wrap}
 .all-expenses-filters>.field{flex:0 1 auto;width:auto;min-width:0;min-height:35px;padding:6px 8px;font-size:12px}
-.all-expenses-filters>input[name="q"]{flex:1 1 240px;width:240px;min-width:210px}
+/* Search width owned by shared style.css (wrapper 180px, input width 100%) */
+.all-expenses-filters>input[name="q"]{flex:0 0 auto;width:180px;max-width:180px;min-width:0;box-sizing:border-box}
 .all-expenses-filters>select[name="type"]{flex-basis:140px}
 .all-expenses-filters>select[name="category"]{flex-basis:145px}
 .all-expenses-filters>select[name="vendor"]{flex-basis:145px}
@@ -36,7 +37,7 @@
 #all-table th:nth-child(7),#all-table td:nth-child(7){width:100px;white-space:nowrap}
 #all-table th:nth-child(8),#all-table td:nth-child(8){width:95px;white-space:nowrap}
 #all-table th:nth-child(9),#all-table td:nth-child(9){width:180px;white-space:nowrap}
-@media(max-width:850px){.all-expenses-filters{gap:6px}.all-expenses-filters>input[name="q"]{flex-basis:220px}}
+@media(max-width:850px){.all-expenses-filters{gap:6px}.all-expenses-filters>input[name="q"]{flex-basis:180px}}
 @media(max-width:560px){.all-expenses-filters>input[name="q"]{flex:1 1 100%;width:100%;min-width:0}.all-expenses-filters>.field,.all-expenses-filters .xm-custom{flex:1 1 120px}.all-expenses-filters .xm-custom input{flex:1 1 100px;width:100%}.all-expenses-filters>.button{flex:1 1 auto}.xm-period-filters{flex-wrap:wrap;gap:8px}.xm-period-control select[name="period"]{width:135px}.xm-period-control select[name="fy"]{width:115px}.xm-period-control select[name="month"]{width:145px}}
 .xm-card{background:#fff;border:1px solid var(--line,#e1e8ee);border-radius:10px;padding:12px 14px;color:inherit;text-decoration:none;display:block}
 .xm-card .muted{display:block;font-size:12px}.xm-card strong{display:block;font-size:20px;color:var(--navy,#0B5394)}
@@ -81,3 +82,71 @@ tr.total td{font-weight:700;background:#f4f8fb}
 /* Combobox beside + New vendor on create/edit expense */
 #wrap-vendor > div{display:flex;gap:6px;align-items:stretch}
 #wrap-vendor .qb-combo{flex:1;min-width:0}
+
+
+/* ---- All expenses filter redesign (primary row + labelled period + grouped more) ---- */
+.all-expenses-filters{
+  display:flex;flex-direction:column;align-items:stretch;gap:10px;
+  padding:12px 14px;margin-bottom:12px;
+}
+.all-expenses-filters>*{order:unset!important;flex-basis:auto}
+.all-expenses-filters .ae-filter-row{
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;min-width:0;
+}
+.all-expenses-filters .ae-filter-primary .compact-filter-label:has(select[name="type"]){flex:0 1 160px}
+.all-expenses-filters .ae-filter-primary .compact-filter-label:has(select[name="payment_status"]){flex:0 1 170px}
+.all-expenses-filters .ae-filter-period{
+  padding-top:8px;border-top:1px solid var(--line,#e1e8ee);
+}
+.all-expenses-filters .ae-filter-group-label{
+  display:block;flex:0 0 100%;font-size:11px;font-weight:700;letter-spacing:.02em;
+  text-transform:uppercase;color:#6d7d89;margin:0 0 2px;
+}
+.all-expenses-filters .ae-period-wrap{flex:1 1 auto;min-width:0}
+.all-expenses-filters .ae-period-wrap .standard-period-filter{
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;
+}
+.all-expenses-filters .more-filters{
+  flex-basis:auto;padding-top:4px;border-top:1px dashed var(--line,#e1e8ee);
+}
+.all-expenses-filters .ae-more-grouped{
+  display:flex;flex-wrap:wrap;gap:14px 18px;align-items:flex-start;
+}
+.all-expenses-filters .ae-filter-group{
+  display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;
+  padding:8px 10px;background:#f7fafc;border:1px solid #e6eef4;border-radius:8px;
+  min-width:min(100%,220px);
+}
+.all-expenses-filters .ae-filter-group .ae-filter-group-label{flex:0 0 100%;margin-bottom:2px}
+.all-expenses-filters .filter-actions{align-self:flex-start}
+.all-expenses-filters .filter-summary{display:none} /* chips replace the text summary on this page */
+.all-expenses-filters .ae-filter-chips{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:2px;
+}
+.all-expenses-filters .ae-chip{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;
+  background:#eaf3f9;border:1px solid #cfe2f3;color:#0B5394;font-size:12px;text-decoration:none;
+}
+.all-expenses-filters .ae-chip:hover{background:#dcecf6}
+.all-expenses-filters .ae-chip-clear{background:#fff;border-color:#d0d7de;color:#536779}
+.all-expenses-filters .ae-chip-clear:hover{background:#f4f6f8}
+.all-expenses-filters .qb-combo{min-width:140px}
+@media(max-width:640px){
+  .all-expenses-filters .ae-filter-group{min-width:0;flex:1 1 100%}
+}
+
+
+/* All expenses: Search stacks above the field and stays inside its 180px column */
+.all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name="q"]){
+  display:flex;flex-direction:column;align-items:stretch;justify-content:flex-end;
+  flex:0 0 auto;width:180px;max-width:180px;min-width:0;box-sizing:border-box;gap:3px;white-space:normal;
+}
+.all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name="q"])>input,
+.all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name="q"])>.field{
+  width:100%;max-width:100%;min-width:0;box-sizing:border-box;
+}
+@media(max-width:640px){
+  .all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name="q"]){
+    flex:1 1 100%;width:auto;max-width:none;
+  }
+}

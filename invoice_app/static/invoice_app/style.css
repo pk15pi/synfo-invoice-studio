@@ -346,13 +346,13 @@ td{font-variant-numeric:tabular-nums}
 .shared-settings-form{margin-inline:auto}
 .compact-filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 14px}
 .compact-filters>.field{flex:0 1 155px;width:auto;min-width:125px;min-height:35px;padding:6px 8px;font-size:12px}
-.compact-filters>input[name="q"]{flex:0 1 250px;min-width:190px;max-width:280px}
+.compact-filters>input[name="q"]{flex:0 0 auto;width:180px;max-width:180px;min-width:0;box-sizing:border-box}
 .compact-filters>.button{flex:0 0 auto;min-height:35px;padding:6px 11px;font-size:12px}
 .bank-book-filters>.field{flex:0 1 145px;min-width:125px}
 .bank-book-filters>select[name="account"]{flex-basis:195px}
 .compact-filter-label{display:inline-flex;align-items:center;gap:5px;flex:0 1 180px;min-width:0;color:#536779;font-size:11px;font-weight:700;white-space:nowrap}
 .compact-filter-label>.field{flex:1 1 125px;width:auto;min-width:125px;min-height:35px;padding:6px 8px;font-size:12px}
-.compact-filter-label:has(input[name="q"]){flex:1 1 240px}
+.compact-filter-label:has(input[name="q"]),.compact-filter-label:has(input[type="search"]){flex:0 0 auto;width:180px;max-width:180px;min-width:0;box-sizing:border-box;flex-direction:column;align-items:stretch;white-space:normal;gap:3px}
 .compact-filters select[name="report"]{min-width:210px}
 .compact-filters select[name="employee"]{min-width:160px}
 .compact-date-range{display:inline-flex;align-items:center;gap:5px;flex:1 1 300px}
@@ -726,7 +726,7 @@ main>*{min-width:0}
 .more-filters>summary{cursor:pointer;font-size:12px;font-weight:700;color:#0B5394;width:max-content}
 .more-filters-body{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;align-items:center}
 .qb-filter-form>.compact-filter-label,.more-filters-body>.compact-filter-label,.list-filters>.compact-filter-label{flex:0 1 auto}
-.qb-filter-form>.compact-filter-label:has(input[name="q"]),.more-filters-body>.compact-filter-label:has(input[name="q"]),.list-filters>.compact-filter-label:has(input[type="search"]){flex:1 1 240px}
+.qb-filter-form>.compact-filter-label:has(input[name="q"]),.qb-filter-form>.compact-filter-label:has(input[type="search"]),.more-filters-body>.compact-filter-label:has(input[name="q"]),.list-filters>.compact-filter-label:has(input[name="q"]),.list-filters>.compact-filter-label:has(input[type="search"]){flex:0 0 auto;width:180px;max-width:180px;min-width:0;box-sizing:border-box;flex-direction:column;align-items:stretch;white-space:normal;gap:3px}
 .list-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
 .list-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 @media(max-width:640px){
@@ -763,17 +763,18 @@ main>*{min-width:0}
 [data-history-back]{display:inline-flex;align-items:center;gap:6px}
 [data-history-back] .qb-back-ico{flex:0 0 auto;display:block}
 
-/* ---- t56u: filter labels always sit to the LEFT of their control (all filter forms) ---- */
-:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):has(> input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),> select,> textarea){display:inline-flex!important;flex-direction:row!important;align-items:center!important;gap:6px!important;grid-template-columns:none!important;white-space:nowrap;min-width:0}
-:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):has(> input:not([type="checkbox"]):not([type="radio"]),> select,> textarea)>:is(span,strong,b,small):first-child{flex:0 0 auto;display:inline;margin:0;white-space:nowrap}
-:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label>:is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){flex:1 1 auto;width:auto;min-width:0;margin:0}
+/* ---- t56u: filter labels sit LEFT of their control (all filter forms) ---- */
+/* t128: Search is excluded — it stacks label above input in a 180px column (see Shared compact Search). */
+:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):not(:has(>input[name="q"])):not(:has(>input[type="search"])):has(> input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),> select,> textarea){display:inline-flex!important;flex-direction:row!important;align-items:center!important;gap:6px!important;grid-template-columns:none!important;white-space:nowrap;min-width:0}
+:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):not(:has(>input[name="q"])):not(:has(>input[type="search"])):has(> input:not([type="checkbox"]):not([type="radio"]),> select,> textarea)>:is(span,strong,b,small):first-child{flex:0 0 auto;display:inline;margin:0;white-space:nowrap}
+:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not(:has(>input[name="q"])):not(:has(>input[type="search"]))>:is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){flex:1 1 auto;width:auto;min-width:0;margin:0}
 @media(max-width:640px){
-:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):has(> input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),> select,> textarea){display:flex!important;width:100%;flex:1 1 100%!important;white-space:normal}
-:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):has(> input:not([type="checkbox"]):not([type="radio"]),> select,> textarea)>:is(span,strong,b,small):first-child{flex:0 0 96px;white-space:normal}
+:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):not(:has(>input[name="q"])):not(:has(>input[type="search"])):has(> input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),> select,> textarea){display:flex!important;width:100%;flex:1 1 100%!important;white-space:normal}
+:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden]):not(:has(>input[name="q"])):not(:has(>input[type="search"])):has(> input:not([type="checkbox"]):not([type="radio"]),> select,> textarea)>:is(span,strong,b,small):first-child{flex:0 0 96px;white-space:normal}
 }
 :is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label[hidden],:is(form.qb-filter-form,form.filter-form) [hidden]{display:none!important}
 @media(max-width:640px){
-:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not([hidden])>:is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important}
+:is(form.qb-filter-form,form.filter-form,.bk-review-filters,.more-filters-body) label:not(:has(>input[name="q"])):not(:has(>input[type="search"])):not([hidden])>:is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){flex:1 1 0!important;width:auto!important;min-width:0!important;max-width:none!important}
 :is(form.qb-filter-form,form.filter-form) .standard-period-filter{flex-direction:column!important;flex-wrap:nowrap!important;align-items:stretch!important;width:100%;min-width:0}
 :is(form.qb-filter-form,form.filter-form) .standard-period-filter>label:not([hidden]){width:100%!important;max-width:100%!important}
 }
@@ -886,3 +887,144 @@ a.doc-pill:hover,summary.doc-pill:hover{background:#dceaf6;border-color:#9fb6cc;
 .doc-misc-menu{position:absolute;z-index:40;left:0;top:calc(100% + 4px);margin:0;padding:6px 0;min-width:180px;list-style:none;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:0 8px 24px rgba(15,35,60,.16)}
 .doc-misc-menu a{display:block;padding:7px 12px;color:#1f3b57;text-decoration:none;font-size:12px;font-weight:500;white-space:nowrap}
 .doc-misc-menu a:hover{background:#eef5fb}
+
+/* Shared compact Search field width (list/filter bars, app-wide).
+   Cause of overlap (t127): wrapper AND input were both fixed at 180px with !important,
+   while many labels stay flex-direction:row + nowrap, so "Search" text + 180px input
+   spilled into the next control. Fix: wrapper is a 180px column; input is width 100%
+   inside it (never wider than the wrapper). */
+.qb-filter-form .compact-filter-label:has(input[name="q"]),
+.qb-filter-form .compact-filter-label:has(input[type="search"]),
+.qb-filter-form>label:has(input[name="q"]),
+.qb-filter-form>label:has(input[type="search"]),
+.qb-filter-form label:has(>input[name="q"]),
+.qb-filter-form label:has(>input[type="search"]),
+.filters .compact-filter-label:has(input[name="q"]),
+.filters>label:has(input[name="q"]),
+.filters>label:has(input[type="search"]),
+.list-filters .compact-filter-label:has(input[name="q"]),
+.list-filters .compact-filter-label:has(input[type="search"]),
+.list-filters>label:has(input[name="q"]),
+.list-filters>label:has(input[type="search"]),
+.compact-filters .compact-filter-label:has(input[name="q"]),
+.compact-filters>label:has(input[name="q"]),
+.compact-filter-label:has(input[name="q"]),
+.compact-filter-label:has(input[type="search"]),
+.panel form[method="get"] .compact-filter-label:has(input[name="q"]),
+.panel form[method="get"]>label:has(input[name="q"]),
+.panel form[data-filter-form] .compact-filter-label:has(input[name="q"]),
+.panel form[data-filter-form]>label:has(input[name="q"]),
+.all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name="q"]),
+.daily-brief-filters label:has(input[name="q"]),
+.daily-brief-filters label:has(input[type="search"]),
+.pr-filters label:has(input[name="q"]){
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-end;
+  flex:0 0 auto;
+  width:180px;
+  max-width:180px;
+  min-width:0;
+  box-sizing:border-box;
+  gap:3px;
+  white-space:normal;
+}
+.qb-filter-form .compact-filter-label:has(input[name="q"])>span,
+.qb-filter-form label:has(input[name="q"])>span,
+.filters .compact-filter-label:has(input[name="q"])>span,
+.list-filters .compact-filter-label:has(input[name="q"])>span,
+.compact-filter-label:has(input[name="q"])>span,
+.all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name="q"])>span{
+  display:block;
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.qb-filter-form input.field[name="q"],
+.qb-filter-form input[name="q"],
+.qb-filter-form input[type="search"],
+.filters input.field[name="q"],
+.filters input[name="q"],
+.filters input[type="search"].field,
+.list-filters input[name="q"],
+.list-filters input[type="search"],
+.compact-filters input[name="q"],
+.compact-filters>input[name="q"],
+.compact-filter-label>input.field[name="q"],
+.compact-filter-label>input[name="q"],
+.compact-filter-label>input[type="search"],
+.compact-filter-label>.field[name="q"],
+.panel form[method="get"] input[name="q"],
+.panel form[data-filter-form] input[name="q"],
+.all-expenses-filters .ae-filter-primary input[name="q"],
+.all-expenses-filters input[name="q"],
+.daily-brief-filters input[name="q"],
+.daily-brief-filters input[type="search"],
+.pr-filters input[name="q"]{
+  flex:0 0 auto;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+/* Bare search inputs that are flex children of the filter row (no wrapping label). */
+.qb-filter-form>input[name="q"],
+.filters>input[name="q"],
+.compact-filters>input[name="q"],
+.list-filters>input[name="q"]{
+  flex:0 0 auto;
+  width:180px;
+  max-width:180px;
+  min-width:0;
+  box-sizing:border-box;
+}
+@media(max-width:640px){
+  .qb-filter-form .compact-filter-label:has(input[name="q"]),
+  .qb-filter-form .compact-filter-label:has(input[type="search"]),
+  .qb-filter-form>label:has(input[name="q"]),
+  .qb-filter-form>label:has(input[type="search"]),
+  .qb-filter-form label:has(>input[name="q"]),
+  .filters .compact-filter-label:has(input[name="q"]),
+  .filters>label:has(input[name="q"]),
+  .list-filters .compact-filter-label:has(input[name="q"]),
+  .list-filters .compact-filter-label:has(input[type="search"]),
+  .list-filters>label:has(input[name="q"]),
+  .compact-filters .compact-filter-label:has(input[name="q"]),
+  .compact-filters>label:has(input[name="q"]),
+  .compact-filter-label:has(input[name="q"]),
+  .compact-filter-label:has(input[type="search"]),
+  .panel form[method="get"] .compact-filter-label:has(input[name="q"]),
+  .panel form[method="get"]>label:has(input[name="q"]),
+  .panel form[data-filter-form] .compact-filter-label:has(input[name="q"]),
+  .all-expenses-filters .ae-filter-primary .compact-filter-label:has(input[name="q"]),
+  .daily-brief-filters label:has(input[name="q"]),
+  .pr-filters label:has(input[name="q"]),
+  .qb-filter-form>input[name="q"],
+  .filters>input[name="q"],
+  .compact-filters>input[name="q"],
+  .list-filters>input[name="q"]{
+    flex:1 1 100%;
+    width:auto;
+    max-width:none;
+  }
+  .qb-filter-form input[name="q"],
+  .qb-filter-form input[type="search"],
+  .filters input[name="q"],
+  .list-filters input[name="q"],
+  .list-filters input[type="search"],
+  .compact-filters input[name="q"],
+  .compact-filter-label>input[name="q"],
+  .compact-filter-label>input[type="search"],
+  .compact-filter-label>.field[name="q"],
+  .panel form[method="get"] input[name="q"],
+  .panel form[data-filter-form] input[name="q"],
+  .all-expenses-filters .ae-filter-primary input[name="q"],
+  .all-expenses-filters input[name="q"],
+  .daily-brief-filters input[name="q"],
+  .pr-filters input[name="q"]{
+    width:100%;
+    max-width:none;
+  }
+}

@@ -260,3 +260,47 @@ class ClaimMenuNameTests(Base):
             body = self.client.get(reverse(name)).content.decode()
             self.assertIn(">Add Employee Claim</a>", body)
             self.assertNotIn(">+ Employee claim</a>", body)
+
+
+class AllExpensesFilterLayoutTests(Base):
+    """All expenses filter redesign: primary row, labelled period, grouped more filters, chips."""
+
+    def test_filter_layout_groups_and_comboboxes(self):
+        r = self.client.get(reverse("exp:all"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("ae-filter-primary", body)
+        self.assertIn("ae-filter-period", body)
+        self.assertIn(">Date period<", body)
+        self.assertIn("ae-more-grouped", body)
+        self.assertIn(">Claim workflow<", body)
+        self.assertIn(">Vendor / Paid by<", body)
+        self.assertIn(">Organisation<", body)
+        self.assertIn("data-combo=\"ae-type\"", body)
+        self.assertIn("data-combo=\"ae-payment-status\"", body)
+        self.assertIn("data-combo=\"ae-category\"", body)
+        self.assertIn("data-combo=\"ae-vendor\"", body)
+        self.assertIn("invoice_app/combobox.js", body)
+        # More filters stays closed by default
+        self.assertIn('<details class="more-filters"', body)
+        self.assertNotRegex(body, r'<details class="more-filters"\s+open')
+
+    def test_more_filters_open_when_entity_active_and_chips_remove_one(self):
+        d = self.expense()
+        CompanyExpense.objects.filter(pk=d.pk).update(is_draft=True)
+        r = self.client.get(reverse("exp:all"), {"vendor": str(d.vendor_id), "type": "company"})
+        body = r.content.decode()
+        self.assertRegex(body, r'<details class="more-filters"\s+open')
+        self.assertIn("ae-filter-chips", body)
+        self.assertIn("Vendor:", body)
+        self.assertIn("Type: Company expenses", body)
+        # Removing Type keeps vendor
+        self.assertIn(f"vendor={d.vendor_id}", body)
+        # Entity filter still works with no period (all dates)
+        self.assertGreaterEqual(r.context["total_rows"], 1)
+        # Chip URL for type drops only type
+        chips = {c["key"]: c for c in r.context["filter_chips"]}
+        self.assertIn("type", chips)
+        self.assertIn("vendor", chips)
+        self.assertNotIn("type=", chips["type"]["url"])
+        self.assertIn(f"vendor={d.vendor_id}", chips["type"]["url"])
