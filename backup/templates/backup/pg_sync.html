@@ -1,0 +1,47 @@
+{% extends 'invoice_app/base.html' %}{% block title %}PostgreSQL sync &middot; Backups &middot; QuantBud{% endblock %}
+{% block content %}<h1>PostgreSQL sync</h1>
+<p><a href="{% url 'backup:home' %}">&larr; Backups, export &amp; merge</a></p>
+<div class="message warning">The app keeps running on SQLite (<code>{{ live_engine|default:"db.sqlite3" }}</code>). These actions only <strong>copy data</strong>; they never switch the database the app uses. Each sync replaces everything in its destination.</div>
+{% if result %}<div class="message success"><strong>{% if result.direction == 'sqlite_to_postgres' %}SQLite &rarr; PostgreSQL{% else %}PostgreSQL &rarr; SQLite{% endif %} complete:</strong>
+{{ result.table_count }} tables, {{ result.row_count }} rows in {{ result.seconds }} s.
+{% if result.destination %}Destination: {{ result.destination }}.{% endif %}
+{% if result.clone_file %}Clone file: <code>{{ result.clone_file }}</code>.{% endif %}
+{% if result.pre_backup %}Safety ZIP before overwrite: <code>{{ result.pre_backup }}</code>.{% endif %}
+{% if result.replaced_live %}<br><strong>The live SQLite database was replaced. Stop and restart run_windows.bat now.</strong>{% endif %}</div>
+{% if result.skipped_tables %}<p class="muted">Tables in the source without a Django model (not copied): {{ result.skipped_tables|join:", " }}</p>{% endif %}
+<details><summary>Rows per table</summary><table class="table"><thead><tr><th>Table</th><th>Rows</th></tr></thead><tbody>
+{% for t, n in result.tables %}<tr><td>{{ t }}</td><td>{{ n }}</td></tr>{% endfor %}</tbody></table></details>{% endif %}
+
+<h2>1. Connection settings</h2>
+<p class="muted">Saved to <code>{{ pg.config_file }}</code> (outside the project and outside backup ZIPs; set <code>QB_PG_CONFIG_FILE</code> to move it).
+Environment variables <code>QB_PG_HOST</code>, <code>QB_PG_PORT</code>, <code>QB_PG_DB</code>, <code>QB_PG_USER</code>, <code>QB_PG_PASSWORD</code>, <code>QB_PG_SSLMODE</code> override the file.
+{% if pg.env_overrides %}Active overrides: {{ pg.env_overrides|join:", " }}.{% endif %}</p>
+<form method="post" action="{% url 'backup:pg_settings' %}" class="pg-settings">{% csrf_token %}
+{{ pg_form.non_field_errors }}
+<p>{{ pg_form.host.label_tag }} {{ pg_form.host }} {{ pg_form.host.errors }}</p>
+<p>{{ pg_form.port.label_tag }} {{ pg_form.port }} {{ pg_form.port.errors }}</p>
+<p>{{ pg_form.name.label_tag }} {{ pg_form.name }} {{ pg_form.name.errors }}</p>
+<p>{{ pg_form.user.label_tag }} {{ pg_form.user }} {{ pg_form.user.errors }}</p>
+<p>{{ pg_form.password.label_tag }} {{ pg_form.password }} <span class="muted">{% if pg.password_from_env %}Set via QB_PG_PASSWORD.{% elif pg.password_set %}&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull; saved &mdash; leave empty to keep it.{% else %}Not set.{% endif %}</span></p>
+{% if pg.password_set and not pg.password_from_env %}<p>{{ pg_form.clear_password }} {{ pg_form.clear_password.label_tag }}</p>{% endif %}
+<p>{{ pg_form.sslmode.label_tag }} {{ pg_form.sslmode }} <span class="muted">Use <code>require</code> or stricter for a remote server.</span></p>
+<button type="submit">Save settings</button> <button type="submit" name="then_test" value="1">Save &amp; test connection</button></form>
+<form method="post" action="{% url 'backup:pg_test' %}" style="margin-top:8px">{% csrf_token %}<button type="submit"{% if not pg.configured %} disabled{% endif %}>Test connection</button></form>
+
+<h2>2. Sync SQLite &rarr; PostgreSQL</h2>
+<p class="muted">Creates any missing tables with Django migrations on the PostgreSQL database, then <strong>deletes all app data there</strong> and copies every table and row from the live SQLite database (IDs, booleans, JSON, dates kept exact; ID sequences reset). Runs in one PostgreSQL transaction: on failure nothing is changed there. The live SQLite database is only read. Note: PostgreSQL stores JSON as <code>jsonb</code>, so key order and spacing inside JSON fields may be normalised (values are identical).</p>
+<form method="post" action="{% url 'backup:pg_sync' 'to-postgres' %}" onsubmit="return confirm('Overwrite ALL app data in PostgreSQL database {{ pg.name|escapejs }} with the current SQLite data?');">{% csrf_token %}
+<p><label>Type <code>{{ confirm_to_pg }}</code>:</label> <input name="phrase" size="22" autocomplete="off" required></p>
+<p><input type="checkbox" name="understood" id="u1" required> <label for="u1">I understand all data in the PostgreSQL database will be replaced.</label></p>
+<button type="submit"{% if not pg.configured %} disabled{% endif %}>Sync SQLite &rarr; PostgreSQL</button></form>
+
+<h2>3. Sync PostgreSQL &rarr; SQLite</h2>
+<p class="muted">Builds a new SQLite file from PostgreSQL (schema by Django migrations, then every table and row) in <code>BACKUP_DIR\pg_clones\</code> as a disk backup. PostgreSQL is only read.
+Optionally the clone then replaces the live <code>db.sqlite3</code>: a verified, protected ZIP backup of the live database is always taken first, and run_windows.bat must be restarted afterwards.</p>
+<form method="post" action="{% url 'backup:pg_sync' 'to-sqlite' %}" onsubmit="return confirm(this.replace_live.checked ? 'Replace the LIVE SQLite database with a clone of PostgreSQL? A ZIP backup is taken first.' : 'Create a new SQLite clone file from PostgreSQL?');">{% csrf_token %}
+<p><label>Type <code>{{ confirm_to_sqlite }}</code>:</label> <input name="phrase" size="22" autocomplete="off" required></p>
+<p><input type="checkbox" name="understood" id="u2" required> <label for="u2">I understand the destination will be overwritten.</label></p>
+<p><input type="checkbox" name="replace_live" id="u3"> <label for="u3">Also replace the live SQLite database with the clone (ZIP backup first; restart run_windows.bat afterwards)</label></p>
+<button type="submit"{% if not pg.configured %} disabled{% endif %}>Sync PostgreSQL &rarr; SQLite</button></form>
+<p class="muted">Long syncs keep this tab loading until done; the result summary appears above. Command-line equivalent: <code>manage.py pg_sync --to-postgres</code> / <code>manage.py pg_sync --to-sqlite [--replace-live]</code> (asks for the phrase).</p>
+{% endblock %}

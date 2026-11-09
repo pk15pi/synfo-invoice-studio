@@ -795,6 +795,11 @@ _add("backup:retention", "Backup retention", "Review configured backup-retention
      rules=["Removing old backups can reduce recovery options; confirm preservation requirements first."],
      related=["Backup list, verification and recovery."])
 
+_add("backup:pg_home", "PostgreSQL sync", "Store PostgreSQL connection settings, test the connection and clone all data between SQLite and PostgreSQL.",
+     "The app keeps running on SQLite; these actions only copy data and each one replaces its destination.",
+     ["Enter host, port, database, user, password and SSL mode, then Save & test connection.", "Sync SQLite to PostgreSQL to copy every table and row to the server.", "Sync PostgreSQL to SQLite to build a local clone file; optionally replace the live database after an automatic ZIP backup."],
+     rules=["Type the confirmation phrase; the destination is overwritten.", "After replacing the live database, restart run_windows.bat."],
+     related=["Backups, restore and retention."])
 
 # Routes that intentionally return a file/data response, enforce a POST-only
 # mutation, or are otherwise not standalone HTML pages with a help dialog.
@@ -803,7 +808,7 @@ NON_PAGE_ROUTES = {
     "bank:txn_ignore", "bank:unmatch", "bank:import_csv_download", "bank:import_source_download",
     "bank:import_cancel", "bank:import_regenerate",
     "compliance:gst_input_toggle", "compliance:payment_cancel", "docs:serve",
-    "audit:export", "backup:create", "backup:export", "backup:import", "backup:verify", "backup:retention",
+    "audit:export", "backup:create", "backup:export", "backup:import", "backup:verify", "backup:retention", "backup:pg_settings", "backup:pg_test", "backup:pg_sync",
     "backup:confirm_merge", "backup:download_import_package", "document_generation:download",
     "document_generation:template_duplicate", "document_generation:template_new_version",
     "document_generation:template_version_action", "document_generation:clause_new_version",

@@ -157,3 +157,75 @@ def detail(request, pk):
         except S.BackupError as e:
             messages.error(request, f'Restore refused - nothing was changed. {e}')
     return render(request, 'backup/detail.html', {'rec': rec, 'form': form, 'unknown': unknown, 'pending': pending})
+
+
+# ------------------------------------------------------------------ PostgreSQL clone (data copy only)
+def _pg_context(request, **extra):
+    from . import pg_sync as P
+    from .forms import PgSettingsForm, PgSyncForm
+    pub = P.public_config()
+    ctx = {'pg': pub, 'pg_form': PgSettingsForm(initial={k: pub[k] for k in ('host', 'port', 'name', 'user', 'sslmode')}),
+           'pg_sync_form': PgSyncForm(), 'confirm_to_pg': P.CONFIRM_TO_PG, 'confirm_to_sqlite': P.CONFIRM_TO_SQLITE}
+    ctx.update(extra)
+    return ctx
+
+
+@local_only
+def pg_home(request):
+    return render(request, 'backup/pg_sync.html', _pg_context(request))
+
+
+@local_only
+@require_POST
+def pg_settings(request):
+    from . import pg_sync as P
+    from .forms import PgSettingsForm
+    form = PgSettingsForm(request.POST)
+    if not form.is_valid():
+        return render(request, 'backup/pg_sync.html', _pg_context(request, pg_form=form))
+    try:
+        P.save_config(form.cleaned_data)
+        messages.success(request, 'PostgreSQL connection settings saved (password not shown).')
+    except OSError as e:
+        messages.error(request, f'Could not save settings: {e.strerror or e.__class__.__name__}')
+    if request.POST.get('then_test'):
+        return pg_test(request)
+    return redirect('backup:pg_home')
+
+
+@local_only
+@require_POST
+def pg_test(request):
+    from . import pg_sync as P
+    try:
+        r = P.test_connection()
+        pend = r['pending_migrations']
+        messages.success(request, f'Connected to {r["database"]} as {r["user"]} ({r["version"]}; SSL '
+                                  f'{"on" if r["ssl"] else "off"}). Tables: {r["table_count"]}.'
+                                  + ('' if pend is None else f' Unapplied migrations there: {pend}.'))
+    except P.SyncError as e:
+        messages.error(request, str(e))
+    return redirect('backup:pg_home')
+
+
+@local_only
+@require_POST
+def pg_sync_run(request, direction):
+    from . import pg_sync as P
+    from django.http import Http404
+    from .forms import PgSyncForm
+    if direction not in ('to-postgres', 'to-sqlite'):
+        raise Http404
+    form = PgSyncForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Tick the confirmation box and type the phrase to run a sync.')
+        return redirect('backup:pg_home')
+    try:
+        if direction == 'to-postgres':
+            result = P.sync_sqlite_to_pg(form.cleaned_data['phrase'])
+        else:
+            result = P.sync_pg_to_sqlite(form.cleaned_data['phrase'], replace_live=form.cleaned_data['replace_live'])
+    except P.SyncError as e:
+        messages.error(request, str(e))
+        return redirect('backup:pg_home')
+    return render(request, 'backup/pg_sync.html', _pg_context(request, result=result))

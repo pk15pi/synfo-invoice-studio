@@ -32,3 +32,23 @@ class MergeConfirmForm(forms.Form):
         required=False,
         label='For changed source records, retain the destination version and leave their incoming versions in this package.',
     )
+
+
+class PgSettingsForm(forms.Form):
+    host = forms.CharField(max_length=255, label='Host')
+    port = forms.IntegerField(min_value=1, max_value=65535, initial=5432, label='Port')
+    name = forms.CharField(max_length=128, label='Database name')
+    user = forms.CharField(max_length=128, label='User')
+    password = forms.CharField(max_length=512, required=False, label='Password',
+                               widget=forms.PasswordInput(render_value=False, attrs={'autocomplete': 'new-password'}),
+                               help_text='Leave empty to keep the saved password.')
+    clear_password = forms.BooleanField(required=False, label='Clear saved password')
+    sslmode = forms.ChoiceField(label='SSL mode', initial='prefer',
+                                choices=[(m, m) for m in ('disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full')])
+
+
+class PgSyncForm(forms.Form):
+    phrase = forms.CharField(max_length=40, label='Type the confirmation phrase')
+    understood = forms.BooleanField(label='I understand the destination will be overwritten.')
+    replace_live = forms.BooleanField(required=False, label='Also replace the live SQLite database with the clone '
+                                      '(a verified ZIP backup is taken first; restart run_windows.bat afterwards)')
