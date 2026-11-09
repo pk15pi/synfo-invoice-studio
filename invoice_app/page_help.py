@@ -42,9 +42,9 @@ _add("clients", "Customer list", "Find customer records and open customer-specif
      ["Search or filter the list.", "Open a customer to see its details and linked projects.", "Use Add customer to create a new record."],
      rules=["Use the customer status controls to deactivate/reactivate where available; deleting a customer may be restricted when records refer to it."],
      related=["Customer records are used by invoices, projects, manpower deployments and recruitment agreements."])
-_add("client_add client_edit", "Add or edit customer", "Enter the customer identity, billing preferences and contact information.",
-     "This page stores the customer master used by invoices and client workflows.",
-     ["Enter the customer name and applicable address/tax details.", "Choose the billing type and payment terms where shown.", "Review required fields and save."],
+_add("client_add client_edit", "Add or edit customer", "Enter the customer identity, billing preferences, contact information and invoice email settings.",
+     "This page stores the customer master used by invoices and client workflows, including To/CC/BCC and email subject/body for invoice mailing.",
+     ["Enter the customer name and applicable address/tax details.", "Choose the billing type and payment terms where shown.", "In Invoice email, set To/CC/BCC and choose a subject/body template or custom text (optional Save as template).", "Review required fields and save. The last subject/body choice becomes the default for new customers."],
      rules=["Use the correct legal/customer name and verified tax details.", "Billing type and due terms affect later invoice calculations or due dates."],
      related=["Invoices, projects, manpower deployments and recruitment placements can refer to this customer."])
 _add("client_detail", "Customer details", "Review one customer and the work linked to that record.",
@@ -289,8 +289,14 @@ _add("em:payroll_detail em:payroll_edit", "Payroll record", "Review or edit a pa
      ["Confirm employee and period.", "Review each component and source note.", "Save only supported corrections; finalize after review."],
      rules=["Finalized payroll changes should use the revision workflow. Confirm impacts to payslips, payments and accounting."],
      related=["Payroll dashboard, salary structures, attendance, payslips and salary payments."])
+_add("invoice_email_templates invoice_email_template_add invoice_email_template_edit", "Email templates",
+     "Manage reusable subject and body text for invoice emails.",
+     "Templates appear in Customer Add/Edit invoice-email dropdowns and are used when mailing invoice PDFs.",
+     ["Filter by Subject or Body if needed.", "Add or edit a template name and text.", "Optional placeholders: {invoice_number}, {customer_name}, {customer_brand}, {invoice_date}, {grand_total}.", "Delete only when no customer still uses the template."],
+     rules=["Deleting a template that customers still reference is blocked.", "Saving a template from Customer Add/Edit also creates a row here."],
+     related=["Email invoices and Add/Edit customer."])
 _add("invoice_email", "Email invoices", "Filter finalized invoices by period and email each customer their invoice PDF.",
-     "Each row is one invoice. Send is used the first time; after any attempt the button becomes Resend. Selected rows can be mailed with the shared gap or in bulk.",
+     "Each row is one invoice. Send uses the customer's To/CC/BCC and subject/body template or custom text. Send is used the first time; after any attempt the button becomes Resend.",
      ["Choose the period with the shared Yearly / Financial year / Custom date picker.",
       "Confirm the customer email address.",
       "Use Send/Resend for one invoice, or check rows and use Send selected / Bulk send selected."],
@@ -833,7 +839,7 @@ NON_PAGE_ROUTES = {
     "exp:category_delete", "exp:vendor_quick_add", "client_document", "client_delete", "client_toggle", "project_toggle",
     "project_delete", "description_template_toggle", "description_template_delete", "format_template_preview",
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
-    "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json",
+    "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json", "invoice_email_template_delete",
 }
 
 # Shared guidance for pages that use the standardized calendar/FY period controls.

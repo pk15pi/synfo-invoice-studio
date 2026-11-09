@@ -2,11 +2,13 @@ import re
 
 from decimal import Decimal
 from django import forms
+from django.core.exceptions import ValidationError
 from django.db.models import Q as models_Q
 
-from .models import (BusinessProfile, Client, Invoice, InvoiceDescriptionTemplate, InvoiceFormatTemplate,
-                     InvoicePayment, ManpowerDeployment, ProjectTemplate, RecruitmentAgreement,
-                     RecruitmentCandidate, RecruitmentPlacement, RecruitmentRequisition)
+from .models import (BusinessProfile, Client, Invoice, InvoiceDescriptionTemplate, InvoiceEmailDefaults,
+                     InvoiceEmailTemplate, InvoiceFormatTemplate, InvoicePayment, ManpowerDeployment,
+                     ProjectTemplate, RecruitmentAgreement, RecruitmentCandidate, RecruitmentPlacement,
+                     RecruitmentRequisition)
 
 HEX_RE = re.compile(r'^#[0-9A-Fa-f]{6}$')
 COLOR_FIELDS = ['primary_color', 'alternate_row_color', 'white_row_color', 'border_color', 'label_color']
@@ -85,7 +87,11 @@ class ClientForm(StyledForm):
         model = Client
         fields = ['name', 'brand_name', 'address', 'country_ref', 'state_ref', 'district_ref', 'pin_code', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
                   'terms_mode', 'terms_text', 'tax_treatment', 'gstin', 'state_code', 'state_name', 'lut_number',
-                  'vendor_code', 'invoice_format', 'cin_llpin', 'nda_signed_date', 'nda_expiry_date', 'active', 'notes']
+                  'vendor_code', 'invoice_format', 'cin_llpin', 'nda_signed_date', 'nda_expiry_date',
+                  'invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc',
+                  'invoice_email_use_custom_subject', 'invoice_email_subject_template', 'invoice_email_custom_subject',
+                  'invoice_email_use_custom_body', 'invoice_email_body_template', 'invoice_email_custom_body',
+                  'active', 'notes']
         labels = {'name': 'Bill To (customer name)', 'invoice_format': 'Default invoice format'}
         widgets = {'nda_signed_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
                    'nda_expiry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
@@ -104,8 +110,21 @@ class ClientForm(StyledForm):
         fmt.empty_label = 'Default (QuantBud Standard / Tax Invoice)'
         self._add_doc_links()
         self._setup_address()
+        self._setup_invoice_email()
 
     ADDRESS_BLOCK = ('name', 'country_ref', 'state_ref', 'district_ref', 'pin_code')
+    INVOICE_EMAIL_BLOCK = (
+        'invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc',
+        'invoice_email_use_custom_subject', 'invoice_email_subject_template', 'invoice_email_custom_subject',
+        'invoice_email_use_custom_body', 'invoice_email_body_template', 'invoice_email_custom_body',
+    )
+    save_subject_template_name = forms.CharField(
+        required=False, label='Save subject as template named',
+        help_text='Optional. When set with custom subject text, saves a new subject template and selects it.')
+    save_body_template_name = forms.CharField(
+        required=False, label='Save body as template named',
+        help_text='Optional. When set with custom body text, saves a new body template and selects it.')
+
 
     def _setup_address(self):
         from .models import Country, District, State
@@ -173,6 +192,57 @@ class ClientForm(StyledForm):
             self._doc_ext[name] = sniff_upload(f, form_doc_limits()[0] * 1024 * 1024)
         return f
 
+
+    def _setup_invoice_email(self):
+        from .invoice_email import PLACEHOLDERS
+        ph = ' '.join(PLACEHOLDERS)
+        for name in ('invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc'):
+            self.fields[name].widget = forms.TextInput(attrs={'class': 'field'})
+        self.fields['invoice_email_to'].widget.attrs['placeholder'] = 'to1@example.com, to2@example.com'
+        self.fields['invoice_email_cc'].widget.attrs['placeholder'] = 'cc@example.com'
+        self.fields['invoice_email_bcc'].widget.attrs['placeholder'] = 'bcc@example.com'
+        self.fields['invoice_email_custom_subject'].widget.attrs.update({'class': 'field', 'placeholder': 'Custom subject'})
+        self.fields['invoice_email_custom_body'].widget = forms.Textarea(attrs={'class': 'field', 'rows': 5})
+        self.fields['invoice_email_custom_subject'].help_text = f'Placeholders: {ph}'
+        self.fields['invoice_email_custom_body'].help_text = f'Placeholders: {ph}'
+        self.fields['invoice_email_subject_template'].queryset = InvoiceEmailTemplate.objects.filter(
+            kind=InvoiceEmailTemplate.SUBJECT).order_by('name')
+        self.fields['invoice_email_subject_template'].empty_label = '— Select subject template —'
+        self.fields['invoice_email_body_template'].queryset = InvoiceEmailTemplate.objects.filter(
+            kind=InvoiceEmailTemplate.BODY).order_by('name')
+        self.fields['invoice_email_body_template'].empty_label = '— Select body template —'
+        self.fields['save_subject_template_name'].widget.attrs.setdefault('class', 'field')
+        self.fields['save_body_template_name'].widget.attrs.setdefault('class', 'field')
+        # Prefill last-selected defaults for Add Customer
+        if not self.instance.pk and not self.is_bound:
+            defaults = InvoiceEmailDefaults.current()
+            self.initial.setdefault('invoice_email_use_custom_subject', defaults.use_custom_subject)
+            self.initial.setdefault('invoice_email_custom_subject', defaults.custom_subject)
+            self.initial.setdefault('invoice_email_subject_template', defaults.subject_template_id)
+            self.initial.setdefault('invoice_email_use_custom_body', defaults.use_custom_body)
+            self.initial.setdefault('invoice_email_custom_body', defaults.custom_body)
+            self.initial.setdefault('invoice_email_body_template', defaults.body_template_id)
+
+    def _clean_address_list_field(self, field_name):
+        from .invoice_email import parse_address_list
+        raw = (self.cleaned_data.get(field_name) or '').strip()
+        if not raw:
+            return ''
+        try:
+            addrs = parse_address_list(raw)
+        except ValidationError as exc:
+            raise forms.ValidationError(exc.messages if hasattr(exc, 'messages') else [str(exc)]) from exc
+        return ', '.join(addrs)
+
+    def clean_invoice_email_to(self):
+        return self._clean_address_list_field('invoice_email_to')
+
+    def clean_invoice_email_cc(self):
+        return self._clean_address_list_field('invoice_email_cc')
+
+    def clean_invoice_email_bcc(self):
+        return self._clean_address_list_field('invoice_email_bcc')
+
     def clean_nda_file(self):
         return self._clean_doc('nda_file')
 
@@ -185,7 +255,54 @@ class ClientForm(StyledForm):
         if s and e and e < s:
             self.add_error('nda_expiry_date', 'Expiry date cannot be before the signed date.')
         self._clean_address(data)
+        if data.get('invoice_email_use_custom_subject'):
+            if not (data.get('invoice_email_custom_subject') or '').strip():
+                # Allowed empty — send uses fallback subject
+                pass
+        else:
+            tpl = data.get('invoice_email_subject_template')
+            if tpl and tpl.kind != InvoiceEmailTemplate.SUBJECT:
+                self.add_error('invoice_email_subject_template', 'Choose a subject template.')
+        if data.get('invoice_email_use_custom_body'):
+            pass
+        else:
+            tpl = data.get('invoice_email_body_template')
+            if tpl and tpl.kind != InvoiceEmailTemplate.BODY:
+                self.add_error('invoice_email_body_template', 'Choose a body template.')
         return data
+
+    def save(self, commit=True):
+        client = super().save(commit=False)
+        # Save-as-template for subject
+        subj_name = (self.cleaned_data.get('save_subject_template_name') or '').strip()
+        custom_subj = (self.cleaned_data.get('invoice_email_custom_subject') or '').strip()
+        if subj_name and custom_subj:
+            tpl = InvoiceEmailTemplate.objects.create(
+                kind=InvoiceEmailTemplate.SUBJECT, name=subj_name[:120], text=custom_subj)
+            client.invoice_email_subject_template = tpl
+            client.invoice_email_use_custom_subject = False
+            client.invoice_email_custom_subject = ''
+        body_name = (self.cleaned_data.get('save_body_template_name') or '').strip()
+        custom_body = (self.cleaned_data.get('invoice_email_custom_body') or '').strip()
+        if body_name and custom_body:
+            tpl = InvoiceEmailTemplate.objects.create(
+                kind=InvoiceEmailTemplate.BODY, name=body_name[:120], text=custom_body)
+            client.invoice_email_body_template = tpl
+            client.invoice_email_use_custom_body = False
+            client.invoice_email_custom_body = ''
+        if commit:
+            client.save()
+            self.save_m2m()
+            # Remember last selection as Add Customer default
+            defaults = InvoiceEmailDefaults.current()
+            defaults.use_custom_subject = client.invoice_email_use_custom_subject
+            defaults.custom_subject = client.invoice_email_custom_subject
+            defaults.subject_template = client.invoice_email_subject_template
+            defaults.use_custom_body = client.invoice_email_use_custom_body
+            defaults.custom_body = client.invoice_email_custom_body
+            defaults.body_template = client.invoice_email_body_template
+            defaults.save()
+        return client
 
     def save_documents(self, client):
         import os
@@ -404,6 +521,32 @@ class InvoiceDescriptionTemplateForm(StyledForm):
         model = InvoiceDescriptionTemplate
         fields = ['name', 'template_text', 'is_active']
         widgets = {'template_text': forms.Textarea(attrs={'rows': 2})}
+
+
+
+
+class InvoiceEmailTemplateForm(StyledForm):
+    class Meta:
+        model = InvoiceEmailTemplate
+        fields = ['kind', 'name', 'text']
+        labels = {'kind': 'Type', 'text': 'Text'}
+        widgets = {'text': forms.Textarea(attrs={'rows': 6})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .invoice_email import PLACEHOLDERS
+        self.fields['text'].help_text = (
+            'Optional placeholders: ' + ', '.join(PLACEHOLDERS) + '.'
+        )
+
+    def clean_name(self):
+        name = (self.cleaned_data.get('name') or '').strip()
+        if not name:
+            raise forms.ValidationError('Enter a template name.')
+        return name[:120]
+
+    def clean_text(self):
+        return (self.cleaned_data.get('text') or '').strip()
 
 
 class InvoiceFormatTemplateForm(StyledForm):

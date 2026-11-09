@@ -1,0 +1,29 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Invoice Management</p><h1>Email templates</h1>
+<p class="muted">Subject and body text used when emailing invoice PDFs. Customer Add/Edit can select these, or save custom text as a new template. Placeholders: {% for p in placeholders %}<code>{{ p }}</code> {% endfor %}</p></div>
+<a class="button primary" href="{% url 'invoice_email_template_add' %}">&#43; Add template</a></div>
+<section class="panel"><div class="filters"><span class="segmented">
+<a href="?kind=all" class="{% if kind == 'all' %}on{% endif %}">All</a>
+<a href="?kind=subject" class="{% if kind == 'subject' %}on{% endif %}">Subject</a>
+<a href="?kind=body" class="{% if kind == 'body' %}on{% endif %}">Body</a>
+</span></div>
+{% if templates %}<div class="table-wrap"><table>
+<thead><tr><th>Name</th><th>Type</th><th>Preview</th><th></th></tr></thead>
+{% paginate templates as qb_pg1 %}<tbody>
+{% for t in qb_pg1 %}
+<tr>
+<td><b>{{ t.name }}</b></td>
+<td>{{ t.get_kind_display }}</td>
+<td><code>{{ t.text|truncatechars:80 }}</code></td>
+<td>
+<a class="button secondary" href="{% url 'invoice_email_template_edit' t.pk %}">Edit</a>
+<form class="inline" method="post" action="{% url 'invoice_email_template_delete' t.pk %}" style="display:inline">{% csrf_token %}
+<button class="button secondary" type="submit" onclick="return confirm('Delete this email template?')">Delete</button>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody></table>{% pager qb_pg1 %}</div>
+{% else %}<div class="empty">No email templates{% if kind != 'all' %} of this type{% endif %}.</div>{% endif %}
+</section>
+{% endblock %}

@@ -16,10 +16,10 @@ from django.views.decorators.http import require_POST
 from employee_management.security import local_only
 
 from . import billing, descriptions, gst, ledger, services
-from .forms import (BusinessProfileForm, ClientForm, CreditNoteForm, InvoiceDescriptionTemplateForm, InvoiceFormatTemplateForm, ManpowerDeploymentForm, PaymentForm, PdfOverrideForm,
+from .forms import (BusinessProfileForm, ClientForm, CreditNoteForm, InvoiceDescriptionTemplateForm, InvoiceEmailTemplateForm, InvoiceFormatTemplateForm, ManpowerDeploymentForm, PaymentForm, PdfOverrideForm,
                     ProjectTemplateForm, RecruitmentAgreementForm, RecruitmentCandidateForm,
                     RecruitmentPlacementForm, RecruitmentRequisitionForm)
-from .models import (BusinessProfile, Client, CreditNote, Invoice, InvoiceDescriptionTemplate, InvoiceFormatTemplate,
+from .models import (BusinessProfile, Client, CreditNote, Invoice, InvoiceDescriptionTemplate, InvoiceEmailTemplate, InvoiceFormatTemplate,
                      InvoicePayment, ManpowerBillingRecord, ManpowerDeployment, ManpowerRateRevision, ProjectTemplate,
                      RecruitmentAgreement, RecruitmentCandidate, RecruitmentPlacement, RecruitmentRequisition)
 from .pdf import render_invoice_pdf
@@ -988,6 +988,75 @@ def format_template_delete(request, pk):
 
 
 # --- Description Template Master + Memo/Description rendering endpoint ---
+
+
+def invoice_email_templates(request):
+    """Master list of invoice email subject/body templates."""
+    from django.db.models import Count
+    from .invoice_email import PLACEHOLDERS
+    qs = InvoiceEmailTemplate.objects.annotate(
+        n_subj=Count('clients_using_as_subject', distinct=True),
+        n_body=Count('clients_using_as_body', distinct=True),
+    )
+    kind = (request.GET.get('kind') or 'all').strip().lower()
+    if kind in (InvoiceEmailTemplate.SUBJECT, InvoiceEmailTemplate.BODY):
+        qs = qs.filter(kind=kind)
+    else:
+        kind = 'all'
+    qs = qs.order_by('kind', 'name', 'id')
+    return render(request, 'invoice_app/invoice_email_templates.html', {
+        'templates': qs,
+        'kind': kind,
+        'placeholders': PLACEHOLDERS,
+    })
+
+
+def invoice_email_template_edit(request, pk=None):
+    obj = get_object_or_404(InvoiceEmailTemplate, pk=pk) if pk else None
+    form = InvoiceEmailTemplateForm(request.POST or None, instance=obj)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Email template saved.')
+        return redirect('invoice_email_templates')
+    return render(request, 'invoice_app/form_page.html', {
+        'form': form,
+        'title': 'Edit email template' if obj else 'Add email template',
+        'back': 'invoice_email_templates',
+    })
+
+
+@require_POST
+def invoice_email_template_delete(request, pk):
+    from django.db.models import Q
+    from .models import InvoiceEmailDefaults
+    t = get_object_or_404(InvoiceEmailTemplate, pk=pk)
+    in_use = Client.objects.filter(
+        Q(invoice_email_subject_template=t) | Q(invoice_email_body_template=t)
+    ).count()
+    if in_use:
+        messages.error(
+            request,
+            f'"{t.name}" is assigned to {in_use} customer(s) and cannot be deleted. '
+            'Clear or change those customers' invoice email template first.',
+        )
+        return redirect('invoice_email_templates')
+    defaults = InvoiceEmailDefaults.objects.filter(pk=1).first()
+    if defaults:
+        changed = False
+        if defaults.subject_template_id == t.pk:
+            defaults.subject_template = None
+            changed = True
+        if defaults.body_template_id == t.pk:
+            defaults.body_template = None
+            changed = True
+        if changed:
+            defaults.save()
+    name = t.name
+    t.delete()
+    messages.success(request, f'Email template "{name}" deleted.')
+    return redirect('invoice_email_templates')
+
+
 
 def description_templates(request):
     from django.db.models import Count

@@ -270,6 +270,35 @@ class Client(models.Model):
     nda_signed_date = models.DateField('NDA signed date', null=True, blank=True)
     nda_expiry_date = models.DateField('NDA expiry date', null=True, blank=True)
 
+    # --- Invoice email (To/CC/BCC + subject/body templates) ---
+    invoice_email_to = models.TextField(
+        'Invoice email To', blank=True,
+        help_text='One or more addresses for To, separated by commas or semicolons. '
+                  'Blank = use the customer Email field above.')
+    invoice_email_cc = models.TextField(
+        'Invoice email CC', blank=True,
+        help_text='Optional CC addresses, comma or semicolon separated.')
+    invoice_email_bcc = models.TextField(
+        'Invoice email BCC', blank=True,
+        help_text='Optional BCC addresses, comma or semicolon separated.')
+    invoice_email_use_custom_subject = models.BooleanField(
+        'Use custom invoice subject', default=False)
+    invoice_email_subject_template = models.ForeignKey(
+        'InvoiceEmailTemplate', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='clients_using_as_subject', limit_choices_to={'kind': 'subject'},
+        verbose_name='Invoice subject template')
+    invoice_email_custom_subject = models.CharField(
+        'Custom invoice subject', max_length=200, blank=True)
+    invoice_email_use_custom_body = models.BooleanField(
+        'Use custom invoice body', default=False)
+    invoice_email_body_template = models.ForeignKey(
+        'InvoiceEmailTemplate', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='clients_using_as_body', limit_choices_to={'kind': 'body'},
+        verbose_name='Invoice body template')
+    invoice_email_custom_body = models.TextField(
+        'Custom invoice body', blank=True)
+
+
     class Meta:
         ordering = ['name']
 
@@ -1110,11 +1139,61 @@ class CreditNote(models.Model):
         self.total = q2(self.taxable_amount + self.cgst_amount + self.sgst_amount + self.igst_amount)
         super().save(*args, **kwargs)
 
+
+
+class InvoiceEmailTemplate(models.Model):
+    """Reusable subject or body text for customer invoice emails."""
+    SUBJECT, BODY = 'subject', 'body'
+    KIND_CHOICES = [(SUBJECT, 'Subject'), (BODY, 'Body')]
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, db_index=True)
+    name = models.CharField(max_length=120)
+    text = models.TextField(help_text='Optional placeholders: {invoice_number}, {customer_name}, '
+                                      '{customer_brand}, {invoice_date}, {grand_total}.')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['kind', 'name', 'id']
+
+    def __str__(self):
+        return f'{self.get_kind_display()}: {self.name}'
+
+
+class InvoiceEmailDefaults(models.Model):
+    """Singleton (pk=1) remembering the last subject/body choice for Add Customer."""
+    subject_template = models.ForeignKey(
+        InvoiceEmailTemplate, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', limit_choices_to={'kind': 'subject'})
+    use_custom_subject = models.BooleanField(default=False)
+    custom_subject = models.CharField(max_length=200, blank=True)
+    body_template = models.ForeignKey(
+        InvoiceEmailTemplate, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='+', limit_choices_to={'kind': 'body'})
+    use_custom_body = models.BooleanField(default=False)
+    custom_body = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Invoice email defaults'
+        verbose_name_plural = 'Invoice email defaults'
+
+    def __str__(self):
+        return 'Invoice email defaults'
+
+    @classmethod
+    def current(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class InvoiceEmailLog(models.Model):
     """One attempt to email a finalized invoice PDF to a customer."""
     invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='email_logs')
     client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='invoice_email_logs')
-    recipient_email = models.EmailField(blank=True)
+    recipient_email = models.TextField(blank=True, help_text='To addresses (comma-separated).')
+    recipient_cc = models.TextField(blank=True)
+    recipient_bcc = models.TextField(blank=True)
+    subject = models.CharField(max_length=200, blank=True)
     sent_at = models.DateTimeField(auto_now_add=True, db_index=True)
     success = models.BooleanField(default=False, db_index=True)
     error = models.CharField(max_length=500, blank=True)

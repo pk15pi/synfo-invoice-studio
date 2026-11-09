@@ -3,5 +3,51 @@
 {% if project_help %}<div class="panel note"><b>Customer payment term (billing type):</b> {{ project_help }}<br>
 The billing type is set on the customer and applies to every project row. Change it on the customer's Edit page.</div>{% endif %}
 <form method="post" class="panel form-panel{% if customer_form %} customer-form-panel{% endif %}" enctype="multipart/form-data">{% csrf_token %}{{ form.non_field_errors }}
-{% if customer_form %}<fieldset class="customer-address-block"><legend>Bill to &amp; address</legend>{% include "invoice_app/_customer_address.html" %}</fieldset>{% endif %}<div class="form-grid">{% for field in form %}{% if customer_form and field.name in form.ADDRESS_BLOCK %}{% elif customer_form and field.name == "address" %}{% else %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}</div>
+{% if customer_form %}<fieldset class="customer-address-block"><legend>Bill to &amp; address</legend>{% include "invoice_app/_customer_address.html" %}</fieldset>{% endif %}
+<div class="form-grid">{% for field in form %}{% if customer_form and field.name in form.ADDRESS_BLOCK %}{% elif customer_form and field.name == "address" %}{% elif customer_form and field.name in form.INVOICE_EMAIL_BLOCK %}{% elif customer_form and field.name == "save_subject_template_name" %}{% elif customer_form and field.name == "save_body_template_name" %}{% else %}<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>{% endif %}{% endfor %}</div>
+{% if customer_form %}
+<fieldset class="customer-invoice-email-block" style="margin-top:18px" data-invoice-email-form>
+<legend>Invoice email</legend>
+<p class="muted" style="margin-top:0">Used when emailing invoice PDFs. One message is sent with To, CC and BCC together. Placeholders: {invoice_number}, {customer_name}, {customer_brand}, {invoice_date}, {grand_total}.</p>
+<div class="form-grid">
+{% for field in form %}
+{% if field.name in form.INVOICE_EMAIL_BLOCK %}
+<div class="form-field {% if field.field.widget.input_type == 'checkbox' %}check-field{% endif %}" {% if field.name == 'invoice_email_subject_template' %}data-show-when="subject-template"{% elif field.name == 'invoice_email_custom_subject' %}data-show-when="subject-custom"{% elif field.name == 'invoice_email_body_template' %}data-show-when="body-template"{% elif field.name == 'invoice_email_custom_body' %}data-show-when="body-custom"{% endif %}>
+<label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}{% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+</div>
+{% endif %}
+{% endfor %}
+<div class="form-field" data-show-when="subject-custom">
+<label for="{{ form.save_subject_template_name.id_for_label }}">{{ form.save_subject_template_name.label }}</label>{{ form.save_subject_template_name }}{% if form.save_subject_template_name.help_text %}<small>{{ form.save_subject_template_name.help_text }}</small>{% endif %}{% for error in form.save_subject_template_name.errors %}<small class="error">{{ error }}</small>{% endfor %}
+</div>
+<div class="form-field" data-show-when="body-custom">
+<label for="{{ form.save_body_template_name.id_for_label }}">{{ form.save_body_template_name.label }}</label>{{ form.save_body_template_name }}{% if form.save_body_template_name.help_text %}<small>{{ form.save_body_template_name.help_text }}</small>{% endif %}{% for error in form.save_body_template_name.errors %}<small class="error">{{ error }}</small>{% endfor %}
+</div>
+</div>
+</fieldset>
+<script>
+(() => {
+  const root = document.querySelector('[data-invoice-email-form]');
+  if (!root) return;
+  const subjCustom = root.querySelector('#id_invoice_email_use_custom_subject');
+  const bodyCustom = root.querySelector('#id_invoice_email_use_custom_body');
+  const sync = () => {
+    const sc = !!(subjCustom && subjCustom.checked);
+    const bc = !!(bodyCustom && bodyCustom.checked);
+    root.querySelectorAll('[data-show-when]').forEach(node => {
+      const when = node.dataset.showWhen;
+      let on = true;
+      if (when === 'subject-template') on = !sc;
+      if (when === 'subject-custom') on = sc;
+      if (when === 'body-template') on = !bc;
+      if (when === 'body-custom') on = bc;
+      node.hidden = !on;
+    });
+  };
+  subjCustom && subjCustom.addEventListener('change', sync);
+  bodyCustom && bodyCustom.addEventListener('change', sync);
+  sync();
+})();
+</script>
+{% endif %}
 <div class="form-actions"><button class="button primary" type="submit">Save</button><a class="button secondary" href="{% if back_url %}{{ back_url }}{% else %}{% url back %}{% endif %}">Cancel</a></div></form>{% if customer_form %}{% load static %}<script src="{% static 'invoice_app/combobox.js' %}" defer></script>{% endif %}{% endblock %}

@@ -1,8 +1,14 @@
-"""Email finalized invoice PDFs to customer email addresses via Microsoft 365 SMTP.
+"""Email finalized invoice PDFs to customer addresses via Microsoft 365 SMTP.
 
 Reuses employee_management.email_config (same Shared → Settings SMTP + send gap).
+Supports To/CC/BCC and per-customer subject/body templates or custom text.
 """
+import re
+from email.utils import parseaddr
+
+from django.core.exceptions import ValidationError
 from django.core.mail import EmailMessage, get_connection
+from django.core.validators import validate_email
 from django.db.models import Exists, OuterRef, Q, Subquery
 from django.utils import timezone
 
@@ -18,9 +24,60 @@ PERIOD_PARAM_KEYS = (
     'period_value', 'date_from', 'date_to',
 )
 
+PLACEHOLDERS = (
+    '{invoice_number}',
+    '{customer_name}',
+    '{customer_brand}',
+    '{invoice_date}',
+    '{grand_total}',
+)
+
+_SPLIT_RE = re.compile(r'[,;]+')
+
+
+def parse_address_list(raw):
+    """Split comma/semicolon list into unique validated emails (order preserved)."""
+    text = (raw or '').strip()
+    if not text:
+        return []
+    seen, out = set(), []
+    for part in _SPLIT_RE.split(text):
+        token = part.strip()
+        if not token:
+            continue
+        _name, addr = parseaddr(token)
+        addr = (addr or token).strip()
+        try:
+            validate_email(addr)
+        except ValidationError as exc:
+            raise ValidationError(f'Invalid email address: {token}') from exc
+        key = addr.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(addr)
+    return out
+
+
+def resolve_recipients(client):
+    """Return (to_list, cc_list, bcc_list). To falls back to Client.email."""
+    to_list = parse_address_list(getattr(client, 'invoice_email_to', '') or '')
+    if not to_list:
+        fallback = (getattr(client, 'email', None) or '').strip()
+        if fallback:
+            try:
+                validate_email(fallback)
+                to_list = [fallback]
+            except ValidationError:
+                to_list = []
+    cc_list = parse_address_list(getattr(client, 'invoice_email_cc', '') or '')
+    bcc_list = parse_address_list(getattr(client, 'invoice_email_bcc', '') or '')
+    return to_list, cc_list, bcc_list
+
 
 def customer_email(client):
-    return (getattr(client, 'email', None) or '').strip()
+    """Primary To address (first of To list / Client.email) — used for quick checks."""
+    to_list, _cc, _bcc = resolve_recipients(client)
+    return to_list[0] if to_list else ''
 
 
 def has_period_params(params):
@@ -49,7 +106,11 @@ def invoices_for_period(period, search=''):
             invoice_date__gte=period.start,
             invoice_date__lte=period.end,
         )
-        .select_related('client')
+        .select_related(
+            'client',
+            'client__invoice_email_subject_template',
+            'client__invoice_email_body_template',
+        )
         .order_by('invoice_date', 'invoice_number', 'id')
     )
     search = (search or '').strip()
@@ -59,6 +120,9 @@ def invoices_for_period(period, search=''):
             | Q(client__name__icontains=search)
             | Q(client__brand_name__icontains=search)
             | Q(client__email__icontains=search)
+            | Q(client__invoice_email_to__icontains=search)
+            | Q(client__invoice_email_cc__icontains=search)
+            | Q(client__invoice_email_bcc__icontains=search)
         )
     latest_ok = (
         InvoiceEmailLog.objects.filter(invoice_id=OuterRef('pk'), success=True)
@@ -75,10 +139,10 @@ def invoices_for_period(period, search=''):
 def bulk_queue(invoices):
     pending, skipped_sent, skipped_email = [], [], []
     for inv in invoices:
-        email = customer_email(inv.client)
+        to_list, _cc, _bcc = resolve_recipients(inv.client)
         if inv.last_sent_at:
             skipped_sent.append(inv.pk)
-        elif not email:
+        elif not to_list:
             skipped_email.append(inv.pk)
         else:
             pending.append(inv.pk)
@@ -100,18 +164,77 @@ def _company_name():
     return 'QuantBud'
 
 
-def send_invoice(invoice, *, connection=None):
-    """Attach the existing invoice PDF and email it. Always writes an InvoiceEmailLog row."""
+def placeholder_values(invoice):
     client = invoice.client
-    recipient = customer_email(client)
+    brand = (getattr(client, 'brand_name', None) or '').strip()
+    return {
+        '{invoice_number}': invoice.invoice_number or '',
+        '{customer_name}': client.name or '',
+        '{customer_brand}': brand,
+        '{invoice_date}': invoice.invoice_date.strftime('%d %b %Y') if invoice.invoice_date else '',
+        '{grand_total}': f'{invoice.grand_total:.2f}' if invoice.grand_total is not None else '',
+    }
+
+
+def apply_placeholders(text, invoice):
+    result = text or ''
+    for key, value in placeholder_values(invoice).items():
+        result = result.replace(key, value)
+    return result
+
+
+def resolve_subject(client, invoice):
+    if getattr(client, 'invoice_email_use_custom_subject', False):
+        custom = (getattr(client, 'invoice_email_custom_subject', '') or '').strip()
+        if custom:
+            return apply_placeholders(custom, invoice)
+    tpl = getattr(client, 'invoice_email_subject_template', None)
+    if tpl is not None and (tpl.text or '').strip():
+        return apply_placeholders(tpl.text, invoice)
+    return f'Invoice — {invoice.invoice_number}'
+
+
+def resolve_body(client, invoice, company_name='QuantBud'):
+    if getattr(client, 'invoice_email_use_custom_body', False):
+        custom = (getattr(client, 'invoice_email_custom_body', '') or '').strip()
+        if custom:
+            return apply_placeholders(custom, invoice)
+    tpl = getattr(client, 'invoice_email_body_template', None)
+    if tpl is not None and (tpl.text or '').strip():
+        return apply_placeholders(tpl.text, invoice)
     number = invoice.invoice_number
-    if not recipient:
+    return (
+        f'Dear {client.name},\n\n'
+        f'Please find attached invoice {number} dated {invoice.invoice_date:%d %b %Y}.\n\n'
+        f'This message was sent by {company_name}. '
+        f'If you have questions about this invoice, reply to this email.\n\n'
+        f'Regards,\n{company_name}\n'
+    )
+
+
+def send_invoice(invoice, *, connection=None):
+    """Attach the existing invoice PDF and email it (one message with To/CC/BCC)."""
+    client = invoice.client
+    number = invoice.invoice_number
+    try:
+        to_list, cc_list, bcc_list = resolve_recipients(client)
+    except ValidationError as exc:
         return InvoiceEmailLog.objects.create(
             invoice=invoice,
             client=client,
             recipient_email='',
             success=False,
-            error='Customer has no email address on file.',
+            error=str(exc.message if hasattr(exc, 'message') else exc)[:500],
+            invoice_number=number,
+        )
+    to_joined = ', '.join(to_list)
+    if not to_list:
+        return InvoiceEmailLog.objects.create(
+            invoice=invoice,
+            client=client,
+            recipient_email='',
+            success=False,
+            error='Customer has no invoice To address or email on file.',
             invoice_number=number,
         )
     cfg = None
@@ -120,14 +243,8 @@ def send_invoice(invoice, *, connection=None):
         mapped = EC.require_ready(cfg)
         pdf_bytes = render_for_invoice(invoice, BusinessProfile.current())
         company = _company_name()
-        subject = f'Invoice — {number}'
-        body = (
-            f'Dear {client.name},\n\n'
-            f'Please find attached invoice {number} dated {invoice.invoice_date:%d %b %Y}.\n\n'
-            f'This message was sent by {company}. '
-            f'If you have questions about this invoice, reply to this email.\n\n'
-            f'Regards,\n{company}\n'
-        )
+        subject = resolve_subject(client, invoice)
+        body = resolve_body(client, invoice, company_name=company)
         conn = connection or get_connection(
             host=mapped['HOST'],
             port=mapped['PORT'],
@@ -141,7 +258,9 @@ def send_invoice(invoice, *, connection=None):
             subject=subject,
             body=body,
             from_email=mapped['FROM'],
-            to=[recipient],
+            to=to_list,
+            cc=cc_list,
+            bcc=bcc_list,
             connection=conn,
         )
         message.attach(f'{number}.pdf', pdf_bytes, 'application/pdf')
@@ -149,7 +268,10 @@ def send_invoice(invoice, *, connection=None):
         return InvoiceEmailLog.objects.create(
             invoice=invoice,
             client=client,
-            recipient_email=recipient,
+            recipient_email=to_joined,
+            recipient_cc=', '.join(cc_list),
+            recipient_bcc=', '.join(bcc_list),
+            subject=subject[:200],
             success=True,
             error='',
             invoice_number=number,
@@ -158,7 +280,10 @@ def send_invoice(invoice, *, connection=None):
         return InvoiceEmailLog.objects.create(
             invoice=invoice,
             client=client,
-            recipient_email=recipient,
+            recipient_email=to_joined,
+            recipient_cc=', '.join(cc_list),
+            recipient_bcc=', '.join(bcc_list),
+            subject='',
             success=False,
             error=EC._clean(exc, cfg)[:500],
             invoice_number=number,
