@@ -22,7 +22,6 @@ def invoice_email_list(request):
     period = IE.resolve_page_period(request.GET)
     search = (request.GET.get('q') or '').strip()
     rows = list(IE.invoices_for_period(period, search=search))
-    queue = IE.bulk_queue(rows)
     pub = EC.public_config()
     return render(request, 'invoice_app/invoice_email.html', {
         'period': period,
@@ -30,10 +29,7 @@ def invoice_email_list(request):
         'search': search,
         'smtp_ready': pub['password_set'],
         'send_gap_seconds': pub['send_gap_seconds'],
-        'bulk_pending_ids': queue['pending_ids'],
-        'bulk_skipped_sent': queue['skipped_already_sent'],
-        'bulk_skipped_email': queue['skipped_no_email'],
-        'bulk_total': queue['total'],
+        'all_row_ids': [row.pk for row in rows],
         'send_json_url_template': reverse('invoice_email_send_json', args=[0]).replace('/0/', '/__ID__/'),
     })
 

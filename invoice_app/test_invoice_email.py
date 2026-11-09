@@ -96,20 +96,36 @@ class InvoiceEmailPageTests(TestCase):
         self.assertContains(r, 'Acme Corp')
 
     def test_page_renders_buttons_and_filters(self):
-        self._invoice()
+        inv = self._invoice()
         r = self.client.get(reverse('invoice_email'), {
             'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10',
         })
         self.assertContains(r, 'Filter by')
-        self.assertContains(r, 'Send to all')
-        self.assertContains(r, 'Bulk send')
-        self.assertContains(r, 'Resend')
+        self.assertContains(r, '>Send<')
+        self.assertContains(r, 'button qb-email-row-action primary')
+        self.assertContains(r, 'class="button primary"')
+        self.assertContains(r, 'class="button secondary"')
+        self.assertContains(r, 'qb-email-actions')
+        self.assertNotContains(r, 'Send to all')
+        self.assertContains(r, 'Send selected (30s gap)')
+        self.assertContains(r, 'Bulk send selected')
         self.assertContains(r, 'data-gap="30"')
+        self.assertContains(r, 'data-all-ids="')
+        self.assertContains(r, 'id="qb-select-all"')
+        self.assertContains(r, 'aria-label="Select all"')
+        self.assertContains(r, 'class="qb-email-row"')
+        self.assertContains(r, 'email_select_send.js')
         self.assertContains(r, 'Not sent')
         self.assertContains(r, 'page_size')
         self.assertContains(r, '1000.00')
-        self.assertIn('run(0, \'Bulk send\')', r.content.decode())
-        self.assertIn('run(gapSec * 1000', r.content.decode())
+        self.assertContains(r, '>View<')
+        self.assertContains(r, reverse('invoice_pdf', args=[inv.pk]))
+        self.assertContains(r, 'target="_blank"')
+        from pathlib import Path
+        from django.conf import settings
+        js = (Path(settings.BASE_DIR) / 'invoice_app' / 'static' / 'invoice_app' / 'email_select_send.js').read_text(encoding='utf-8')
+        self.assertIn("run(0, 'Bulk send selected')", js)
+        self.assertIn("run(gapSec * 1000, 'Send selected')", js)
 
     def test_menu_link_present(self):
         r = self.client.get(reverse('dashboard'))
@@ -128,6 +144,7 @@ class InvoiceEmailPageTests(TestCase):
         self.assertTrue(mail.outbox[0].attachments)
         page = self.client.get(next_url)
         self.assertContains(page, 'Sent')
+        self.assertContains(page, '>Resend<')
         mail.outbox.clear()
         self.client.post(reverse('invoice_email_send', args=[inv.pk]), {'next': next_url})
         self.assertEqual(InvoiceEmailLog.objects.filter(invoice=inv, success=True).count(), 2)
@@ -143,6 +160,7 @@ class InvoiceEmailPageTests(TestCase):
             'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10',
         })
         self.assertContains(page, 'Not sent')
+        self.assertContains(page, '>Resend<')
 
     def test_missing_email_not_sent(self):
         inv = self._invoice(number='INV-NOMAIL', email='')
@@ -151,7 +169,7 @@ class InvoiceEmailPageTests(TestCase):
         self.assertEqual(len(mail.outbox), 0)
         self.assertFalse(InvoiceEmailLog.objects.get(invoice=inv).success)
 
-    def test_bulk_queue_and_json_skip(self):
+    def test_selected_send_contract_and_json(self):
         a = self._invoice(number='INV-A')
         b = self._invoice(number='INV-B', when=date(2026, 10, 20))
         c = Client.objects.create(name='No Mail Co', email='')
@@ -164,20 +182,22 @@ class InvoiceEmailPageTests(TestCase):
         )
         inv_c.refresh_from_db()
         IE.send_invoice(a)
-        period = report_periods.resolve_standard({
-            'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10',
-        })
-        queue = IE.bulk_queue(list(IE.invoices_for_period(period)))
-        self.assertEqual(queue['skipped_already_sent'], 1)
-        self.assertEqual(queue['skipped_no_email'], 1)
-        self.assertEqual(queue['pending_ids'], [b.pk])
         page = self.client.get(reverse('invoice_email'), {
             'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10', 'page_size': '5',
         })
-        self.assertContains(page, f'data-ids="{b.pk}"')
+        body = page.content.decode()
+        self.assertContains(page, 'Send selected (30s gap)')
+        self.assertContains(page, 'Bulk send selected')
+        self.assertNotContains(page, 'Send to all')
+        self.assertIn(f'data-all-ids="{inv_c.pk},{a.pk},{b.pk}"', body)
         mail.outbox.clear()
-        r = self.client.post(reverse('invoice_email_send_json', args=[a.pk]), {'skip_if_sent': '1'})
-        self.assertEqual(r.json()['status'], 'skipped')
-        self.assertEqual(len(mail.outbox), 0)
-        r2 = self.client.post(reverse('invoice_email_send_json', args=[b.pk]), {'skip_if_sent': '1'})
+        # Selected path resends already-sent
+        r = self.client.post(reverse('invoice_email_send_json', args=[a.pk]), {'skip_if_sent': '0'})
+        self.assertEqual(r.json()['status'], 'sent')
+        self.assertEqual(len(mail.outbox), 1)
+        mail.outbox.clear()
+        r2 = self.client.post(reverse('invoice_email_send_json', args=[b.pk]), {'skip_if_sent': '0'})
         self.assertEqual(r2.json()['status'], 'sent')
+        r3 = self.client.post(reverse('invoice_email_send_json', args=[inv_c.pk]), {'skip_if_sent': '0'})
+        self.assertEqual(r3.json()['status'], 'skipped')
+        self.assertEqual(r3.json()['reason'], 'no_email')

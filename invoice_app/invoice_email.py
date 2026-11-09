@@ -3,7 +3,7 @@
 Reuses employee_management.email_config (same Shared → Settings SMTP + send gap).
 """
 from django.core.mail import EmailMessage, get_connection
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import Exists, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from reporting import periods as report_periods
@@ -65,7 +65,11 @@ def invoices_for_period(period, search=''):
         .order_by('-sent_at')
         .values('sent_at')[:1]
     )
-    return qs.annotate(last_sent_at=Subquery(latest_ok))
+    any_attempt = InvoiceEmailLog.objects.filter(invoice_id=OuterRef('pk'))
+    return qs.annotate(
+        last_sent_at=Subquery(latest_ok),
+        email_attempted=Exists(any_attempt),
+    )
 
 
 def bulk_queue(invoices):

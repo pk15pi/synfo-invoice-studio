@@ -1,15 +1,55 @@
 """Section hub pages for the grouped navigation (read-only overviews across employees)."""
 import os
 import calendar
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db.models import Count, Q, Sum
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
+from reporting import periods as report_periods
+
 from .models import (Employee, EmployeeBankAccount, EmployeeDocument, EmployeePayroll, EmployeeSalaryStructure,
                      PayrollPeriod)
+
+PERIOD_PARAM_KEYS = (
+    'period_mode', 'calendar_year', 'calendar_month', 'fy', 'period_type',
+    'period_value', 'date_from', 'date_to',
+)
+
+
+def _has_period_params(params):
+    return any((params.get(key) or '').strip() for key in PERIOD_PARAM_KEYS)
+
+
+def _previous_month_params(ref=None):
+    today = ref or timezone.localdate()
+    if today.month == 1:
+        year, month = today.year - 1, 12
+    else:
+        year, month = today.year, today.month - 1
+    return {
+        'period_mode': 'calendar',
+        'calendar_year': str(year),
+        'calendar_month': str(month),
+    }
+
+
+def _export_fy_start(period, params):
+    """FY used by ZIP / Q1-Q4 export buttons for the current picker selection."""
+    mode = (params.get('period_mode') or '').strip()
+    raw_fy = (params.get('fy') or '').strip()
+    if mode == 'financial' or (raw_fy and mode not in ('calendar', 'custom')):
+        try:
+            fy = int(raw_fy)
+            if 1900 <= fy <= 9998:
+                return fy
+        except (TypeError, ValueError):
+            pass
+    # Calendar year / custom range: use the FY that contains the period end (Apr-Mar).
+    return report_periods.fy_start_year(period.end)
 
 HUB = 'employee_management/hub_table.html'
 
@@ -66,34 +106,42 @@ def salary_structures(request):
 
 
 def payslips(request):
+    """Payslips hub: standard period picker filters the list by salary month."""
+    if not _has_period_params(request.GET):
+        params = _previous_month_params()
+        if request.GET.get('page_size'):
+            params['page_size'] = request.GET.get('page_size')
+        return redirect(f"{reverse('em:payslips')}?{urlencode(params)}")
+
+    period = report_periods.resolve_standard(request.GET, default='current_fy')
+    months = period.months()
+    month_q = Q()
+    for year, month in months:
+        month_q |= Q(period__year=year, period__month=month)
+    qs = (
+        EmployeePayroll.objects.filter(month_q, status=EmployeePayroll.FINALIZED)
+        .select_related('period', 'employee')
+        .order_by('-period__year', '-period__month', 'snap_employee_code', '-revision')
+    )
+    rows = [
+        [_c(p.code, reverse('em:employee_detail', args=[p.employee_id])), _c(p.snap_name), _c(p.period.label),
+         _c(p.revision), _c('Current' if p.is_current else 'Superseded'), _c(f'{p.net_salary:.2f}'),
+         _c('PDF', reverse('em:payslip', args=[p.pk]))]
+        for p in qs
+    ]
+
     today = timezone.localdate()
-    current_fy = today.year if today.month >= 4 else today.year - 1
-    fy_choices = {current_fy}
-    for year, month in PayrollPeriod.objects.filter(
-            payrolls__status=EmployeePayroll.FINALIZED, payrolls__is_current=True
-    ).values_list('year', 'month').distinct():
-        fy_choices.add(year if month >= 4 else year - 1)
-    try:
-        fy_start = int(request.GET.get('fy', current_fy))
-    except (TypeError, ValueError):
-        fy_start = current_fy
-    if fy_start not in fy_choices:
-        fy_start = current_fy
+    current_fy = report_periods.fy_start_year(today)
+    fy_start = _export_fy_start(period, request.GET)
     fy_end = fy_start + 1
-    fy_label = f'FY {fy_start}-{str(fy_end)[-2:]}'
+    fy_label = report_periods.fy_label(fy_start)
 
-    fy_periods = Q(period__year=fy_start, period__month__gte=4) | Q(period__year=fy_end, period__month__lte=3)
-    qs = (EmployeePayroll.objects.filter(fy_periods, status=EmployeePayroll.FINALIZED)
-          .select_related('period', 'employee')
-          .order_by('-period__year', '-period__month', 'snap_employee_code', '-revision'))
-    rows = [[_c(p.code, reverse('em:employee_detail', args=[p.employee_id])), _c(p.snap_name), _c(p.period.label),
-             _c(p.revision), _c('Current' if p.is_current else 'Superseded'), _c(f'{p.net_salary:.2f}'),
-             _c('PDF', reverse('em:payslip', args=[p.pk]))] for p in qs]
-
-    periods = { (p.year, p.month): p for p in PayrollPeriod.objects.filter(
-        (Q(year=fy_start, month__gte=4) | Q(year=fy_end, month__lte=3)),
-        payrolls__status=EmployeePayroll.FINALIZED, payrolls__is_current=True
-    ).distinct() }
+    periods = {
+        (p.year, p.month): p for p in PayrollPeriod.objects.filter(
+            (Q(year=fy_start, month__gte=4) | Q(year=fy_end, month__lte=3)),
+            payrolls__status=EmployeePayroll.FINALIZED, payrolls__is_current=True,
+        ).distinct()
+    }
     month_exports = []
     last_month = today.month if fy_start == current_fy else 3
     last_year = today.year if fy_start == current_fy else fy_end
@@ -102,22 +150,40 @@ def payslips(request):
         month = (3 + offset) % 12 + 1
         if (year, month) > (last_year, last_month):
             break
-        period = periods.get((year, month))
-        month_exports.append({'label': f'{calendar.month_name[month]} {year}',
-                              'url': reverse('em:payslip_zip', args=[period.pk]) + '?finalized=1' if period else None})
+        payroll_period = periods.get((year, month))
+        month_exports.append({
+            'label': f'{calendar.month_name[month]} {year}',
+            'url': (
+                reverse('em:payslip_zip', args=[payroll_period.pk]) + '?finalized=1'
+                if payroll_period else None
+            ),
+        })
 
-    context = {'section': 'Payroll Management', 'title': 'Payslips',
-               'intro': 'Download finalized payslips by month or for the full financial year.',
-               'headers': ['ID', 'Name', 'Month', 'Revision', 'State', 'Net', ''], 'rows': rows,
-               'actions': [], 'fy_start': fy_start, 'fy_label': fy_label,
-               'fy_choices': [(year, f'FY {year}-{str(year + 1)[-2:]}')
-                              for year in sorted(fy_choices, reverse=True)], 'month_exports': month_exports,
-               'year_zip_url': reverse('em:payslip_year_zip', args=[fy_start]),
-               'quarter_exports': [
-                   {'label': f'Export Q{q}',
-                    'url': reverse('em:payslip_quarter_tds', args=[q]) + f'?fy={fy_start}'}
-                   for q in (1, 2, 3, 4)]}
+    # Carry standard picker params into Q1-Q4 links so fy stays explicit.
+    q_extra = f'?fy={fy_start}'
+    context = {
+        'section': 'Payroll Management',
+        'title': 'Payslips',
+        'intro': (
+            'Filter finalized payslips by salary month with the shared period picker, '
+            'then download monthly or full-year ZIPs and CA salary TDS Excel.'
+        ),
+        'headers': ['ID', 'Name', 'Month', 'Revision', 'State', 'Net', ''],
+        'rows': rows,
+        'actions': [],
+        'period': period,
+        'fy_start': fy_start,
+        'fy_label': fy_label,
+        'month_exports': month_exports,
+        'year_zip_url': reverse('em:payslip_year_zip', args=[fy_start]),
+        'quarter_exports': [
+            {'label': f'Export Q{q}', 'url': reverse('em:payslip_quarter_tds', args=[q]) + q_extra}
+            for q in (1, 2, 3, 4)
+        ],
+        'use_standard_period_filter': True,
+    }
     return render(request, HUB, context)
+
 
 
 def storage(request):

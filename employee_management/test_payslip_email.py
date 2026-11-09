@@ -1,4 +1,4 @@
-"""Email salary slips page, SMTP settings, send log, bulk send."""
+"""Email salary slips page, SMTP settings, send log, selected send."""
 import json
 import tempfile
 from datetime import date
@@ -106,7 +106,7 @@ class PayslipEmailPageTests(Base):
         self.assertContains(r, 'Q1')
 
     def test_page_renders_filters_buttons_and_rows(self):
-        self._slip(2026, 4)
+        slip_a = self._slip(2026, 4)
         self._slip(2026, 5)
         r = self.client.get(reverse('em:payslip_email'), {
             'period_mode': 'financial', 'fy': '2026', 'period_type': 'quarterly', 'period_value': 'Q1',
@@ -114,13 +114,26 @@ class PayslipEmailPageTests(Base):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'Filter by')
         self.assertContains(r, 'Financial year')
-        self.assertContains(r, 'Resend')
-        self.assertContains(r, 'Send to all')
-        self.assertContains(r, 'Bulk send')
+        self.assertContains(r, '>Send<')
+        self.assertContains(r, 'button qb-email-row-action primary')
+        self.assertContains(r, 'class="button primary"')
+        self.assertContains(r, 'class="button secondary"')
+        self.assertContains(r, 'qb-email-actions')
+        self.assertNotContains(r, 'Send to all')
+        self.assertNotContains(r, '>Bulk send<')
+        self.assertContains(r, 'Send selected (30s gap)')
+        self.assertContains(r, 'Bulk send selected')
         self.assertContains(r, 'data-gap="30"')
-        self.assertContains(r, 'data-ids="')
+        self.assertContains(r, 'data-all-ids="')
+        self.assertContains(r, 'id="qb-select-all"')
+        self.assertContains(r, 'aria-label="Select all"')
+        self.assertContains(r, 'class="qb-email-row"')
+        self.assertContains(r, 'email_select_send.js')
         self.assertContains(r, reverse('em:payslip_email_send_json', args=[0]).replace('/0/', '/__ID__/').split('__ID__')[0])
         self.assertContains(r, self.emp.employee_id)
+        self.assertContains(r, '>View<')
+        self.assertContains(r, reverse('em:payslip', args=[slip_a.pk]))
+        self.assertContains(r, 'target="_blank"')
         self.assertContains(r, 'Not sent')
         self.assertNotContains(r, 'ABCDE1234F')
         self.assertContains(r, 'page_size')
@@ -144,7 +157,8 @@ class PayslipEmailPageTests(Base):
         self.assertTrue(PayslipEmailLog.objects.filter(payroll=slip, success=True).exists())
         page = self.client.get(next_url)
         self.assertContains(page, 'Sent')
-        self.assertContains(page, 'Resend')
+        self.assertContains(page, '>Resend<')
+        self.assertNotContains(page, '>Send</button>')
         mail.outbox.clear()
         self.client.post(reverse('em:payslip_email_send', args=[slip.pk]), {'next': next_url})
         self.assertEqual(len(mail.outbox), 1)
@@ -162,6 +176,7 @@ class PayslipEmailPageTests(Base):
             'period_mode': 'financial', 'fy': '2026', 'period_type': 'monthly', 'period_value': '4',
         })
         self.assertContains(page, 'Not sent')
+        self.assertContains(page, '>Resend<')
 
     def test_missing_email_does_not_send(self):
         slip = self._slip(2026, 4, email='')
@@ -198,7 +213,7 @@ class PayslipEmailPageTests(Base):
         Path(self.cfg).write_text(json.dumps(stored), encoding='utf-8')
         self.assertEqual(EC.public_config()['send_gap_seconds'], 30)
 
-    def test_bulk_queue_skips_sent_and_missing_email_across_full_set(self):
+    def test_selected_send_contract_and_all_ids(self):
         a = self._slip(2026, 10, email='a@example.com')
         other = self.make_emp(first_name='Bina')
         b = self._slip(2026, 10, email='b@example.com', emp=other)
@@ -208,40 +223,57 @@ class PayslipEmailPageTests(Base):
         no_mail.personal_email = ''
         no_mail.save()
         PE.send_payslip(a)
-        period = report_periods.resolve_standard({
-            'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10',
-        })
-        queue = PE.bulk_queue(list(PE.slips_for_period(period)))
-        self.assertEqual(queue['skipped_already_sent'], 1)
-        self.assertEqual(queue['skipped_no_email'], 1)
-        self.assertEqual(queue['pending_ids'], [b.pk])
         page = self.client.get(reverse('em:payslip_email'), {
             'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10', 'page_size': '5',
         })
-        self.assertContains(page, f'data-ids="{b.pk}"')
+        body = page.content.decode()
         self.assertContains(page, 'data-gap="30"')
-        # Send to all uses gap; Bulk send documented as 0 via separate button (no data-gap override)
-        self.assertContains(page, 'id="qb-send-to-all"')
-        self.assertContains(page, 'id="qb-bulk-send"')
-        self.assertIn('run(gapSec * 1000', page.content.decode())
-        self.assertIn('run(0, \'Bulk send\')', page.content.decode())
+        self.assertContains(page, 'Send selected (30s gap)')
+        self.assertContains(page, 'Bulk send selected')
+        self.assertContains(page, 'id="qb-send-selected"')
+        self.assertContains(page, 'id="qb-bulk-send-selected"')
+        self.assertNotContains(page, 'id="qb-send-to-all"')
+        self.assertNotContains(page, 'Send to all')
+        self.assertIn(f'data-all-ids="{a.pk},{b.pk},{c.pk}"', body)
+        from pathlib import Path
+        from django.conf import settings
+        js = (Path(settings.BASE_DIR) / 'invoice_app' / 'static' / 'invoice_app' / 'email_select_send.js').read_text(encoding='utf-8')
+        self.assertIn("run(gapSec * 1000, 'Send selected')", js)
+        self.assertIn("run(0, 'Bulk send selected')", js)
+        self.assertIn("skip_if_sent: '0'", js)
 
-    def test_json_send_skip_if_sent_and_failure_not_marked(self):
+    def test_json_send_selected_resends_and_skips_missing_email(self):
         slip = self._slip(2026, 4)
         mail.outbox.clear()
-        r = self.client.post(reverse('em:payslip_email_send_json', args=[slip.pk]), {'skip_if_sent': '1'})
+        r = self.client.post(reverse('em:payslip_email_send_json', args=[slip.pk]), {'skip_if_sent': '0'})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['status'], 'sent')
         self.assertEqual(len(mail.outbox), 1)
         mail.outbox.clear()
-        r2 = self.client.post(reverse('em:payslip_email_send_json', args=[slip.pk]), {'skip_if_sent': '1'})
-        self.assertEqual(r2.json()['status'], 'skipped')
-        self.assertEqual(r2.json()['reason'], 'already_sent')
+        # Selected send deliberately resends already-sent rows
+        r2 = self.client.post(reverse('em:payslip_email_send_json', args=[slip.pk]), {'skip_if_sent': '0'})
+        self.assertEqual(r2.json()['status'], 'sent')
+        self.assertEqual(len(mail.outbox), 1)
+        # Optional skip_if_sent=1 still available
+        mail.outbox.clear()
+        r_skip = self.client.post(reverse('em:payslip_email_send_json', args=[slip.pk]), {'skip_if_sent': '1'})
+        self.assertEqual(r_skip.json()['status'], 'skipped')
+        self.assertEqual(r_skip.json()['reason'], 'already_sent')
+        self.assertEqual(len(mail.outbox), 0)
+        no_mail = self.make_emp(first_name='NoMail')
+        slip_ne = self._slip(2026, 6, email='', emp=no_mail)
+        no_mail.work_email = ''
+        no_mail.personal_email = ''
+        no_mail.save()
+        mail.outbox.clear()
+        r_ne = self.client.post(reverse('em:payslip_email_send_json', args=[slip_ne.pk]), {'skip_if_sent': '0'})
+        self.assertEqual(r_ne.json()['status'], 'skipped')
+        self.assertEqual(r_ne.json()['reason'], 'no_email')
         self.assertEqual(len(mail.outbox), 0)
         with mock.patch('employee_management.payslip_email.EmailMessage.send', side_effect=RuntimeError('boom')):
             other = self.make_emp(first_name='Dee')
             slip2 = self._slip(2026, 5, email='dee@example.com', emp=other)
             mail.outbox.clear()
-            r3 = self.client.post(reverse('em:payslip_email_send_json', args=[slip2.pk]), {'skip_if_sent': '1'})
+            r3 = self.client.post(reverse('em:payslip_email_send_json', args=[slip2.pk]), {'skip_if_sent': '0'})
         self.assertEqual(r3.json()['status'], 'failed')
         self.assertFalse(PayslipEmailLog.objects.filter(payroll=slip2, success=True).exists())

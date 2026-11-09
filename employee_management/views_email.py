@@ -22,7 +22,6 @@ def email_slips(request):
     period = PE.resolve_page_period(request.GET)
     search = (request.GET.get('q') or '').strip()
     rows = list(PE.slips_for_period(period, search=search))
-    queue = PE.bulk_queue(rows)
     pub = EC.public_config()
     return render(request, 'employee_management/payslip_email.html', {
         'period': period,
@@ -30,10 +29,7 @@ def email_slips(request):
         'search': search,
         'smtp_ready': pub['password_set'],
         'send_gap_seconds': pub['send_gap_seconds'],
-        'bulk_pending_ids': queue['pending_ids'],
-        'bulk_skipped_sent': queue['skipped_already_sent'],
-        'bulk_skipped_email': queue['skipped_no_email'],
-        'bulk_total': queue['total'],
+        'all_row_ids': [row.pk for row in rows],
         'send_json_url_template': reverse('em:payslip_email_send_json', args=[0]).replace('/0/', '/__ID__/'),
     })
 
@@ -73,7 +69,7 @@ def email_slip_send(request, rid):
 
 @require_POST
 def email_slip_send_json(request, rid):
-    """JSON send used by Send to all / Bulk send (sequential client POSTs)."""
+    """JSON send used by Send selected / Bulk send selected (sequential client POSTs)."""
     payroll = get_object_or_404(
         EmployeePayroll.objects.select_related('employee', 'period'),
         pk=rid, status=EmployeePayroll.FINALIZED, is_current=True,

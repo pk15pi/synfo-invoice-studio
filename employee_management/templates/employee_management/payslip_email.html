@@ -1,38 +1,38 @@
-{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}{% load ui_icons %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}{% load ui_icons %}{% load static %}
 {% block title %}Email salary slips &middot; QuantBud{% endblock %}
 {% block content %}
 <div class="page-heading"><p class="eyebrow">Payroll Management</p><h1>Email salary slips</h1>
-<p class="muted">Send finalized payslip PDFs to each employee&rsquo;s email. One row per employee and salary month. Resend is always available. Defaults to the previous calendar month.</p></div>
+<p class="muted">Send finalized payslip PDFs to each employee&rsquo;s email. One row per employee and salary month. Use Send the first time; after any attempt the button becomes Resend. Defaults to the previous calendar month.</p></div>
 {% if not smtp_ready %}<div class="message warning">Outgoing email password is not set yet. Open <a href="{% url 'em:settings' %}">Shared &rarr; Settings</a> and enter the Microsoft 365 password for <code>support@synfowebs.com</code> before sending.</div>{% endif %}
 <form method="get" class="qb-filter-form panel filters compact-filters" data-filter-form>
 {% include 'invoice_app/_standard_period_filter.html' %}
 <label class="compact-filter-label"><span>Search</span><input class="field" name="q" value="{{ search }}" placeholder="Name, EMP id, email"></label>
 {% filter_actions %}
 </form>
-<p class="muted">Period: <strong>{{ period.label }}</strong> ({{ period.range_text }}). Only finalized current payslips. From: support@synfowebs.com. Gap for Send to all: <strong>{{ send_gap_seconds }}</strong> s (change under Shared &rarr; Settings).</p>
+<p class="muted">Period: <strong>{{ period.label }}</strong> ({{ period.range_text }}). Only finalized current payslips. From: support@synfowebs.com. Gap for Send selected: <strong>{{ send_gap_seconds }}</strong> s (Shared &rarr; Settings).</p>
 <div class="panel">
 <div class="split" style="align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
-  <div class="filters" style="margin:0" id="qb-email-bulk"
+  <div class="qb-email-actions" id="qb-email-select"
        data-gap="{{ send_gap_seconds }}"
-       data-ids="{{ bulk_pending_ids|join:',' }}"
+       data-all-ids="{{ all_row_ids|join:',' }}"
        data-url-template="{{ send_json_url_template }}"
-       data-skipped-sent="{{ bulk_skipped_sent }}"
-       data-skipped-email="{{ bulk_skipped_email }}"
-       data-total="{{ bulk_total }}">
-    <button type="button" class="button primary" id="qb-send-to-all" {% if not bulk_pending_ids or not smtp_ready %}disabled{% endif %}>Send to all</button>
-    <button type="button" class="button secondary" id="qb-bulk-send" {% if not bulk_pending_ids or not smtp_ready %}disabled{% endif %}>Bulk send</button>
+       data-smtp-ready="{% if smtp_ready %}1{% else %}0{% endif %}">
+    <button type="button" class="button primary" id="qb-send-selected"{% if not smtp_ready %} disabled{% endif %}>Send selected ({{ send_gap_seconds }}s gap)</button>
+    <button type="button" class="button secondary" id="qb-bulk-send-selected"{% if not smtp_ready %} disabled{% endif %}>Bulk send selected</button>
     <button type="button" class="button secondary" id="qb-send-cancel" hidden>Cancel</button>
   </div>
-  <p class="muted" style="margin:0" id="qb-send-progress">
-    {% if bulk_pending_ids %}{{ bulk_pending_ids|length }} ready to send{% else %}No pending slips{% endif %}{% if bulk_skipped_sent %}; {{ bulk_skipped_sent }} already sent{% endif %}{% if bulk_skipped_email %}; {{ bulk_skipped_email }} missing email{% endif %}.
-  </p>
+  <p class="muted" style="margin:0" id="qb-send-progress">Select one or more rows to send.</p>
 </div>
 <div class="table-wrap"><table>
-<thead><tr><th>Employee ID</th><th>Name</th><th>Email</th><th>Salary month</th><th>Status</th><th>Last sent (IST)</th><th></th></tr></thead>
+<thead><tr>
+<th style="width:2.5rem"><input type="checkbox" id="qb-select-all" aria-label="Select all"{% if not all_row_ids %} disabled{% endif %}></th>
+<th>Employee ID</th><th>Name</th><th>Email</th><th>Salary month</th><th>Status</th><th>Last sent (IST)</th><th></th>
+</tr></thead>
 {% paginate rows as qb_pg1 %}<tbody>
 {% for p in qb_pg1 %}
 {% with email=p.employee.work_email|default:p.employee.personal_email %}
 <tr>
+<td><input type="checkbox" class="qb-email-row" value="{{ p.pk }}" aria-label="Select {{ p.code }} {{ p.period.label }}"></td>
 <td><a href="{% url 'em:employee_detail' p.employee_id %}">{{ p.code }}</a></td>
 <td>{{ p.snap_name }}</td>
 <td>{% if email %}{{ email }}{% else %}<span class="muted">No email on file</span>{% endif %}</td>
@@ -40,91 +40,15 @@
 <td>{% if p.last_sent_at %}<span class="badge">Sent</span>{% else %}<span class="muted">Not sent</span>{% endif %}</td>
 <td>{% if p.last_sent_at %}{{ p.last_sent_at|date:"d-m-Y H:i:s" }}{% else %}&mdash;{% endif %}</td>
 <td>
+<a class="button qb-email-row-action secondary" href="{% url 'em:payslip' p.pk %}" target="_blank" rel="noopener" title="Open this payslip PDF in a new tab.">View</a>
 <form method="post" action="{% url 'em:payslip_email_send' p.pk %}" style="display:inline">{% csrf_token %}
 <input type="hidden" name="next" value="{{ request.get_full_path }}">
-<button class="button secondary" type="submit" title="Generate the payslip PDF and email it to this employee.">Resend</button>
+<button class="button qb-email-row-action {% if p.email_attempted %}secondary{% else %}primary{% endif %}" type="submit" title="Generate the payslip PDF and email it to this employee.">{% if p.email_attempted %}Resend{% else %}Send{% endif %}</button>
 </form>
 </td>
 </tr>
 {% endwith %}
-{% empty %}<tr><td colspan="7" class="empty">No finalized payslips in this period.</td></tr>{% endfor %}
+{% empty %}<tr><td colspan="8" class="empty">No finalized payslips in this period.</td></tr>{% endfor %}
 </tbody></table>{% pager qb_pg1 %}</div></div>
-<script>
-(() => {
-  const root = document.getElementById('qb-email-bulk');
-  if (!root) return;
-  const progress = document.getElementById('qb-send-progress');
-  const btnAll = document.getElementById('qb-send-to-all');
-  const btnBulk = document.getElementById('qb-bulk-send');
-  const btnCancel = document.getElementById('qb-send-cancel');
-  const csrf = document.querySelector('input[name=csrfmiddlewaretoken]')?.value
-    || document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('csrftoken='))?.split('=')[1];
-  let cancelled = false;
-  const ids = (root.dataset.ids || '').split(',').map(s => s.trim()).filter(Boolean);
-  const gapSec = Math.max(0, parseInt(root.dataset.gap || '30', 10) || 0);
-  const urlTemplate = root.dataset.urlTemplate || '';
-  const skippedSent = parseInt(root.dataset.skippedSent || '0', 10) || 0;
-  const skippedEmail = parseInt(root.dataset.skippedEmail || '0', 10) || 0;
-
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-  async function sendOne(id) {
-    const url = urlTemplate.replace('__ID__', String(id));
-    const body = new URLSearchParams({ skip_if_sent: '1' });
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrf || '',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body,
-      credentials: 'same-origin',
-    });
-    return resp.json();
-  }
-
-  async function run(gapMs, label) {
-    if (!ids.length) return;
-    cancelled = false;
-    btnAll.disabled = true;
-    btnBulk.disabled = true;
-    btnCancel.hidden = false;
-    let sent = 0, failed = 0, skipped = 0;
-    for (let i = 0; i < ids.length; i++) {
-      if (cancelled) break;
-      progress.textContent = `${label}: sending ${i + 1} of ${ids.length}…`;
-      try {
-        const result = await sendOne(ids[i]);
-        if (result.status === 'sent') sent += 1;
-        else if (result.status === 'skipped') skipped += 1;
-        else failed += 1;
-      } catch (err) {
-        failed += 1;
-      }
-      if (cancelled) break;
-      if (gapMs > 0 && i < ids.length - 1) {
-        progress.textContent = `${label}: waiting ${gapMs / 1000}s before next (${i + 1}/${ids.length} done)…`;
-        await sleep(gapMs);
-      }
-    }
-    const stopped = cancelled ? ' (cancelled)' : '';
-    progress.textContent = `${label} finished${stopped}: ${sent} sent, ${failed} failed, ${skipped} skipped this run; ${skippedSent} already sent, ${skippedEmail} missing email. Reloading…`;
-    btnCancel.hidden = true;
-    setTimeout(() => location.reload(), 800);
-  }
-
-  btnAll?.addEventListener('click', () => {
-    if (!ids.length) return;
-    if (!confirm(`Send salary slips to ${ids.length} employee(s), waiting ${gapSec} second(s) between each? Already-sent and missing-email rows are skipped.`)) return;
-    run(gapSec * 1000, 'Send to all');
-  });
-  btnBulk?.addEventListener('click', () => {
-    if (!ids.length) return;
-    if (!confirm(`Bulk send salary slips to ${ids.length} employee(s) with NO delay between messages? Sending immediately may increase the chance emails land in junk.`)) return;
-    run(0, 'Bulk send');
-  });
-  btnCancel?.addEventListener('click', () => { cancelled = true; progress.textContent = 'Cancelling after the current email…'; });
-})();
-</script>
+<script src="{% static 'invoice_app/email_select_send.js' %}"></script>
 {% endblock %}

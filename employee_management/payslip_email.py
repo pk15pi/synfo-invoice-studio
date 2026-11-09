@@ -2,7 +2,7 @@
 from datetime import date
 
 from django.core.mail import EmailMessage, get_connection
-from django.db.models import OuterRef, Q, Subquery
+from django.db.models import Exists, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from reporting import periods as report_periods
@@ -68,7 +68,11 @@ def slips_for_period(period, search=''):
         .order_by('-sent_at')
         .values('sent_at')[:1]
     )
-    return qs.annotate(last_sent_at=Subquery(latest_ok))
+    any_attempt = PayslipEmailLog.objects.filter(payroll_id=OuterRef('pk'))
+    return qs.annotate(
+        last_sent_at=Subquery(latest_ok),
+        email_attempted=Exists(any_attempt),
+    )
 
 
 def bulk_queue(slips):
