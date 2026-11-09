@@ -440,12 +440,12 @@ _add("exp:claims", "Employee expense claims", "Review employee-submitted reimbur
      ["Filter the list by employee, date or status.", "Open a claim to review amount, purpose and attachments.", "Use the review queue for approval and reimbursement steps."],
      rules=["A claim is not reimbursed until the payment action is recorded. Check receipts and business purpose."],
      related=["Claim review, employee records, reimbursement payments and accounting."])
-_add("exp:claim_new exp:claim_edit", "Submit or edit employee expense claim", "Record an employee-paid business cost for review.",
+_add("exp:claim_new exp:claim_edit", "Add Employee Claim", "Record an employee-paid business cost for review.",
      "The claim workflow separates employee submission from approval and reimbursement.",
      ["Enter the purchase date, category, amount and business purpose.", "Add vendor/reference details and attach a receipt.", "Save or submit the claim for review."],
      rules=["Use actual out-of-pocket costs and a supporting receipt. Do not submit company-paid purchases as employee claims."],
      related=["Employee claim list, review queue and reimbursement payment."])
-_add("exp:review", "Review employee claims", "Check submitted claims and take the available approval or return action.",
+_add("exp:review", "Review Employee Claim", "Check submitted claims and take the available approval or return action.",
      "The review queue supports claim decisions before reimbursement.",
      ["Open each claim and inspect its receipt and business purpose.", "Compare date, category and amount with policy.", "Approve, reject or return using the available action and record a clear reason if requested."],
      rules=["Approval alone is not payment; reimbursement must be recorded separately."],
@@ -836,7 +836,7 @@ NON_PAGE_ROUTES = {
     "att:application_action", "att:carry_forward", "att:register_export", "att:balances_export", "exp:expense_payment",
     "exp:expense_cancel", "exp:expense_finalize", "geo_states", "geo_districts", "business_logo", "exp:expense_attach", "exp:claim_action", "exp:claim_reimburse", "exp:claim_attach",
     "exp:att_view", "exp:att_download", "exp:att_replace", "exp:att_delete", "exp:vendor_toggle", "exp:category_toggle",
-    "exp:category_delete", "exp:vendor_quick_add", "client_document", "client_delete", "client_toggle", "project_toggle",
+    "exp:category_delete", "exp:vendor_quick_add", "client_document", "client_delete", "client_toggle", "client_toggle_email", "project_toggle",
     "project_delete", "description_template_toggle", "description_template_delete", "format_template_preview",
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
     "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json", "invoice_email_template_delete", "email_template_delete", "email_template_set_salary_default",

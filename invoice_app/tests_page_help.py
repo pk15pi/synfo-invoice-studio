@@ -77,3 +77,9 @@ class ApplicationPageHelpTests(TestCase):
         self.assertTrue(context["page_help_missing"])
         self.assertIsNone(context["page_help_guide"])
 
+
+class ExpenseClaimHelpTitleTests(TestCase):
+    def test_claim_add_and_review_help_titles(self):
+        self.assertEqual(PAGE_GUIDES["exp:claim_new"]["title"], "Add Employee Claim")
+        self.assertEqual(PAGE_GUIDES["exp:claim_edit"]["title"], "Add Employee Claim")
+        self.assertEqual(PAGE_GUIDES["exp:review"]["title"], "Review Employee Claim")

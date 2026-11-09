@@ -1,13 +1,12 @@
 {% load filter_ui %}<form method="get" class="qb-filter-form panel pr-filters daily-brief-filters" data-filter-form>
   {% include 'invoice_app/_standard_period_filter.html' %}
-  {% if week_prev_url and week_next_url %}
-  <span class="compact-filter-label daily-brief-week-nav"><span>Week</span>
-    <span class="segmented" aria-label="Week navigation">
-      <a href="{{ week_prev_url }}">Previous</a>
-      <a href="{{ week_next_url }}">Next</a>
-    </span>
-  </span>
-  {% endif %}
+  <label class="compact-filter-label" data-brief-optional-month{% if not show_optional_fy_month %} hidden{% endif %}>
+    <span>Month</span>
+    <select class="field" name="optional_month" data-combo="brief-optional-month" data-brief-optional-month-select{% if not show_optional_fy_month %} disabled{% endif %}>
+      <option value="">All months</option>
+      {% for value,label in standard_fy_month_choices %}<option value="{{ value }}"{% if optional_month == value|stringformat:"s" %} selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </label>
   <label>Recruiter
     <select class="field" name="recruiter" data-combo="daily-brief-recruiter-filter"><option value="">All recruiters</option>{% for employee in recruiters %}<option value="{{ employee.pk }}"{% if selected_recruiter == employee.pk|stringformat:'s' %} selected{% endif %}>{{ employee.employee_id }} — {{ employee.full_name }}</option>{% endfor %}</select>
   </label>
@@ -17,3 +16,24 @@
   {% filter_actions %}
   <span class="muted daily-brief-period-label">Showing {{ period.label }}</span>
 </form>
+<script>
+(() => {
+  const form = document.querySelector('.daily-brief-filters');
+  if (!form) return;
+  const mode = form.querySelector('[data-period-mode]');
+  const type = form.querySelector('[data-period-type]');
+  const wrap = form.querySelector('[data-brief-optional-month]');
+  const sel = form.querySelector('[data-brief-optional-month-select]');
+  if (!mode || !wrap || !sel) return;
+  const sync = () => {
+    const m = mode.value || 'financial';
+    const t = (type && type.value) || 'full_fy';
+    const on = m !== 'calendar' && m !== 'custom' && m !== 'weekly' && t === 'full_fy';
+    wrap.hidden = !on;
+    sel.disabled = !on;
+  };
+  mode.addEventListener('change', sync);
+  if (type) type.addEventListener('change', sync);
+  sync();
+})();
+</script>

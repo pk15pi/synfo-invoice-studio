@@ -1,5 +1,5 @@
-{% extends 'expense_management/xm_base.html' %}{% block xm_title %}{% if claim %}Edit {{ claim.claim_id }}{% else %}New employee claim{% endif %}{% endblock %}{% block xm %}
-<div class="page-heading split"><div><p class="eyebrow">Employee claims</p><h1>{% if claim %}Edit {{ claim.claim_id }}{% else %}New employee expense claim{% endif %}</h1></div><div><a class="button secondary" href="{% if claim %}{% url 'exp:claim_detail' claim.pk %}{% else %}{% url 'exp:claims' %}{% endif %}">Back</a></div></div>
+{% extends 'expense_management/xm_base.html' %}{% load static %}{% block xm_title %}{% if claim %}Edit {{ claim.claim_id }}{% else %}Add Employee Claim{% endif %}{% endblock %}{% block xm %}
+<div class="page-heading split"><div><p class="eyebrow">Employee claims</p><h1>{% if claim %}Edit {{ claim.claim_id }}{% else %}Add Employee Claim{% endif %}</h1></div><div><a class="button secondary" href="{% if claim %}{% url 'exp:claim_detail' claim.pk %}{% else %}{% url 'exp:claims' %}{% endif %}">Back</a></div></div>
 {% if claim.returned_for_correction %}<div class="xm-warn">This claim was returned for correction: {{ claim.review_remarks }}</div>{% endif %}
 <form class="panel" method="post" enctype="multipart/form-data">{% csrf_token %}{% include 'expense_management/_form_errors.html' %}
 <div class="form-grid"><h3 class="xm-section">Employee</h3>
@@ -25,4 +25,5 @@
 const EMP={ {% for e in employees %}"{{ e.pk }}":["{{ e.employee_id|escapejs }}","{{ e.department.name|escapejs }}","{{ e.designation|escapejs }}"],{% endfor %} };
 (function(){const s=document.getElementById('id_employee');function f(){const d=EMP[s.value]||['','',''];['emp-code','emp-dept','emp-desig'].forEach((id,i)=>document.getElementById(id).value=d[i]);}s.addEventListener('change',f);f();})();
 </script>
+<script src="{% static 'invoice_app/combobox.js' %}"></script>
 {% include 'expense_management/_linkjs.html' %}{% endblock %}

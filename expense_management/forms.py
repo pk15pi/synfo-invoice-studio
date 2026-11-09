@@ -44,6 +44,39 @@ def _link_fields(form):
         form.fields['department'].queryset = Department.objects.all()
 
 
+def _combo_selects(form):
+    """Mark every <select> for the searchable combobox (strict: only existing options)."""
+    for name, field in form.fields.items():
+        if isinstance(field.widget, (forms.Select, forms.SelectMultiple)):
+            field.widget.attrs.setdefault("data-combo", name)
+
+
+def _prior_period_ui(form):
+    """Help text on the checkbox; enable Relates-to-FY / note only when prior-period is ticked."""
+    if "is_prior_period" not in form.fields:
+        return
+    form.fields["is_prior_period"].help_text = (
+        "Tick if this cost belongs to an earlier financial year "
+        "(e.g. a last-year bill paid now). It still posts on the expense date "
+        "but goes to the Prior-period expense account and is shown separately in reports."
+    )
+    if form.is_bound:
+        prior_on = form.add_prefix("is_prior_period") in form.data
+    else:
+        prior_on = bool(getattr(form.instance, "is_prior_period", False))
+    for name in ("relates_to_fy", "prior_period_note"):
+        if name in form.fields:
+            form.fields[name].disabled = not prior_on
+
+
+def _clear_prior_period_fields(cleaned):
+    """Disabled fields do not POST; always clear FY/note when prior-period is unticked."""
+    if not cleaned.get("is_prior_period"):
+        cleaned["relates_to_fy"] = None
+        cleaned["prior_period_note"] = ""
+    return cleaned
+
+
 class CompanyExpenseForm(StyledForm):
     class Meta:
         model = CompanyExpense
@@ -72,6 +105,8 @@ class CompanyExpenseForm(StyledForm):
         self.fields['exchange_rate'].widget.attrs.update(step='0.0001', min='0')
         self.fields['total_amount'].help_text = 'Auto = before tax + GST + other taxes - discount (or enter directly).'
         self.fields['cgst_amount'].help_text = 'Optional split for the GST report.'
+        _combo_selects(self)
+        _prior_period_ui(self)
 
     def clean(self):
         d = super().clean()
@@ -81,6 +116,10 @@ class CompanyExpenseForm(StyledForm):
             if d.get(f) is None:
                 d[f] = ZERO
                 setattr(self.instance, f, ZERO)
+        d = _clear_prior_period_fields(d)
+        if not d.get('is_prior_period'):
+            self.instance.relates_to_fy = None
+            self.instance.prior_period_note = ''
         return d
 
 
@@ -131,6 +170,16 @@ class ClaimForm(StyledForm):
         self.fields['employee'].queryset = eq.select_related('department')
         self.fields['amount_claimed'].widget.attrs.update(step='0.01', min='0.01')
         self.fields['exchange_rate'].widget.attrs.update(step='0.0001', min='0')
+        _combo_selects(self)
+        _prior_period_ui(self)
+
+    def clean(self):
+        d = super().clean()
+        d = _clear_prior_period_fields(d)
+        if not d.get('is_prior_period'):
+            self.instance.relates_to_fy = None
+            self.instance.prior_period_note = ''
+        return d
 
 
 class VendorForm(StyledForm):

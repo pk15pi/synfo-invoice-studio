@@ -352,35 +352,92 @@ class DailyBriefTests(TestCase):
         self.assertEqual(brief.achieved, 2)
         self.assertEqual(brief.total_jds_submitted, 1)
 
-    def test_weekly_period_mode_iso_monday_sunday_and_achieved_chart_buckets(self):
-        # Wednesday 2026-04-08 is ISO week 2026-W15 (Mon 6 Apr – Sun 12 Apr).
-        inside = self.make_brief(activity_date=date(2026, 4, 8), rows=[('W-1', 4)])
-        inside.achieved = 5
-        inside.save(update_fields=['achieved'])
-        outside = self.make_brief(activity_date=date(2026, 4, 13), rows=[('W-2', 9)])
-        outside.achieved = 7
-        outside.save(update_fields=['achieved'])
-        period = daily_brief_period_bounds({'period_mode': 'weekly', 'week': '2026-W15'})
-        self.assertEqual(period['start'], date(2026, 4, 6))
-        self.assertEqual(period['end'], date(2026, 4, 12))
-        self.assertEqual(period['period'], 'week')
-        briefs, details = daily_brief_filtered_querysets(period, {})
-        self.assertEqual(briefs.count(), 1)
-        result = daily_brief_analytics(period, briefs, details)
-        self.assertEqual(result['total_achieved'], 5)
-        self.assertEqual(len(result['charts']), 8)
-        # Seven day-wise labels Mon–Sun
-        self.assertEqual(len([c for c in result['charts'] if c[2] == 'daily_achieved']), 1)
-        # Page exposes Weekly opt-in and week navigation
+    def test_year_month_and_week_of_month_chart_buckets(self):
+        """Year → 12 month buckets; optional month → Week 1..N; blank month = all months; custom stays daily."""
+        # Sparse activity across Apr and May 2026.
+        a = self.make_brief(activity_date=date(2026, 4, 3), rows=[('Y-1', 2)])  # Week 1
+        a.achieved = 1
+        a.save(update_fields=['achieved'])
+        b = self.make_brief(activity_date=date(2026, 4, 20), rows=[('Y-2', 3)])  # Week 3
+        b.achieved = 2
+        b.save(update_fields=['achieved'])
+        c = self.make_brief(activity_date=date(2026, 5, 10), rows=[('Y-3', 4)])
+        c.achieved = 3
+        c.save(update_fields=['achieved'])
+
+        # Calendar year, blank month → 12 month buckets including zeros.
+        year = daily_brief_period_bounds({'period_mode': 'calendar', 'calendar_year': '2026'})
+        self.assertEqual(year['start'], date(2026, 1, 1))
+        self.assertEqual(year['end'], date(2026, 12, 31))
+        briefs, details = daily_brief_filtered_querysets(year, {})
+        result = daily_brief_analytics(year, briefs, details)
+        self.assertEqual(result['bucket_mode'], 'month')
+        self.assertEqual(len(result['bucket_labels']), 12)
+        self.assertEqual(result['bucket_labels'][0], 'Jan 2026')
+        self.assertEqual(result['bucket_labels'][3], 'Apr 2026')
+        self.assertEqual(result['bucket_labels'][-1], 'Dec 2026')
+        self.assertEqual(result['total_achieved'], 6)
+        self.assertEqual(result['total_jds'], 3)
+
+        # Calendar year + April → week-of-month buckets (days 1–7, 8–14, …).
+        april = daily_brief_period_bounds({
+            'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '4'})
+        self.assertEqual(april['start'], date(2026, 4, 1))
+        self.assertEqual(april['end'], date(2026, 4, 30))
+        briefs, details = daily_brief_filtered_querysets(april, {})
+        result = daily_brief_analytics(april, briefs, details)
+        self.assertEqual(result['bucket_mode'], 'week_of_month')
+        self.assertEqual(result['bucket_labels'], ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5'])
+        self.assertEqual(result['total_jds'], 2)
+        self.assertEqual(result['total_achieved'], 3)
+        # Week 1 has Apr 3; Week 3 has Apr 20; May excluded.
+        achieved_chart = next(ch for ch in result['charts'] if ch[2] == 'daily_achieved')
+        self.assertIn('Weekly selections achieved', achieved_chart[0])
+
+        # FY full year + blank optional month → Apr–Mar month buckets.
+        fy = daily_brief_period_bounds({
+            'period_mode': 'financial', 'period_type': 'full_fy', 'fy': '2026'})
+        briefs, details = daily_brief_filtered_querysets(fy, {})
+        result = daily_brief_analytics(fy, briefs, details)
+        self.assertEqual(result['bucket_mode'], 'month')
+        self.assertEqual(len(result['bucket_labels']), 12)
+        self.assertEqual(result['bucket_labels'][0], 'Apr 2026')
+        self.assertEqual(result['bucket_labels'][-1], 'Mar 2027')
+
+        # FY + optional_month=4 → April week buckets.
+        fy_apr = daily_brief_period_bounds({
+            'period_mode': 'financial', 'period_type': 'full_fy', 'fy': '2026', 'optional_month': '4'})
+        self.assertEqual(fy_apr['start'], date(2026, 4, 1))
+        self.assertEqual(fy_apr['end'], date(2026, 4, 30))
+        briefs, details = daily_brief_filtered_querysets(fy_apr, {})
+        result = daily_brief_analytics(fy_apr, briefs, details)
+        self.assertEqual(result['bucket_mode'], 'week_of_month')
+        self.assertEqual(len(result['bucket_labels']), 5)
+
+        # Custom range stays day-wise.
+        custom = daily_brief_period_bounds({
+            'period_mode': 'custom', 'date_from': '2026-04-01', 'date_to': '2026-04-03'})
+        briefs, details = daily_brief_filtered_querysets(custom, {})
+        result = daily_brief_analytics(custom, briefs, details)
+        self.assertEqual(result['bucket_mode'], 'day')
+        self.assertEqual(result['bucket_labels'], ['01 Apr', '02 Apr', '03 Apr'])
+
+        # Analytics page: weekly mode gone; optional month + calendar month present; combo attrs.
         page = self.client.get(reverse('performance_review:daily_brief_analytics'), {
-            'period_mode': 'weekly', 'week': '2026-W15',
-        })
+            'period_mode': 'calendar', 'calendar_year': '2026'})
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, 'value="weekly"')
-        self.assertContains(page, 'type="week"')
-        self.assertContains(page, 'Daily selections achieved (total 5)')
-        self.assertContains(page, 'Previous')
-        self.assertContains(page, 'Next')
-        self.assertTrue(page.context['standard_period_include_weekly'])
-        self.assertIn('2026-W14', page.context['week_prev_url'])
-        self.assertIn('2026-W16', page.context['week_next_url'])
+        self.assertFalse(page.context['standard_period_include_weekly'])
+        self.assertNotContains(page, 'value="weekly"')
+        self.assertNotContains(page, 'Previous')
+        body = page.content.decode()
+        self.assertIn('name="calendar_month"', body)
+        self.assertIn('All months', body)
+        self.assertIn('data-combo="period-calendar-month"', body)
+        fy_page = self.client.get(reverse('performance_review:daily_brief_analytics'), {
+            'period_mode': 'financial', 'period_type': 'full_fy', 'fy': '2026'})
+        self.assertContains(fy_page, 'name="optional_month"')
+        self.assertContains(fy_page, 'data-combo="brief-optional-month"')
+        # Records page also no longer opts into weekly.
+        records = self.client.get(reverse('performance_review:daily_brief_records'))
+        self.assertFalse(records.context['standard_period_include_weekly'])
+        self.assertNotContains(records, 'value="weekly"')

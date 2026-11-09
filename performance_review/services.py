@@ -317,14 +317,33 @@ def daily_brief_period_bounds(params=None, settings=None):
         from reporting import periods as shared_periods
         chosen = shared_periods.resolve(params)
         start_fy = shared_periods.fy_start_year(chosen.start)
+        # Optional Month on a full financial year (Daily Brief): blank = all months, else that month.
+        opt = (params.get('optional_month') or '').strip()
+        ptype = (params.get('period_type') or 'full_fy').strip().lower()
+        if ((params.get('period_mode') or '').strip() == 'financial' and ptype == 'full_fy' and opt.isdigit()):
+            try:
+                m = int(opt)
+                if 1 <= m <= 12:
+                    fy = int(params.get('fy') or start_fy)
+                    y = fy if m >= 4 else fy + 1
+                    keep = dict(chosen.params)
+                    keep['optional_month'] = opt
+                    chosen = shared_periods.Period(
+                        date(y, m, 1), shared_periods.month_end(y, m),
+                        date(y, m, 1).strftime('%B %Y'), 'month', 'month', keep)
+                    start_fy = shared_periods.fy_start_year(chosen.start)
+            except (TypeError, ValueError):
+                pass
         return {
             'period': chosen.key, 'start': chosen.start, 'end': chosen.end, 'label': chosen.label,
+            'kind': chosen.kind,
             'year': chosen.start.year, 'month': chosen.start.month, 'fy_year': start_fy,
             'quarter': 1, 'half': 1, 'reference_date': chosen.start.isoformat(),
             'fy_start_label': calendar.month_name[4],
             'from_date': chosen.start.isoformat(), 'to_date': chosen.end.isoformat(),
             'period_choices': [], 'month_choices': [(n, calendar.month_name[n]) for n in range(1, 13)],
             'quarter_choices': range(1, 5), 'half_choices': (1, 2),
+            'optional_month': (params.get('optional_month') or '').strip(),
         }
     settings = settings or PerformanceSettings.current()
     today = timezone.localdate()
@@ -387,12 +406,15 @@ def daily_brief_period_bounds(params=None, settings=None):
         end = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
         label = start.strftime('%B %Y')
 
+    kind = {'selected_year': 'year', 'weekly': 'week', 'monthly': 'month', 'quarterly': 'quarter',
+            'half_yearly': 'half', 'yearly': 'fy', 'custom': 'days'}.get(mode, 'days')
     return {
-        'period': mode, 'start': start, 'end': end, 'label': label,
+        'period': mode, 'start': start, 'end': end, 'label': label, 'kind': kind,
         'year': year, 'month': month, 'fy_year': fy_year, 'quarter': quarter, 'half': half,
         'reference_date': reference_date.isoformat(),
         'fy_start_label': calendar.month_name[start_month],
         'from_date': params.get('from_date', ''), 'to_date': params.get('to_date', ''),
+        'optional_month': '',
         'period_choices': [
             ('selected_year', 'Calendar year'), ('weekly', 'Weekly'), ('fifteen_days', '15 days'),
             ('monthly', 'Monthly'), ('quarterly', 'Quarterly (financial year)'),
@@ -427,6 +449,69 @@ def daily_brief_filtered_querysets(period, params):
     return briefs, details.select_related('daily_brief__recruiter')
 
 
+def _daily_brief_bucket_mode(period):
+    """day = custom/short ranges; month = full year/FY/multi-month; week_of_month = one calendar month."""
+    start, end = period['start'], period['end']
+    kind = period.get('kind') or ''
+    key = period.get('period') or ''
+    if key in ('custom',) or kind == 'days':
+        return 'day'
+    if (start.year, start.month) == (end.year, end.month) and start.day == 1 and end == date(
+            end.year, end.month, calendar.monthrange(end.year, end.month)[1]):
+        return 'week_of_month'
+    if start.day == 1 and end == date(end.year, end.month, calendar.monthrange(end.year, end.month)[1]):
+        return 'month'
+    return 'day'
+
+
+def _daily_brief_trend_buckets(period, trend_map, achieved_map):
+    """Build chart labels + series for day / calendar-month / week-of-month buckets (zeros included)."""
+    mode = _daily_brief_bucket_mode(period)
+    labels, jds, resumes, achieved = [], [], [], []
+
+    def add_day(d):
+        row = trend_map.get(d, {})
+        return row.get('jds', 0) or 0, row.get('resumes', 0) or 0, achieved_map.get(d, 0) or 0
+
+    if mode == 'month':
+        y, m = period['start'].year, period['start'].month
+        while (y, m) <= (period['end'].year, period['end'].month):
+            labels.append(date(y, m, 1).strftime('%b %Y'))
+            last = calendar.monthrange(y, m)[1]
+            jj = rr = aa = 0
+            for day in range(1, last + 1):
+                d = date(y, m, day)
+                if period['start'] <= d <= period['end']:
+                    j, r, a = add_day(d)
+                    jj += j; rr += r; aa += a
+            jds.append(jj); resumes.append(rr); achieved.append(aa)
+            if m == 12:
+                y, m = y + 1, 1
+            else:
+                m += 1
+    elif mode == 'week_of_month':
+        y, m = period['start'].year, period['start'].month
+        last = calendar.monthrange(y, m)[1]
+        n_weeks = (last - 1) // 7 + 1
+        for w in range(1, n_weeks + 1):
+            d0, d1 = (w - 1) * 7 + 1, min(w * 7, last)
+            labels.append(f'Week {w}')
+            jj = rr = aa = 0
+            for day in range(d0, d1 + 1):
+                j, r, a = add_day(date(y, m, day))
+                jj += j; rr += r; aa += a
+            jds.append(jj); resumes.append(rr); achieved.append(aa)
+    else:
+        current = period['start']
+        while current <= period['end']:
+            labels.append(current.strftime('%d %b'))
+            j, r, a = add_day(current)
+            jds.append(j); resumes.append(r); achieved.append(a)
+            current += timedelta(days=1)
+    return labels, jds, resumes, achieved, mode
+
+
+
 def daily_brief_analytics(period, briefs, details):
     """Aggregate exclusively from DailyBrief and DailyBriefJDDetail records."""
     from employee_management.models import Employee
@@ -451,15 +536,8 @@ def daily_brief_analytics(period, briefs, details):
     trend_map = {row['daily_brief__activity_date']: row for row in trend_rows}
     achieved_rows = briefs.values('activity_date').annotate(achieved=Sum('achieved'))
     achieved_map = {row['activity_date']: row['achieved'] or 0 for row in achieved_rows}
-    labels, daily_jds, daily_resumes, daily_achieved = [], [], [], []
-    current = period['start']
-    while current <= period['end']:
-        labels.append(current.strftime('%d %b'))
-        row = trend_map.get(current, {})
-        daily_jds.append(row.get('jds', 0))
-        daily_resumes.append(row.get('resumes', 0))
-        daily_achieved.append(achieved_map.get(current, 0))
-        current += timedelta(days=1)
+    labels, daily_jds, daily_resumes, daily_achieved, bucket_mode = _daily_brief_trend_buckets(
+        period, trend_map, achieved_map)
 
     recruiter_rows = details.values('daily_brief__recruiter_id').annotate(
         jds=Count('pk'), resumes=Sum('total_resumes_submitted')).order_by('daily_brief__recruiter_id')
@@ -479,13 +557,25 @@ def daily_brief_analytics(period, briefs, details):
     resumes_by_recruiter = [row['resumes'] for row in comparison]
     shares = [round(value / total_jds * 100, 2) if total_jds else 0 for value in jds_by_recruiter]
 
+    if bucket_mode == 'month':
+        jd_title, resume_title, ach_prefix = (
+            'Monthly JD submission trend', 'Monthly resume submission trend', 'Monthly selections achieved')
+        jd_series, resume_series = 'JDs submitted', 'Resumes submitted'
+    elif bucket_mode == 'week_of_month':
+        jd_title, resume_title, ach_prefix = (
+            'Weekly JD submission trend', 'Weekly resume submission trend', 'Weekly selections achieved')
+        jd_series, resume_series = 'JDs submitted', 'Resumes submitted'
+    else:
+        jd_title, resume_title, ach_prefix = (
+            'Daily JD submission trend', 'Daily resume submission trend', 'Daily selections achieved')
+        jd_series, resume_series = 'Daily JDs submitted', 'Daily resumes submitted'
     charts_data = [
-        ('Daily JD submission trend', charts.line(labels, [daily_jds], 'Daily JDs submitted', money=False), 'daily_jds'),
-        ('Daily resume submission trend', charts.line(labels, [daily_resumes], 'Daily resumes submitted', money=False), 'daily_resumes'),
-        (f'Daily selections achieved (total {total_achieved})',
+        (jd_title, charts.line(labels, [daily_jds], jd_series, money=False), 'daily_jds'),
+        (resume_title, charts.line(labels, [daily_resumes], resume_series, money=False), 'daily_resumes'),
+        (f'{ach_prefix} (total {total_achieved})',
          charts.line(
              labels, [daily_achieved],
-             f'Daily selections achieved (total {total_achieved})',
+             f'{ach_prefix} (total {total_achieved})',
              money=False,
          ),
          'daily_achieved'),
@@ -504,4 +594,5 @@ def daily_brief_analytics(period, briefs, details):
     return {'kpis': kpis, 'comparison': comparison, 'charts': charts_data,
             'total_jds': total_jds, 'total_resumes': total_resumes, 'total_achieved': total_achieved,
             'average_resumes_per_jd': average_resumes_per_jd,
-            'average_jds_per_recruiter': average_jds_per_recruiter}
+            'average_jds_per_recruiter': average_jds_per_recruiter,
+            'bucket_mode': bucket_mode, 'bucket_labels': labels}

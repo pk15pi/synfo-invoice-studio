@@ -17,7 +17,7 @@ Hidden controls are also disabled, so they are never submitted. Query names/valu
     </select>
   </label>
   <label class="compact-filter-label" data-period-fields="calendar"{% if pmode != 'calendar' %} hidden{% endif %}><span>Month</span>
-    <select class="field" name="calendar_month" data-period-calendar-month{% if pmode != 'calendar' %} disabled{% endif %}>
+    <select class="field" name="calendar_month" data-period-calendar-month{% if standard_period_month_combo %} data-combo="period-calendar-month"{% endif %}{% if pmode != 'calendar' %} disabled{% endif %}>
       <option value="">All months</option>{% for value,label in standard_month_choices %}<option value="{{ value }}"{% if request.GET.calendar_month == value|stringformat:'s' %} selected{% endif %}>{{ label }}</option>{% endfor %}
     </select>
   </label>

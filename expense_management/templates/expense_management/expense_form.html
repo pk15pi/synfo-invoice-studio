@@ -1,4 +1,4 @@
-{% extends 'expense_management/xm_base.html' %}{% block xm_title %}{% if exp %}Edit {{ exp.expense_id }}{% else %}Add company expense{% endif %}{% endblock %}{% block xm %}
+{% extends 'expense_management/xm_base.html' %}{% load static %}{% block xm_title %}{% if exp %}Edit {{ exp.expense_id }}{% else %}Add company expense{% endif %}{% endblock %}{% block xm %}
 <div class="page-heading split"><div><p class="eyebrow">Company expenses</p><h1>{% if exp %}Edit {{ exp.expense_id }}{% else %}Add company expense{% endif %}</h1></div><div><a class="button secondary" href="{% if exp %}{% url 'exp:expense_detail' exp.pk %}{% else %}{% url 'exp:all' %}?type=company{% endif %}">Back</a></div></div>
 <form class="panel" method="post" enctype="multipart/form-data" id="expense-form">{% csrf_token %}{% include 'expense_management/_form_errors.html' %}
 <div class="form-grid">
@@ -25,6 +25,7 @@
 <div class="xm-modal" id="qv-modal"><div class="panel"><div class="panel-head"><h2>Add vendor</h2></div><div id="qv-err" class="xm-warn" style="display:none"></div>
 <div class="form-grid" id="qv-fields">{% include 'expense_management/_fields.html' with fields=vendor_form %}</div>
 <div class="form-actions"><button type="button" class="button secondary" id="qv-close">Cancel</button> <button type="button" class="button primary" id="qv-save">Save vendor</button></div></div></div>
+<script src="{% static 'invoice_app/combobox.js' %}"></script>
 {% include 'expense_management/_linkjs.html' %}
 <script>
 (function(){
@@ -40,7 +41,7 @@
     g('qv-fields').querySelectorAll('input,select,textarea').forEach(e=>fd.append(e.name,e.value));
     const r=await fetch("{% url 'exp:vendor_quick_add' %}",{method:'POST',body:fd}); const d=await r.json(); const err=g('qv-err');
     if(!d.ok){err.style.display='';err.textContent=Object.entries(d.errors).map(([k,v])=>k.replace('qv-','')+': '+v).join(' | ');return;}
-    const o=new Option(d.name,d.id,true,true); g('id_vendor').add(o); m.classList.remove('open'); err.style.display='none';
+    const o=new Option(d.name,d.id,true,true); g('id_vendor').add(o); if(window.QBCombobox) QBCombobox.refresh(g('id_vendor')); m.classList.remove('open'); err.style.display='none';
     g('qv-fields').querySelectorAll('input,textarea').forEach(e=>e.value=''); };
 })();
 </script>{% endblock %}

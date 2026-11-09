@@ -91,13 +91,172 @@ class ExpenseUIActionTests(Base):
         d.refresh_from_db()
         self.assertEqual(d.payment_status, CompanyExpense.PAID)
 
-    def test_all_expenses_cancel_uses_secondary_button(self):
+    def test_all_expenses_action_icons(self):
         d = self.draft()
+        detail = reverse('exp:expense_detail', args=[d.pk])
+        edit = reverse('exp:expense_edit', args=[d.pk])
         r = self.client.get(reverse('exp:all'))
-        self.assertContains(r, 'class="xm-cancel"')
-        self.assertContains(r, '<summary class="button secondary">Cancel</summary>')
-        # Neighbouring Edit uses the same button classes
-        self.assertContains(r, f'href="{reverse("exp:expense_edit", args=[d.pk])}"')
-        self.assertContains(r, 'class="button secondary"')
-        # Popover confirm submit stays a secondary button
-        self.assertContains(r, '>Cancel entry</button>')
+        body = r.content.decode()
+        self.assertIn('title="View details" aria-label="View details"', body)
+        self.assertIn('title="Edit" aria-label="Edit"', body)
+        self.assertIn('title="Cancel" aria-label="Cancel"', body)
+        self.assertIn('class="xm-cancel"', body)
+        self.assertIn('>Cancel entry</button>', body)
+        self.assertIn(f'href="{detail}"', body)
+        # Expense ID link and View details share the same detail URL
+        self.assertIn(f'<a href="{detail}">{d.expense_id}</a>', body)
+        self.assertIn(f'href="{detail}" title="View details"', body)
+        self.assertIn(f'href="{edit}"', body)
+        self.assertIn('<svg class="ico ico-view"', body)
+        self.assertIn('<svg class="ico ico-edit"', body)
+        self.assertIn('<svg class="ico ico-deactivate"', body)
+        self.assertNotIn('>Edit</a>', body)
+        self.assertNotIn('<summary class="button secondary">Cancel</summary>', body)
+
+        c = self.claim()
+        claim_detail = reverse('exp:claim_detail', args=[c.pk])
+        body = self.client.get(reverse('exp:all')).content.decode()
+        self.assertIn(f'<a href="{claim_detail}">{c.claim_id}</a>', body)
+        self.assertIn(f'href="{claim_detail}" title="View details"', body)
+
+
+class ExpenseFormComboTests(Base):
+    """Create/Edit expense + claim forms: searchable selects, prior-period help, FY enable/disable."""
+
+    EXPENSE_SELECTS = (
+        "vendor", "category", "subcategory", "amount_mode", "currency",
+        "client", "project", "department", "employee", "relates_to_fy",
+    )
+    CLAIM_SELECTS = (
+        "employee", "category", "subcategory", "currency", "client", "project", "relates_to_fy",
+    )
+    PRIOR_SNIPPET = "earlier financial year"
+
+    def test_company_expense_form_marks_selects_and_prior_ui(self):
+        from accounting.models import FinancialYear
+        from .forms import CompanyExpenseForm
+
+        form = CompanyExpenseForm()
+        for name in self.EXPENSE_SELECTS:
+            self.assertEqual(form.fields[name].widget.attrs.get("data-combo"), name, name)
+        self.assertIn(self.PRIOR_SNIPPET, form.fields["is_prior_period"].help_text)
+        self.assertTrue(form.fields["relates_to_fy"].disabled)
+        self.assertTrue(form.fields["prior_period_note"].disabled)
+
+        fy = FinancialYear.objects.get_or_create(
+            start_year=2025, defaults={"start_date": date(2025, 4, 1), "end_date": date(2026, 3, 31)}
+        )[0]
+        e = self.expense(is_prior_period=True, relates_to_fy=fy, prior_period_note="old bill")
+        CompanyExpense.objects.filter(pk=e.pk).update(is_draft=True)
+        e.refresh_from_db()
+        edit = CompanyExpenseForm(instance=e)
+        self.assertFalse(edit.fields["relates_to_fy"].disabled)
+        self.assertFalse(edit.fields["prior_period_note"].disabled)
+
+        # Unticked POST (FY field absent because disabled) must clear relates_to_fy / note.
+        cleared = CompanyExpenseForm(
+            data={
+                "expense_date": "2026-05-10",
+                "vendor": str(e.vendor_id),
+                "category": str(e.category_id),
+                "subcategory": str(e.subcategory_id),
+                "description": "VPS",
+                "amount_mode": e.amount_mode,
+                "amount_before_tax": "10000",
+                "gst_amount": "1800",
+                "cgst_amount": "0",
+                "sgst_amount": "0",
+                "igst_amount": "1800",
+                "other_taxes": "0",
+                "discount": "0",
+                "total_amount": "11800",
+                "currency": e.currency,
+                "exchange_rate": "1",
+                # is_prior_period omitted => False; relates_to_fy / note omitted (disabled)
+            },
+            instance=e,
+        )
+        self.assertTrue(cleared.is_valid(), cleared.errors)
+        self.assertFalse(cleared.cleaned_data["is_prior_period"])
+        self.assertIsNone(cleared.cleaned_data["relates_to_fy"])
+        self.assertEqual(cleared.cleaned_data["prior_period_note"], "")
+
+    def test_claim_form_marks_selects_and_prior_ui(self):
+        from .forms import ClaimForm
+
+        form = ClaimForm()
+        for name in self.CLAIM_SELECTS:
+            self.assertEqual(form.fields[name].widget.attrs.get("data-combo"), name, name)
+        self.assertIn(self.PRIOR_SNIPPET, form.fields["is_prior_period"].help_text)
+        self.assertTrue(form.fields["relates_to_fy"].disabled)
+        self.assertTrue(form.fields["prior_period_note"].disabled)
+
+    def test_expense_new_page_markup(self):
+        r = self.client.get(reverse("exp:expense_new"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("invoice_app/combobox.js", body)
+        for name in self.EXPENSE_SELECTS:
+            self.assertIn(f'data-combo="{name}"', body, name)
+        self.assertIn(self.PRIOR_SNIPPET, body)
+        # Unticked create: Relates to FY rendered disabled
+        self.assertRegex(body, r'id="id_relates_to_fy"[^>]*disabled|disabled[^>]*id="id_relates_to_fy"')
+        self.assertRegex(body, r'id="id_prior_period_note"[^>]*disabled|disabled[^>]*id="id_prior_period_note"')
+
+    def test_claim_new_page_markup(self):
+        r = self.client.get(reverse("exp:claim_new"))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("invoice_app/combobox.js", body)
+        for name in self.CLAIM_SELECTS:
+            self.assertIn(f'data-combo="{name}"', body, name)
+        self.assertIn(self.PRIOR_SNIPPET, body)
+        self.assertRegex(body, r'id="id_relates_to_fy"[^>]*disabled|disabled[^>]*id="id_relates_to_fy"')
+
+    def test_expense_edit_prior_enables_fy(self):
+        from accounting.models import FinancialYear
+
+        fy = FinancialYear.objects.get_or_create(
+            start_year=2025, defaults={"start_date": date(2025, 4, 1), "end_date": date(2026, 3, 31)}
+        )[0]
+        e = self.expense(is_prior_period=True, relates_to_fy=fy, prior_period_note="old")
+        CompanyExpense.objects.filter(pk=e.pk).update(is_draft=True)
+        r = self.client.get(reverse("exp:expense_edit", args=[e.pk]))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        # When prior is ticked, relates_to_fy must NOT be disabled
+        self.assertIn('id="id_relates_to_fy"', body)
+        self.assertNotRegex(body, r'<select[^>]*id="id_relates_to_fy"[^>]*disabled')
+        self.assertIn('checked', body)  # prior checkbox
+
+
+class ClaimMenuNameTests(Base):
+    """Expense Management menu / page labels for Add + Review Employee Claim."""
+
+    def test_nav_menu_labels(self):
+        r = self.client.get(reverse("exp:dashboard"))
+        body = r.content.decode()
+        self.assertIn(">Add Employee Claim</a>", body)
+        self.assertIn(">Review Employee Claim</a>", body)
+        self.assertNotIn(">Employee Claims</a>", body)
+        self.assertNotIn(">Review Claims</a>", body)
+        # Add points at the create form; Review still at the review queue (routes unchanged).
+        self.assertIn(reverse("exp:claim_new"), body)
+        self.assertIn(reverse("exp:review"), body)
+
+    def test_add_claim_page_title(self):
+        r = self.client.get(reverse("exp:claim_new"))
+        self.assertContains(r, "Add Employee Claim")
+        self.assertNotContains(r, "New employee claim")
+
+    def test_review_page_title(self):
+        r = self.client.get(reverse("exp:review"))
+        self.assertContains(r, "Review Employee Claim")
+        body = r.content.decode()
+        self.assertNotIn(">Review claims<", body)
+
+    def test_dashboard_and_all_quick_links(self):
+        for name in ("exp:dashboard", "exp:all"):
+            body = self.client.get(reverse(name)).content.decode()
+            self.assertIn(">Add Employee Claim</a>", body)
+            self.assertNotIn(">+ Employee claim</a>", body)

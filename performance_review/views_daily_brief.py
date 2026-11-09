@@ -29,6 +29,8 @@ def _filters_context(request):
         .distinct()
         .order_by('employee_id')
     )
+    pmode = (request.GET.get('period_mode') or '').strip()
+    ptype = (request.GET.get('period_type') or 'full_fy').strip().lower()
     ctx = {
         'period': period,
         'briefs': briefs,
@@ -37,33 +39,15 @@ def _filters_context(request):
         'selected_recruiter': selected,
         'recruiter_search': request.GET.get('recruiter_search', ''),
         'jd_search': request.GET.get('jd_search', ''),
-        'standard_period_include_weekly': True,
-        'period_mode': (request.GET.get('period_mode') or '').strip(),
+        'standard_period_include_weekly': False,
+        'standard_period_month_combo': True,
+        'standard_period_optional_fy_month': True,
+        'period_mode': pmode,
+        'period_type': ptype,
+        'optional_month': (request.GET.get('optional_month') or '').strip(),
+        'show_optional_fy_month': (pmode != 'calendar' and pmode != 'custom' and pmode != 'weekly'
+                                  and ptype == 'full_fy'),
     }
-    # Prev/next week links (ISO Monday–Sunday) for the Weekly filter.
-    if ctx['period_mode'] == 'weekly' or period.get('period') == 'week':
-        from datetime import timedelta
-        start = period['start']
-        prev_monday = start - timedelta(days=7)
-        next_monday = start + timedelta(days=7)
-        def _iso_week(d):
-            iso = d.isocalendar()
-            return f'{iso.year}-W{iso.week:02d}'
-        week_value = _iso_week(start)
-        params = request.GET.copy()
-        params['period_mode'] = 'weekly'
-        params.pop('page', None)
-        def _week_url(week_code):
-            q = params.copy()
-            q['week'] = week_code
-            return request.path + '?' + q.urlencode()
-        ctx.update({
-            'week_value': week_value,
-            'week_prev': _iso_week(prev_monday),
-            'week_next': _iso_week(next_monday),
-            'week_prev_url': _week_url(_iso_week(prev_monday)),
-            'week_next_url': _week_url(_iso_week(next_monday)),
-        })
     return ctx
 
 

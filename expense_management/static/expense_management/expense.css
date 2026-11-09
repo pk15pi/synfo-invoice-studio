@@ -53,7 +53,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .badge.st-cancelled,.badge.st-rejected{background:#fbeaea;color:#8a2c2c}.badge.st-draft{background:#eee;color:#555}
 .xm-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 .xm-actions form{display:flex;gap:6px;align-items:center;flex-wrap:wrap;border:1px solid var(--line,#e1e8ee);border-radius:8px;padding:6px 8px;background:#fafcfd}
-.xm-row-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:150px}.xm-cancel{position:relative}.xm-cancel>summary.button{list-style:none}.xm-cancel>summary.button::-webkit-details-marker{display:none}.xm-cancel form{position:absolute;right:0;top:calc(100% + 4px);z-index:5;display:grid;gap:8px;min-width:220px;padding:10px;background:#fff;border:1px solid var(--line,#e1e8ee);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.12)}.xm-cancel label{display:grid;gap:4px;font-size:12px}
+.xm-row-actions{display:flex;align-items:center;gap:2px;flex-wrap:nowrap;min-width:0;white-space:nowrap}.xm-cancel{position:relative}.xm-cancel>summary{list-style:none;cursor:pointer}.xm-cancel>summary::-webkit-details-marker{display:none}.xm-row-actions .icon-btn{flex:0 0 auto}.xm-cancel form{position:absolute;right:0;top:calc(100% + 4px);z-index:5;display:grid;gap:8px;min-width:220px;padding:10px;background:#fff;border:1px solid var(--line,#e1e8ee);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.12)}.xm-cancel label{display:grid;gap:4px;font-size:12px}
 .xm-dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:0}.xm-dl dt{color:#6d7d89}.xm-dl dd{margin:0}
 .xm-modal{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50}
 .xm-modal.open{display:flex}.xm-modal .panel{width:min(560px,94vw);max-height:90vh;overflow:auto}
@@ -77,3 +77,7 @@ tr.total td{font-weight:700;background:#f4f8fb}
 
 .xm-locked-note{color:#6d7d89;font-size:13px;margin:6px 0 0}
 @media(max-width:640px){.xm-cancel-panel input,.xm-cancel-panel textarea{min-width:0!important;width:100%}}
+
+/* Combobox beside + New vendor on create/edit expense */
+#wrap-vendor > div{display:flex;gap:6px;align-items:stretch}
+#wrap-vendor .qb-combo{flex:1;min-width:0}

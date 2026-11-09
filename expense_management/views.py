@@ -392,7 +392,7 @@ def review(request):
     if not request.GET:
         request.GET = request.GET.copy()
         request.GET['status'] = 'pending'
-    return _claim_list(request, 'expense_management/review.html', 'Review claims')
+    return _claim_list(request, 'expense_management/review.html', 'Review Employee Claim')
 
 
 @local_only

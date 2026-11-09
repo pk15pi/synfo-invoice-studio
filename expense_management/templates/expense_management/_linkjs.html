@@ -2,15 +2,31 @@
 (function(){
   const subMap={ {% for s in form.fields.subcategory.queryset %}"{{ s.pk }}":"{{ s.category_id }}",{% endfor %} };
   const projMap={ {% for p in projects %}"{{ p.pk }}":"{{ p.client_id }}",{% endfor %} };
+  function refreshCombo(sel){ if(sel && window.QBCombobox) QBCombobox.refresh(sel); }
   function filt(sel,map,parent){ if(!sel||!parent)return; const v=parent.value;
     [...sel.options].forEach(o=>{ if(!o.value)return; const ok=!v||map[o.value]===v; o.hidden=!ok; o.disabled=!ok; });
-    if(sel.selectedOptions[0]&&sel.selectedOptions[0].disabled) sel.value=''; }
+    if(sel.selectedOptions[0]&&sel.selectedOptions[0].disabled) sel.value='';
+    refreshCombo(sel); }
   const cat=document.getElementById('id_category'), sub=document.getElementById('id_subcategory');
   const cl=document.getElementById('id_client'), pr=document.getElementById('id_project');
   if(cat){cat.addEventListener('change',()=>filt(sub,subMap,cat)); filt(sub,subMap,cat);}
   if(cl){cl.addEventListener('change',()=>filt(pr,projMap,cl)); filt(pr,projMap,cl);}
-  if(pr&&cl){pr.addEventListener('change',()=>{ if(pr.value&&!cl.value){cl.value=projMap[pr.value]; filt(pr,projMap,cl);} });}
+  if(pr&&cl){pr.addEventListener('change',()=>{ if(pr.value&&!cl.value){cl.value=projMap[pr.value]; filt(pr,projMap,cl); refreshCombo(cl);} });}
   const cur=document.getElementById('id_currency'), rate=document.getElementById('id_exchange_rate');
   if(cur&&rate){const f=()=>{ if(cur.value==='INR'){rate.value='1'; rate.readOnly=true;} else rate.readOnly=false; }; cur.addEventListener('change',f); f();}
+  // Prior-period: enable Relates to FY + note only when the checkbox is ticked; clear when unticked.
+  const prior=document.getElementById('id_is_prior_period');
+  const fy=document.getElementById('id_relates_to_fy');
+  const note=document.getElementById('id_prior_period_note');
+  function priorUi(){
+    const on=!!(prior&&prior.checked);
+    [fy,note].forEach(el=>{
+      if(!el) return;
+      el.disabled=!on;
+      if(!on){ el.value=''; }
+      refreshCombo(el);
+    });
+  }
+  if(prior){ prior.addEventListener('change', priorUi); priorUi(); }
 })();
 </script>
