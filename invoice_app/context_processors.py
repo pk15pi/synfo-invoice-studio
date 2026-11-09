@@ -60,6 +60,7 @@ def standard_period_filter(request):
         'standard_current_calendar_year': t.year,
         'standard_current_fy': cur_fy,
         'standard_current_month': t.month,
+        'standard_current_iso_week': f"{t.isocalendar().year}-W{t.isocalendar().week:02d}",
     }
 
 

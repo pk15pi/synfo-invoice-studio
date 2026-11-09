@@ -967,14 +967,18 @@ class HrObservationFilterTests(Base):
     def test_documents_expiring_matches_dashboard(self):
         from . import observations as obs
         dash = self.client.get(reverse('em:home'))
-        expected = dash.context['expiring_count']
-        self.assertEqual(expected, obs.expiring_documents_qs().count())
+        expected_docs = dash.context['expiring_count']
+        self.assertEqual(expected_docs, obs.expiring_documents_qs().count())
+        emp_count = obs.expiring_documents_qs().values('employee_id').distinct().count()
         r = self.client.get(reverse('em:documents'), {'obs': 'expiring'})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(len(r.context['rows']), expected)
+        self.assertEqual(len(r.context['rows']), emp_count)
         self.assertContains(r, 'Showing:')
         self.assertContains(r, 'Expiring documents')
-        self.assertContains(r, 'PAN')
+        self.assertContains(r, 'doc-pill-round')
+        self.assertContains(r, '>P<')
+        self.assertContains(r, 'target="_blank"')
+        self.assertContains(r, 'rel="noopener"')
 
     def test_obs_chip_clears_only_obs(self):
         r = self.client.get(reverse('em:employees'), {
@@ -994,3 +998,72 @@ class HrObservationFilterTests(Base):
         self.assertFalse(r.context['obs_label'])
         r2 = self.client.get(reverse('em:documents'), {'obs': 'nope'})
         self.assertEqual(r2.context['obs'], '')
+
+
+class DocumentsHubLayoutTests(Base):
+    """Documents hub is one row per employed employee with one button per current document."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from .models import EmployeeDocument
+        today = date.today()
+
+        def add_doc(emp, dtype, name, number='', expiry=None):
+            doc = EmployeeDocument(
+                employee=emp, document_type=dtype, document_name=name,
+                document_number=number, expiry_date=expiry, is_current=True,
+                original_filename=f'{dtype}.pdf', content_type='application/pdf', file_size=len(PDF),
+            )
+            doc.file.save(
+                f'{dtype}.pdf',
+                SimpleUploadedFile(f'{dtype}.pdf', PDF, content_type='application/pdf'),
+                save=True,
+            )
+            return doc
+
+        self.plain = self.make_emp(first_name='No', last_name='Docs')
+        add_doc(self.emp, 'aadhaar', 'Aadhaar Card (front)', number='123412341234')
+        add_doc(self.emp, 'aadhaar', 'Aadhaar Card (back)', number='123412341234')
+        add_doc(self.emp, 'pan', 'PAN', number='ABCDE1234F', expiry=today + timedelta(days=5))
+        add_doc(self.emp, 'experience_certificate', 'Exp cert')
+        add_doc(self.emp, 'resume', 'CV')
+        add_doc(self.emp, 'passport', 'Passport', expiry=today - timedelta(days=2))
+
+    def test_one_row_per_employed_employee_with_pills(self):
+        from .models import Employee
+        r = self.client.get(reverse('em:documents'))
+        self.assertEqual(r.status_code, 200)
+        employed = Employee.objects.filter(status__in=Employee.EMPLOYED).count()
+        self.assertEqual(len(r.context['rows']), employed)
+        self.assertEqual(r.context['headers'], ['ID', 'Name', 'Department', 'Status', 'Documents'])
+        body = r.content.decode()
+        self.assertIn('doc-pill-round', body)
+        self.assertEqual(body.count('>A<'), 2)  # front + back Aadhaar
+        self.assertEqual(body.count('>P<'), 1)
+        self.assertNotIn('>EC<', body)  # Experience Certificate is Misc
+        self.assertEqual(body.count('>Misc<'), 3)  # experience_certificate + resume + passport
+        self.assertNotIn('doc-misc-menu', body)  # no merged dropdown
+        self.assertIn('target="_blank"', body)
+        self.assertIn('rel="noopener"', body)
+        self.assertNotIn('123412341234', body)
+        self.assertNotIn('ABCDE1234F', body)
+        self.assertContains(r, self.plain.employee_id)
+        self.assertIn('doc-pill-expiring', body)
+        self.assertIn('doc-pill-expired', body)
+        # Tooltips include type + file title
+        self.assertIn('Aadhaar Card · Aadhaar Card (front)', body)
+        self.assertIn('Experience Certificate', body)
+
+    def test_obs_expired_filters_employees_and_keeps_dashboard_doc_count(self):
+        from . import observations as obs
+        dash = self.client.get(reverse('em:home'))
+        self.assertEqual(dash.context['expiring_count'], obs.expiring_documents_qs().count())
+        r = self.client.get(reverse('em:documents'), {'obs': 'expired'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(
+            len(r.context['rows']),
+            obs.expired_documents_qs().values('employee_id').distinct().count(),
+        )
+        self.assertContains(r, 'doc-pill-expired')

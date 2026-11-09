@@ -4,6 +4,7 @@ Every report resolves its date range through ``resolve(params)`` so all reports 
 interpretation.  Q1 Apr-Jun, Q2 Jul-Sep, Q3 Oct-Dec, Q4 Jan-Mar; H1 Apr-Sep, H2 Oct-Mar."""
 import calendar
 from dataclasses import dataclass, field
+import re
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -122,7 +123,7 @@ class Period:
 
 
 def resolve(params, default='current_fy', ref=None):
-    if (params.get('period_mode') or '').strip() in ('calendar', 'financial', 'custom'):
+    if (params.get('period_mode') or '').strip() in ('calendar', 'financial', 'custom', 'weekly'):
         return resolve_standard(params, default=default, ref=ref)
     t = ref or today()
     key = (params.get('period') or '').strip()
@@ -196,13 +197,37 @@ def resolve(params, default='current_fy', ref=None):
     return p
 
 
+def parse_iso_week(value, ref=None):
+    """Monday of an ISO week from an HTML week input (YYYY-Www); falls back to the current week."""
+    t = ref or today()
+    raw = (value or '').strip().upper()
+    match = re.fullmatch(r'(\d{4})-W(\d{1,2})', raw)
+    if match:
+        year, week = int(match.group(1)), int(match.group(2))
+        try:
+            return date.fromisocalendar(year, week, 1)
+        except ValueError:
+            pass
+    return t - timedelta(days=t.weekday())
+
+
 def resolve_standard(params, default='current_fy', ref=None):
     """Resolve the shared calendar/FY filter controls, retaining legacy query support."""
     t = ref or today()
     mode = (params.get('period_mode') or 'financial').strip()
     keep = {k: params.get(k) for k in (
         'period_mode', 'calendar_year', 'calendar_month', 'fy', 'period_type',
-        'period_value', 'date_from', 'date_to', 'prior') if params.get(k)}
+        'period_value', 'date_from', 'date_to', 'week', 'prior') if params.get(k)}
+    if mode == 'weekly':
+        start = parse_iso_week(params.get('week'), t)
+        end = start + timedelta(days=6)
+        iso = start.isocalendar()
+        keep['week'] = f'{iso.year}-W{iso.week:02d}'
+        return Period(
+            start, end,
+            f'Week of {start:%d %b %Y} – {end:%d %b %Y}',
+            'week', 'week', keep,
+        )
     if mode == 'calendar':
         try:
             year = int(params.get('calendar_year') or t.year)

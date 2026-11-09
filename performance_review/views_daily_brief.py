@@ -1,3 +1,4 @@
+from urllib.parse import urlencode
 from django.contrib import messages
 from django.core.paginator import Paginator
 from invoice_app.pagination import paginate as qb_paginate
@@ -17,17 +18,53 @@ from .services import (daily_brief_analytics, daily_brief_filtered_querysets,
 def _filters_context(request):
     period = daily_brief_period_bounds(request.GET)
     briefs, details = daily_brief_filtered_querysets(period, request.GET)
-    active_recruiters = Employee.objects.filter(
-        Q(is_recruiter=True) | Q(daily_briefs__isnull=False)).distinct().order_by('employee_id')
-    return {
+    # All employed staff for the filter combobox; keep anyone who already has briefs
+    # (or the currently selected id) so historic inactive recruiters remain filterable.
+    selected = (request.GET.get('recruiter') or '').strip()
+    recruiter_filter = Q(status__in=Employee.EMPLOYED) | Q(daily_briefs__isnull=False)
+    if selected.isdigit():
+        recruiter_filter |= Q(pk=int(selected))
+    active_recruiters = (
+        Employee.objects.filter(recruiter_filter)
+        .distinct()
+        .order_by('employee_id')
+    )
+    ctx = {
         'period': period,
         'briefs': briefs,
         'details': details,
         'recruiters': active_recruiters,
-        'selected_recruiter': request.GET.get('recruiter', ''),
+        'selected_recruiter': selected,
         'recruiter_search': request.GET.get('recruiter_search', ''),
         'jd_search': request.GET.get('jd_search', ''),
+        'standard_period_include_weekly': True,
+        'period_mode': (request.GET.get('period_mode') or '').strip(),
     }
+    # Prev/next week links (ISO Monday–Sunday) for the Weekly filter.
+    if ctx['period_mode'] == 'weekly' or period.get('period') == 'week':
+        from datetime import timedelta
+        start = period['start']
+        prev_monday = start - timedelta(days=7)
+        next_monday = start + timedelta(days=7)
+        def _iso_week(d):
+            iso = d.isocalendar()
+            return f'{iso.year}-W{iso.week:02d}'
+        week_value = _iso_week(start)
+        params = request.GET.copy()
+        params['period_mode'] = 'weekly'
+        params.pop('page', None)
+        def _week_url(week_code):
+            q = params.copy()
+            q['week'] = week_code
+            return request.path + '?' + q.urlencode()
+        ctx.update({
+            'week_value': week_value,
+            'week_prev': _iso_week(prev_monday),
+            'week_next': _iso_week(next_monday),
+            'week_prev_url': _week_url(_iso_week(prev_monday)),
+            'week_next_url': _week_url(_iso_week(next_monday)),
+        })
+    return ctx
 
 
 def _records_context(request, entry_form=None, detail_formset=None, duplicate_record=None):

@@ -95,23 +95,37 @@ class PerformanceStageForm(forms.ModelForm):
         fields = ['name', 'kind', 'sort_order', 'active']
 
 
+def _employee_combo_label(employee):
+    """Display label for recruiter combobox options (code + name)."""
+    return f'{employee.employee_id} — {employee.full_name}'
+
+
+def employed_employees_for_select(extra_pk=None):
+    """Active/probation/confirmed employees, plus an optional historic pk (e.g. inactive current)."""
+    from django.db.models import Q
+    qs = Employee.objects.filter(status__in=Employee.EMPLOYED)
+    if extra_pk:
+        qs = Employee.objects.filter(Q(pk__in=qs.values('pk')) | Q(pk=extra_pk))
+    return qs.select_related('department').distinct().order_by('employee_id')
+
+
 class DailyBriefForm(forms.ModelForm):
     class Meta:
         model = DailyBrief
         fields = ['recruiter', 'activity_date', 'achieved']
-        widgets = {'recruiter': forms.Select(attrs={'class': 'field'}),
-                   'activity_date': forms.DateInput(attrs={'type': 'date', 'class': 'field'}),
-                   'achieved': forms.NumberInput(attrs={'class': 'field', 'min': 0, 'step': 1})}
+        widgets = {
+            'recruiter': forms.Select(attrs={
+                'class': 'field', 'data-combo': 'daily-brief-recruiter',
+            }),
+            'activity_date': forms.DateInput(attrs={'type': 'date', 'class': 'field'}),
+            'achieved': forms.NumberInput(attrs={'class': 'field', 'min': 0, 'step': 1}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        recruiters = Employee.objects.filter(is_recruiter=True, status__in=Employee.EMPLOYED)
-        if self.instance and self.instance.pk:
-            recruiters = Employee.objects.filter(pk__in=recruiters.values('pk')) | Employee.objects.filter(
-                pk=self.instance.recruiter_id)
-        self.fields['recruiter'].queryset = recruiters.select_related('department').distinct().order_by(
-            'employee_id')
-        self.fields['recruiter'].label_from_instance = lambda e: f'{e.employee_id} · {e.full_name}'
+        extra = self.instance.recruiter_id if self.instance and self.instance.pk else None
+        self.fields['recruiter'].queryset = employed_employees_for_select(extra_pk=extra)
+        self.fields['recruiter'].label_from_instance = _employee_combo_label
         self.fields['activity_date'].initial = self.fields['activity_date'].initial or timezone.localdate
         self.fields['achieved'].required = False
         self.duplicate_record = None

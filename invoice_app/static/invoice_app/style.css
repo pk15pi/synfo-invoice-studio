@@ -870,3 +870,19 @@ main>*{min-width:0}
 .table-wrap .button.qb-email-row-action{min-height:32px;padding:6px 10px;font-size:12px;white-space:nowrap}
 
 .obs-chip{display:inline-flex;align-items:center;gap:8px;margin:0 0 12px;padding:6px 10px;border:1px solid #d7e1e9;border-radius:999px;background:#f3f7fb;font-size:13px}.obs-chip-clear{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;text-decoration:none;color:#40576a;font-weight:700}.obs-chip-clear:hover{background:#e5eef5}
+
+/* Employee documents hub: round type pills + Misc */
+.doc-pills{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:28px}
+.doc-pills-empty{opacity:.45}
+.doc-pill{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-weight:700;font-size:11px;line-height:1;border:1px solid #c5d3e0;background:#eef5fb;color:#1f3b57;cursor:pointer}
+.doc-pill-round{width:28px;height:28px;border-radius:50%;padding:0}
+.doc-pill-misc{min-height:28px;padding:0 10px;border-radius:6px;font-size:12px}
+a.doc-pill:hover,summary.doc-pill:hover{background:#dceaf6;border-color:#9fb6cc;color:#12263a}
+.doc-pill-expiring{box-shadow:0 0 0 2px #e6a23c;border-color:#e6a23c}
+.doc-pill-expired{box-shadow:0 0 0 2px #c62828;border-color:#c62828;color:#8b1c1c}
+.doc-misc{position:relative;display:inline-block}
+.doc-misc>summary{list-style:none}
+.doc-misc>summary::-webkit-details-marker{display:none}
+.doc-misc-menu{position:absolute;z-index:40;left:0;top:calc(100% + 4px);margin:0;padding:6px 0;min-width:180px;list-style:none;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:0 8px 24px rgba(15,35,60,.16)}
+.doc-misc-menu a{display:block;padding:7px 12px;color:#1f3b57;text-decoration:none;font-size:12px;font-weight:500;white-space:nowrap}
+.doc-misc-menu a:hover{background:#eef5fb}

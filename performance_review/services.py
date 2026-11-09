@@ -449,13 +449,16 @@ def daily_brief_analytics(period, briefs, details):
     trend_rows = details.values('daily_brief__activity_date').annotate(
         jds=Count('pk'), resumes=Sum('total_resumes_submitted'))
     trend_map = {row['daily_brief__activity_date']: row for row in trend_rows}
-    labels, daily_jds, daily_resumes = [], [], []
+    achieved_rows = briefs.values('activity_date').annotate(achieved=Sum('achieved'))
+    achieved_map = {row['activity_date']: row['achieved'] or 0 for row in achieved_rows}
+    labels, daily_jds, daily_resumes, daily_achieved = [], [], [], []
     current = period['start']
     while current <= period['end']:
         labels.append(current.strftime('%d %b'))
         row = trend_map.get(current, {})
         daily_jds.append(row.get('jds', 0))
         daily_resumes.append(row.get('resumes', 0))
+        daily_achieved.append(achieved_map.get(current, 0))
         current += timedelta(days=1)
 
     recruiter_rows = details.values('daily_brief__recruiter_id').annotate(
@@ -479,6 +482,13 @@ def daily_brief_analytics(period, briefs, details):
     charts_data = [
         ('Daily JD submission trend', charts.line(labels, [daily_jds], 'Daily JDs submitted', money=False), 'daily_jds'),
         ('Daily resume submission trend', charts.line(labels, [daily_resumes], 'Daily resumes submitted', money=False), 'daily_resumes'),
+        (f'Daily selections achieved (total {total_achieved})',
+         charts.line(
+             labels, [daily_achieved],
+             f'Daily selections achieved (total {total_achieved})',
+             money=False,
+         ),
+         'daily_achieved'),
         ('Recruiter-wise JD submission', charts.hbars(list(zip(recruiter_labels, jds_by_recruiter)),
                                                        'JDs by recruiter', money=False), 'recruiter_jds'),
         ('Recruiter-wise resume submission', charts.hbars(list(zip(recruiter_labels, resumes_by_recruiter)),

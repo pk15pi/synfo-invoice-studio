@@ -54,8 +54,8 @@ def _export_fy_start(period, params):
 HUB = 'employee_management/hub_table.html'
 
 
-def _c(text, url=None, *, blank=False, icon=None):
-    return {'t': '' if text is None else text, 'u': url, 'blank': blank, 'icon': icon}
+def _c(text, url=None, *, blank=False, icon=None, html=False):
+    return {'t': '' if text is None else text, 'u': url, 'blank': blank, 'icon': icon, 'html': html}
 
 
 def _emp(e):
@@ -78,30 +78,131 @@ def personal_details(request):
                 ['ID', 'Name', 'Gender', 'Date of birth', 'Mobile', 'Email', 'City', 'Status', ''], rows)
 
 
+
 def documents(request):
+    """One row per employed employee; one pill per current document (A / P / Misc)."""
+    from django.db.models import Prefetch
+    from django.utils.html import format_html
+    from django.utils.safestring import mark_safe
+
     from . import observations as obs
+    from .models import PayrollSettings
+
+    # Only Aadhaar and PAN get letter pills. Experience Certificate stays Misc (own button each).
+    FIXED_ORDER = ('aadhaar', 'pan')
+    FIXED_LETTER = {'aadhaar': 'A', 'pan': 'P'}
+    TYPE_ALIASES = {
+        'aadhar': 'aadhaar',
+        'adhar': 'aadhaar',
+        'aadhaar_card': 'aadhaar',
+        'aadhar_card': 'aadhaar',
+        'pan_card': 'pan',
+    }
+
+    def canonical_type(raw):
+        key = (raw or '').strip().lower().replace(' ', '_').replace('-', '_')
+        return TYPE_ALIASES.get(key, key)
+
     observation = obs.normalize_obs(request.GET.get('obs'), obs.DOCUMENT_OBS)
+    settings = PayrollSettings.current()
+    alert_days = settings.expiry_alert_days
+
+    employees = (
+        Employee.objects.filter(status__in=Employee.EMPLOYED)
+        .select_related('department')
+        .order_by('employee_id')
+    )
     if observation == 'expiring':
-        qs = obs.expiring_documents_qs()
+        emp_ids = obs.expiring_documents_qs().values_list('employee_id', flat=True).distinct()
+        employees = employees.filter(pk__in=emp_ids)
     elif observation == 'expired':
-        qs = obs.expired_documents_qs()
-    else:
-        qs = (
-            EmployeeDocument.objects.filter(is_current=True)
-            .select_related('employee')
-            .order_by('employee__employee_id', 'document_type')
+        emp_ids = obs.expired_documents_qs().values_list('employee_id', flat=True).distinct()
+        employees = employees.filter(pk__in=emp_ids)
+
+    employees = employees.prefetch_related(
+        Prefetch(
+            'documents',
+            queryset=EmployeeDocument.objects.filter(is_current=True).order_by(
+                'document_type', 'document_name', 'id'),
+            to_attr='current_docs',
         )
-    rows = [[_emp(d.employee), _c(d.employee.full_name), _c(d.get_document_type_display()), _c(d.document_name),
-             _c(d.number_masked), _c(d.expiry_date and d.expiry_date.strftime('%d-%m-%Y')),
-             _c('View', reverse('em:document_view', args=[d.employee_id, d.pk]))] for d in qs]
+    )
+
+    def _doc_caption(doc):
+        label = doc.get_document_type_display()
+        title = (doc.document_name or '').strip()
+        state = doc.expiry_state(alert_days)
+        bits = [label]
+        if title and title.lower() != label.lower():
+            bits.append(title)
+        if doc.expiry_date:
+            bits.append(f"expires {doc.expiry_date.strftime('%d-%m-%Y')}")
+            if state == 'expired':
+                bits.append('expired')
+            elif state == 'expiring':
+                bits.append('expiring soon')
+        return ' · '.join(bits)
+
+    def _pill(doc, letter, *, misc=False):
+        url = reverse('em:document_view', args=[doc.employee_id, doc.pk])
+        caption = _doc_caption(doc)
+        state = doc.expiry_state(alert_days)
+        classes = ['doc-pill', 'doc-pill-misc' if misc else 'doc-pill-round']
+        if state == 'expired':
+            classes.append('doc-pill-expired')
+        elif state == 'expiring':
+            classes.append('doc-pill-expiring')
+        return format_html(
+            '<a class="{}" href="{}" target="_blank" rel="noopener" title="{}" aria-label="{}">{}</a>',
+            ' '.join(classes), url, caption, caption, letter,
+        )
+
+    def _docs_cell(employee):
+        docs = list(getattr(employee, 'current_docs', []))
+        buckets = {key: [] for key in FIXED_ORDER}
+        misc = []
+        for doc in docs:
+            key = canonical_type(doc.document_type)
+            if key in buckets:
+                buckets[key].append(doc)
+            else:
+                misc.append(doc)
+        parts = []
+        for key in FIXED_ORDER:
+            letter = FIXED_LETTER[key]
+            for doc in buckets[key]:
+                parts.append(_pill(doc, letter))
+        for doc in misc:
+            parts.append(_pill(doc, 'Misc', misc=True))
+        if not parts:
+            return _c(mark_safe('<span class="muted doc-pills-empty">—</span>'), html=True)
+        return _c(
+            format_html('<span class="doc-pills">{}</span>', mark_safe(''.join(parts))),
+            html=True,
+        )
+
+    rows = []
+    for employee in employees:
+        dept = employee.department.name if employee.department_id else '—'
+        rows.append([
+            _emp(employee),
+            _c(employee.full_name),
+            _c(dept),
+            _c(employee.get_status_display()),
+            _docs_cell(employee),
+        ])
+
     return _hub(
         request, 'Employee Management', 'Documents',
-        'Document repository: current version of every employee document. Files are served only through these controlled links; replaced versions stay in each document\'s history.',
-        ['ID', 'Name', 'Type', 'Document', 'Number', 'Expiry', ''], rows,
+        'One row per employed employee. Each current document is its own button: Aadhaar (A), PAN (P), '
+        'and Misc for every other file (including Experience Certificate). Open a button to view the file in a new tab.',
+        ['ID', 'Name', 'Department', 'Status', 'Documents'], rows,
         obs=observation,
         obs_label=obs.obs_label(observation),
         obs_clear_url=obs.obs_clear_url(request),
     )
+
+
 
 
 def bank_details(request):

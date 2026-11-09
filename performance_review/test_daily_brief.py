@@ -71,17 +71,31 @@ class DailyBriefTests(TestCase):
             data[f'details-{index}-row_active'] = '1'
         return data
 
-    def test_form_requires_recruiter_and_date_and_limits_recruiters_to_active_flagged_employees(self):
+    def test_form_requires_recruiter_and_date_and_lists_all_employed_employees(self):
         blank_form = DailyBriefForm()
         self.assertEqual(blank_form['activity_date'].value(), timezone.localdate())
         form = DailyBriefForm(data={'recruiter': self.recruiter.pk, 'activity_date': '2026-10-15'})
         self.assertTrue(form.is_valid(), form.errors)
         invalid = DailyBriefForm(data={'recruiter': '', 'activity_date': ''})
         self.assertFalse(invalid.is_valid())
+        # Non-recruiter employed staff are offered (Daily Brief no longer requires is_recruiter).
+        plain = Employee.objects.create(
+            employee_id='EMP-DB-PLAIN', first_name='Plain', last_name='Staff',
+            department=self.department, designation='Coordinator', date_of_joining=date(2024, 2, 1),
+            status=Employee.PROBATION, is_recruiter=False)
+        self.assertIn(plain, blank_form.fields['recruiter'].queryset)
+        self.assertIn(self.recruiter, blank_form.fields['recruiter'].queryset)
         inactive = Employee.objects.create(employee_id='EMP-DB3', first_name='Former',
             department=self.department, designation='Recruiter', date_of_joining=date(2020, 1, 1),
             status=Employee.LEFT, is_recruiter=True)
-        self.assertNotIn(inactive, form.fields['recruiter'].queryset)
+        self.assertNotIn(inactive, blank_form.fields['recruiter'].queryset)
+        # Historic inactive current value stays on edit.
+        brief = self.make_brief(recruiter=self.recruiter)
+        brief.recruiter = inactive
+        brief.save(update_fields=['recruiter'])
+        edit_form = DailyBriefForm(instance=brief)
+        self.assertIn(inactive, edit_form.fields['recruiter'].queryset)
+        self.assertEqual(edit_form.initial.get('recruiter') or edit_form['recruiter'].value(), inactive.pk)
 
     def test_formset_requires_one_complete_row_and_rejects_invalid_or_duplicate_details(self):
         empty = DailyBriefJDDetailFormSet(data=self._formset_data([('', '')]), instance=DailyBrief(), prefix='details')
@@ -226,22 +240,36 @@ class DailyBriefTests(TestCase):
         self.assertEqual(list(briefs), [other])
 
     def test_kpis_and_all_charts_aggregate_only_daily_brief_rows(self):
-        self.make_brief(activity_date=date(2026, 4, 5), rows=[('07-01', 12), ('07-02', 8)])
-        self.make_brief(activity_date=date(2026, 4, 6), rows=[('07-01', 5)])
-        self.make_brief(recruiter=self.other_recruiter, activity_date=date(2026, 4, 6), rows=[('08-01', 0)])
+        b1 = self.make_brief(activity_date=date(2026, 4, 5), rows=[('07-01', 12), ('07-02', 8)])
+        b1.achieved = 3
+        b1.save(update_fields=['achieved'])
+        b2 = self.make_brief(activity_date=date(2026, 4, 6), rows=[('07-01', 5)])
+        b2.achieved = 1
+        b2.save(update_fields=['achieved'])
+        b3 = self.make_brief(recruiter=self.other_recruiter, activity_date=date(2026, 4, 6), rows=[('08-01', 0)])
+        b3.achieved = 2
+        b3.save(update_fields=['achieved'])
         period = daily_brief_period_bounds({'period': 'custom', 'from_date': '2026-04-01', 'to_date': '2026-04-30'})
         briefs, details = daily_brief_filtered_querysets(period, {})
         result = daily_brief_analytics(period, briefs, details)
         self.assertEqual(result['total_jds'], 4)
         self.assertEqual(result['total_resumes'], 25)
+        self.assertEqual(result['total_achieved'], 6)
         self.assertEqual(result['kpis'][2], ('Recruiters Active', 2))
         self.assertEqual(result['kpis'][3], ('Daily Briefs Submitted', 3))
+        self.assertEqual(result['kpis'][-1], ('Selections Achieved', 6))
         self.assertEqual(result['average_resumes_per_jd'], 6.25)
         self.assertEqual(result['average_jds_per_recruiter'], 2)
-        self.assertEqual(len(result['charts']), 7)
+        self.assertEqual(len(result['charts']), 8)
+        achieved_chart = next(c for c in result['charts'] if c[2] == 'daily_achieved')
+        self.assertIn('total 6', achieved_chart[0])
+        self.assertIn('Daily selections achieved', achieved_chart[1])
+        # Day buckets: 5 Apr -> 3, 6 Apr -> 1+2=3
+        self.assertNotIn('No data for this period', achieved_chart[1])
         self.assertEqual(len(result['comparison']), 2)
         self.assertNotIn('₹', result['charts'][0][1])
-        self.assertIn('8.33', result['charts'][6][1])
+        avg_chart = next(c for c in result['charts'] if c[2] == 'average_resumes')
+        self.assertIn('8.33', avg_chart[1])
         filtered_briefs, filtered_details = daily_brief_filtered_querysets(period, {'jd_search': '07-01'})
         filtered = daily_brief_analytics(period, filtered_briefs, filtered_details)
         self.assertEqual(filtered['total_jds'], 2)
@@ -265,7 +293,7 @@ class DailyBriefTests(TestCase):
         self.assertContains(entry, 'data-remove-brief-row')
         self.assertContains(entry, 'data-delete-flag')
         analytics = self.client.get(paths[1])
-        self.assertEqual(len(analytics.context['charts']), 7)
+        self.assertEqual(len(analytics.context['charts']), 8)
 
     def test_empty_period_analytics_are_zero_and_show_empty_chart_states(self):
         period = daily_brief_period_bounds({'period': 'custom', 'from_date': '2020-01-01', 'to_date': '2020-01-10'})
@@ -276,3 +304,83 @@ class DailyBriefTests(TestCase):
         self.assertEqual(result['average_resumes_per_jd'], 0)
         self.assertEqual(result['average_jds_per_recruiter'], 0)
         self.assertTrue(all('No data for this period' in chart[1] for chart in result['charts']))
+
+    def test_recruiter_combobox_markup_and_filter_by_id(self):
+        plain = Employee.objects.create(
+            employee_id='EMP003', first_name='Kiran', last_name='Mehta',
+            department=self.department, designation='HR', date_of_joining=date(2024, 3, 1),
+            status=Employee.ACTIVE, is_recruiter=False)
+        inactive = Employee.objects.create(
+            employee_id='EMP-GONE', first_name='Gone', last_name='User',
+            department=self.department, designation='Ex', date_of_joining=date(2019, 1, 1),
+            status=Employee.LEFT, is_recruiter=False)
+        # Leave a historic brief so inactive stays filterable.
+        self.make_brief(recruiter=inactive, activity_date=date(2026, 9, 1))
+        page = self.client.get(reverse('performance_review:daily_brief_records'))
+        body = page.content.decode()
+        self.assertContains(page, 'data-combo="daily-brief-recruiter"')
+        self.assertContains(page, 'data-combo="daily-brief-recruiter-filter"')
+        self.assertContains(page, 'invoice_app/combobox.js')
+        self.assertContains(page, 'EMP003 — Kiran Mehta')
+        self.assertContains(page, f'value="{plain.pk}"')
+        # Inactive staff with prior briefs stay in the Records filter combobox…
+        self.assertIn(inactive, page.context['recruiters'])
+        self.assertContains(page, 'EMP-GONE — Gone User')
+        # …but are not offered on the Entry form unless they are the current edit value.
+        self.assertIn(plain, page.context['entry_form'].fields['recruiter'].queryset)
+        self.assertNotIn(inactive, page.context['entry_form'].fields['recruiter'].queryset)
+        # Filter by employee id (pk) returns that recruiter's briefs only.
+        self.make_brief(recruiter=self.other_recruiter, activity_date=date(2026, 10, 16))
+        filtered = self.client.get(reverse('performance_review:daily_brief_records'), {
+            'recruiter': str(self.other_recruiter.pk),
+            'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10',
+        })
+        self.assertEqual(filtered.status_code, 200)
+        self.assertEqual(filtered.context['filtered_brief_count'], 1)
+        self.assertContains(filtered, self.other_recruiter.full_name)
+
+    def test_save_daily_brief_with_non_recruiter_employed_employee(self):
+        plain = Employee.objects.create(
+            employee_id='EMP-SAVE', first_name='Save', last_name='Me',
+            department=self.department, designation='Ops', date_of_joining=date(2024, 4, 1),
+            status=Employee.CONFIRMED, is_recruiter=False)
+        payload = {'recruiter': plain.pk, 'activity_date': '2026-10-18', 'achieved': '2',
+                   **self._formset_data([('08-01', '5')])}
+        response = self.client.post(reverse('performance_review:daily_brief_records'), payload)
+        self.assertRedirects(response, reverse('performance_review:daily_brief_records'))
+        brief = DailyBrief.objects.get(recruiter=plain, activity_date=date(2026, 10, 18))
+        self.assertEqual(brief.achieved, 2)
+        self.assertEqual(brief.total_jds_submitted, 1)
+
+    def test_weekly_period_mode_iso_monday_sunday_and_achieved_chart_buckets(self):
+        # Wednesday 2026-04-08 is ISO week 2026-W15 (Mon 6 Apr – Sun 12 Apr).
+        inside = self.make_brief(activity_date=date(2026, 4, 8), rows=[('W-1', 4)])
+        inside.achieved = 5
+        inside.save(update_fields=['achieved'])
+        outside = self.make_brief(activity_date=date(2026, 4, 13), rows=[('W-2', 9)])
+        outside.achieved = 7
+        outside.save(update_fields=['achieved'])
+        period = daily_brief_period_bounds({'period_mode': 'weekly', 'week': '2026-W15'})
+        self.assertEqual(period['start'], date(2026, 4, 6))
+        self.assertEqual(period['end'], date(2026, 4, 12))
+        self.assertEqual(period['period'], 'week')
+        briefs, details = daily_brief_filtered_querysets(period, {})
+        self.assertEqual(briefs.count(), 1)
+        result = daily_brief_analytics(period, briefs, details)
+        self.assertEqual(result['total_achieved'], 5)
+        self.assertEqual(len(result['charts']), 8)
+        # Seven day-wise labels Mon–Sun
+        self.assertEqual(len([c for c in result['charts'] if c[2] == 'daily_achieved']), 1)
+        # Page exposes Weekly opt-in and week navigation
+        page = self.client.get(reverse('performance_review:daily_brief_analytics'), {
+            'period_mode': 'weekly', 'week': '2026-W15',
+        })
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'value="weekly"')
+        self.assertContains(page, 'type="week"')
+        self.assertContains(page, 'Daily selections achieved (total 5)')
+        self.assertContains(page, 'Previous')
+        self.assertContains(page, 'Next')
+        self.assertTrue(page.context['standard_period_include_weekly'])
+        self.assertIn('2026-W14', page.context['week_prev_url'])
+        self.assertIn('2026-W16', page.context['week_next_url'])

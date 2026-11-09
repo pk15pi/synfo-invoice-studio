@@ -6,8 +6,9 @@ Hidden controls are also disabled, so they are never submitted. Query names/valu
   <label class="compact-filter-label"><span>Filter by</span>
     <select class="field" name="period_mode" data-period-mode>
       <option value="calendar"{% if pmode == 'calendar' %} selected{% endif %}>Yearly</option>
-      <option value="financial"{% if pmode != 'calendar' and pmode != 'custom' %} selected{% endif %}>Financial year</option>
+      <option value="financial"{% if pmode != 'calendar' and pmode != 'custom' and pmode != 'weekly' %} selected{% endif %}>Financial year</option>
       <option value="custom"{% if pmode == 'custom' %} selected{% endif %}>Custom date</option>
+      {% if standard_period_include_weekly %}<option value="weekly"{% if pmode == 'weekly' %} selected{% endif %}>Weekly</option>{% endif %}
     </select>
   </label>
   <label class="compact-filter-label" data-period-fields="calendar"{% if pmode != 'calendar' %} hidden{% endif %}><span>Year</span>
@@ -33,7 +34,7 @@ Hidden controls are also disabled, so they are never submitted. Query names/valu
       <option value="monthly"{% if ptype == 'monthly' %} selected{% endif %}>Monthly</option>
     </select>
   </label>
-  {% if pmode == 'calendar' or pmode == 'custom' %}{% firstof 'none' as ptype %}{% endif %}
+  {% if pmode == 'calendar' or pmode == 'custom' or pmode == 'weekly' %}{% firstof 'none' as ptype %}{% endif %}
   <label class="compact-filter-label" data-period-selection="quarterly"{% if ptype != 'quarterly' %} hidden{% endif %}><span>Quarter</span>
     <select class="field" name="period_value" data-period-quarter{% if ptype != 'quarterly' %} disabled{% endif %}>{% for value, label in standard_fy_quarter_choices %}<option value="{{ value }}"{% if request.GET.period_value == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
   </label>
@@ -47,6 +48,12 @@ Hidden controls are also disabled, so they are never submitted. Query names/valu
   </label>
   <label class="compact-filter-label" data-period-fields="custom"{% if pmode != 'custom' %} hidden{% endif %}><span>From</span><input class="field" type="date" name="date_from" value="{{ request.GET.date_from }}"{% if pmode != 'custom' %} disabled{% endif %}></label>
   <label class="compact-filter-label" data-period-fields="custom"{% if pmode != 'custom' %} hidden{% endif %}><span>To</span><input class="field" type="date" name="date_to" value="{{ request.GET.date_to }}"{% if pmode != 'custom' %} disabled{% endif %}></label>
+  {% if standard_period_include_weekly %}
+  <label class="compact-filter-label" data-period-fields="weekly"{% if pmode != 'weekly' %} hidden{% endif %}><span>Week</span>
+    <input class="field" type="week" name="week" data-period-week
+           value="{% firstof request.GET.week standard_current_iso_week %}"{% if pmode != 'weekly' %} disabled{% endif %}>
+  </label>
+  {% endif %}
 </div>
 <script>
 (() => {
@@ -59,7 +66,7 @@ Hidden controls are also disabled, so they are never submitted. Query names/valu
       node.querySelectorAll('select,input').forEach(input => { input.disabled = !on; });
     };
     const sync = () => {
-      const m = mode.value === 'calendar' || mode.value === 'custom' ? mode.value : 'financial';
+      const m = (mode.value === 'calendar' || mode.value === 'custom' || mode.value === 'weekly') ? mode.value : 'financial';
       root.querySelectorAll('[data-period-fields]').forEach(node => show(node, node.dataset.periodFields === m));
       root.querySelectorAll('[data-period-selection]').forEach(node => show(node, m === 'financial' && node.dataset.periodSelection === type.value));
     };
