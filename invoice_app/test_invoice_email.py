@@ -48,6 +48,7 @@ class InvoiceEmailPageTests(TestCase):
         })
         self.customer = Client.objects.create(
             name='Acme Corp', brand_name='Acme', email='billing@acme.example',
+            is_email_active=True,
             address='1 Main St',
         )
         self.pdf_patch = mock.patch(
@@ -193,7 +194,9 @@ class InvoiceEmailPageTests(TestCase):
         self.assertContains(page, 'Send selected (30s gap)')
         self.assertContains(page, 'Bulk send selected')
         self.assertNotContains(page, 'Send to all')
-        self.assertIn(f'data-all-ids="{inv_c.pk},{a.pk},{b.pk}"', body)
+        # inv_c has invoice email off (default) — excluded from select-all / data-all-ids
+        self.assertIn(f'data-all-ids="{a.pk},{b.pk}"', body)
+        self.assertNotIn(str(inv_c.pk), page.context['all_row_ids'])
         mail.outbox.clear()
         # Selected path resends already-sent
         r = self.client.post(reverse('invoice_email_send_json', args=[a.pk]), {'skip_if_sent': '0'})
@@ -204,4 +207,83 @@ class InvoiceEmailPageTests(TestCase):
         self.assertEqual(r2.json()['status'], 'sent')
         r3 = self.client.post(reverse('invoice_email_send_json', args=[inv_c.pk]), {'skip_if_sent': '0'})
         self.assertEqual(r3.json()['status'], 'skipped')
-        self.assertEqual(r3.json()['reason'], 'no_email')
+        self.assertEqual(r3.json()['reason'], 'email_inactive')
+        # Also cover no_email when mailing is on but address missing
+        c.is_email_active = True
+        c.save(update_fields=['is_email_active'])
+        r4 = self.client.post(reverse('invoice_email_send_json', args=[inv_c.pk]), {'skip_if_sent': '0'})
+        self.assertEqual(r4.json()['status'], 'skipped')
+        self.assertEqual(r4.json()['reason'], 'no_email')
+
+
+class InvoiceEmailActiveFlagTests(TestCase):
+    """Client.is_email_active gates selection and sending on Email invoices."""
+
+    def setUp(self):
+        InvoiceEmailPageTests.setUp(self)
+
+    def tearDown(self):
+        InvoiceEmailPageTests.tearDown(self)
+
+    def _invoice(self, *args, **kwargs):
+        return InvoiceEmailPageTests._invoice(self, *args, **kwargs)
+
+    def test_model_default_false(self):
+        c = Client.objects.create(name='Fresh Co', email='f@x.com')
+        self.assertFalse(c.is_email_active)
+        self.assertFalse(Client._meta.get_field('is_email_active').default)
+
+    def test_toggle_email_flips_and_confirm_markup(self):
+        c = Client.objects.create(name='Toggle Co', brand_name='BrandT', email='t@x.com')
+        html = self.client.get(reverse('clients')).content.decode()
+        self.assertIn('Email off', html)
+        self.assertIn("return confirm('Enable invoice email for Toggle Co (BrandT)?", html)
+        self.assertIn('title="Enable email" aria-label="Enable email"', html)
+        self.assertIn(reverse('client_toggle_email', args=[c.pk]), html)
+        r = self.client.post(reverse('client_toggle_email', args=[c.pk]), {'next': reverse('clients')})
+        self.assertEqual(r.status_code, 302)
+        c.refresh_from_db()
+        self.assertTrue(c.is_email_active)
+        html2 = self.client.get(reverse('clients')).content.decode()
+        self.assertIn('Email on', html2)
+        self.assertIn("return confirm('Disable invoice email for Toggle Co (BrandT)?", html2)
+        self.assertIn('title="Disable email" aria-label="Disable email"', html2)
+
+    def test_email_page_disables_inactive_customer_controls(self):
+        off = Client.objects.create(name='Off Co', email='off@x.com', is_email_active=False)
+        inv_off = self._invoice(number='INV-OFF')
+        # reassign invoice to off customer
+        Invoice.objects.filter(pk=inv_off.pk).update(client=off)
+        inv_off.refresh_from_db()
+        on = self.customer  # already active
+        inv_on = self._invoice(number='INV-ON', when=date(2026, 10, 16))
+        r = self.client.get(reverse('invoice_email'), {
+            'period_mode': 'calendar', 'calendar_year': '2026', 'calendar_month': '10',
+        })
+        body = r.content.decode()
+        self.assertIn('Invoice email is off for this customer', body)
+        self.assertIn(f'data-all-ids="{inv_on.pk}"', body)
+        self.assertNotIn(str(inv_off.pk), r.context['all_row_ids'])
+        # disabled checkbox for off; enabled for on
+        self.assertIn(f'value="{inv_off.pk}" disabled', body)
+        self.assertIn(f'value="{inv_on.pk}" aria-label="Select {inv_on.invoice_number}"', body)
+        self.assertNotIn(f'value="{inv_on.pk}" disabled', body)
+        # View PDF still present for inactive
+        self.assertIn(reverse('invoice_pdf', args=[inv_off.pk]), body)
+
+    def test_send_json_and_form_refuse_inactive(self):
+        self.customer.is_email_active = False
+        self.customer.save(update_fields=['is_email_active'])
+        inv = self._invoice(number='INV-BLOCK')
+        mail.outbox.clear()
+        r = self.client.post(reverse('invoice_email_send_json', args=[inv.pk]), {'skip_if_sent': '0'})
+        self.assertEqual(r.json()['status'], 'skipped')
+        self.assertEqual(r.json()['reason'], 'email_inactive')
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertFalse(InvoiceEmailLog.objects.filter(invoice=inv).exists())
+        r2 = self.client.post(
+            reverse('invoice_email_send', args=[inv.pk]),
+            {'next': reverse('invoice_email')},
+        )
+        self.assertEqual(r2.status_code, 302)
+        self.assertEqual(len(mail.outbox), 0)

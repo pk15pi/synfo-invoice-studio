@@ -234,7 +234,7 @@ class DocumentTests(Base):
 
     def test_expiry_state_and_indicator(self):
         from django.utils import timezone
-        today = timezone.localdate()
+        today = date.today()
         self.upload(expiry_date=str(today.replace(year=today.year - 1)))
         d = EmployeeDocument.objects.get()
         self.assertEqual(d.expiry_state(), 'expired')
@@ -728,7 +728,11 @@ class NavSmokeTests(TestCase):
             if url.startswith('/static/'):
                 continue
             with self.subTest(url=url):
-                self.assertEqual(self.client.get(url).status_code, 200, url)
+                resp = self.client.get(url)
+                # Period-default pages (email invoices / salary slips / payslips) 302 to previous month.
+                if resp.status_code == 302 and resp.get('Location'):
+                    resp = self.client.get(resp['Location'])
+                self.assertEqual(resp.status_code, 200, url)
 
     def test_legacy_invoice_urls_still_resolve(self):
         for url in ('/invoices/', '/customers/', '/projects/', '/business/', '/invoice/new/', '/invoicing/'):
@@ -897,3 +901,96 @@ class EmployeeFormDocumentTests(Base):
         r = self.client.get(reverse('em:employee_detail', args=[self.emp.pk]))
         self.assertNotContains(r, '123412341234')
         self.assertNotContains(r, 'ABCDE1234F')
+
+
+class HrObservationFilterTests(Base):
+    """HR dashboard observation links filter Employees / Documents lists."""
+
+    def setUp(self):
+        super().setUp()
+        from datetime import timedelta
+        from .models import EmployeeBankAccount, EmployeeDocument, PayrollSettings
+        self.settings = PayrollSettings.current()
+        self.settings.expiry_alert_days = 30
+        self.settings.save()
+        self.no_bank = self.make_emp(first_name='No', last_name='Bank')
+        self.no_salary = self.make_emp(first_name='No', last_name='Salary')
+        EmployeeBankAccount.objects.create(
+            employee=self.no_salary, bank_name='HDFC', account_holder_name='No Salary',
+            account_number='123456789012', ifsc_code='HDFC0001234', account_type='savings',
+            is_current=True)
+        self.structure(emp=self.emp)
+        EmployeeBankAccount.objects.create(
+            employee=self.emp, bank_name='SBI', account_holder_name='Asha Rao',
+            account_number='998877665544', ifsc_code='SBIN0001111', account_type='savings',
+            is_current=True)
+        today = date.today()
+        self.doc = EmployeeDocument(
+            employee=self.emp, document_type='pan', document_name='PAN card',
+            document_number='ABCDE1234F', expiry_date=today + timedelta(days=10), is_current=True,
+            original_filename='pan.pdf', content_type='application/pdf', file_size=len(PDF),
+        )
+        self.doc.file.save('pan.pdf', SimpleUploadedFile('pan.pdf', PDF, content_type='application/pdf'), save=True)
+
+    def test_dashboard_links_to_observation_filters(self):
+        r = self.client.get(reverse('em:home'))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, reverse('em:documents') + '?obs=expiring')
+        self.assertContains(r, 'status=employed&amp;obs=missing_bank')
+        self.assertContains(r, 'status=employed&amp;obs=missing_salary')
+
+    def test_employees_missing_bank_matches_dashboard(self):
+        from . import observations as obs
+        dash = self.client.get(reverse('em:home'))
+        expected = dash.context['missing_bank']
+        self.assertEqual(expected, obs.employees_missing_bank().count())
+        r = self.client.get(reverse('em:employees'), {'status': 'employed', 'obs': 'missing_bank'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.context['rows'].count(), expected)
+        self.assertContains(r, 'Showing:')
+        self.assertContains(r, 'Missing bank details')
+        self.assertContains(r, self.no_bank.employee_id)
+        self.assertNotIn(self.emp.employee_id, [e.employee_id for e in r.context['rows']])
+
+    def test_employees_missing_salary_matches_dashboard(self):
+        from . import observations as obs
+        dash = self.client.get(reverse('em:home'))
+        expected = dash.context['missing_salary_count']
+        self.assertEqual(expected, obs.employees_missing_salary().count())
+        r = self.client.get(reverse('em:employees'), {'status': 'employed', 'obs': 'missing_salary'})
+        self.assertEqual(r.context['rows'].count(), expected)
+        self.assertContains(r, 'Missing salary structure')
+        self.assertContains(r, self.no_salary.employee_id)
+        self.assertContains(r, self.no_bank.employee_id)  # no_bank also has no salary
+        self.assertNotIn(self.emp.pk, [e.pk for e in r.context['rows']])
+
+    def test_documents_expiring_matches_dashboard(self):
+        from . import observations as obs
+        dash = self.client.get(reverse('em:home'))
+        expected = dash.context['expiring_count']
+        self.assertEqual(expected, obs.expiring_documents_qs().count())
+        r = self.client.get(reverse('em:documents'), {'obs': 'expiring'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.context['rows']), expected)
+        self.assertContains(r, 'Showing:')
+        self.assertContains(r, 'Expiring documents')
+        self.assertContains(r, 'PAN')
+
+    def test_obs_chip_clears_only_obs(self):
+        r = self.client.get(reverse('em:employees'), {
+            'status': 'employed', 'obs': 'missing_bank', 'q': 'No'})
+        self.assertContains(r, 'data-obs-chip')
+        clear = r.context['obs_clear_url']
+        self.assertIn('status=employed', clear)
+        self.assertIn('q=No', clear)
+        self.assertNotIn('obs=', clear)
+        cleared = self.client.get(clear)
+        self.assertEqual(cleared.context['obs'], '')
+        self.assertNotContains(cleared, 'data-obs-chip')
+
+    def test_unknown_obs_ignored(self):
+        r = self.client.get(reverse('em:employees'), {'status': 'employed', 'obs': 'not-a-real-obs'})
+        self.assertEqual(r.context['obs'], '')
+        self.assertFalse(r.context['obs_label'])
+        r2 = self.client.get(reverse('em:documents'), {'obs': 'nope'})
+        self.assertEqual(r2.context['obs'], '')

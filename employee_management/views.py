@@ -38,23 +38,22 @@ def _form(request, form, title, back_url):
 
 # ------------------------------------------------------------------ home
 def hr_dashboard(request):
+    from . import observations as obs
     s = PayrollSettings.current()
     today = timezone.localdate()
-    soon = today + timedelta(days=s.expiry_alert_days)
     y, m = s.default_month()
     period = PayrollPeriod.objects.filter(year=y, month=m).first()
+    missing_salary = list(obs.employees_missing_salary()[:20])
     ctx = {
         'counts': {k: Employee.objects.filter(status=k).count() for k, _ in Employee.STATUSES},
         'total_employed': Employee.objects.filter(status__in=Employee.EMPLOYED).count(),
         'departments': Department.objects.filter(active=True).count(),
-        'expiring': EmployeeDocument.objects.filter(is_current=True, expiry_date__isnull=False,
-                                                    expiry_date__lte=soon).select_related('employee')
-        .order_by('expiry_date')[:20],
+        'expiring': list(obs.expiring_documents_qs(today=today, settings=s)[:20]),
+        'expiring_count': obs.expiring_documents_qs(today=today, settings=s).count(),
         'today': today,
-        'missing_bank': Employee.objects.filter(status__in=Employee.EMPLOYED).exclude(
-            bank_accounts__is_current=True).count(),
-        'missing_salary': [e for e in Employee.objects.filter(status__in=Employee.EMPLOYED)
-                           if not e.salary_structures.exists()][:20],
+        'missing_bank': obs.employees_missing_bank().count(),
+        'missing_salary': missing_salary,
+        'missing_salary_count': obs.employees_missing_salary().count(),
         'period': period, 'y': y, 'm': m, 'month_label': f'{calendar.month_name[m]} {y}',
     }
     return render(request, T + 'hr_dashboard.html', ctx)
@@ -101,10 +100,12 @@ def department_delete(request, pk):
 
 # ------------------------------------------------------------------ employees
 def employee_list(request):
+    from . import observations as obs
     qs = Employee.objects.select_related('department').order_by('employee_id')
     q = request.GET.get('q', '').strip()
     status = request.GET.get('status', 'employed')
     dept = request.GET.get('department', '')
+    observation = obs.normalize_obs(request.GET.get('obs'), obs.EMPLOYEE_OBS)
     if q:
         qs = qs.filter(Q(employee_id__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q) | Q(alias__icontains=q) |
                        Q(designation__icontains=q) | Q(mobile__icontains=q) | Q(work_email__icontains=q))
@@ -114,9 +115,17 @@ def employee_list(request):
         qs = qs.filter(status=status)
     if dept:
         qs = qs.filter(department_id=dept)
+    if observation == 'missing_bank':
+        qs = qs.filter(pk__in=obs.employees_missing_bank().values('pk'))
+    elif observation == 'missing_salary':
+        qs = qs.filter(pk__in=obs.employees_missing_salary().values('pk'))
     return render(request, T + 'employee_list.html', {
         'rows': qs, 'q': q, 'status': status, 'dept': dept, 'statuses': Employee.STATUSES,
-        'departments': Department.objects.all()})
+        'departments': Department.objects.all(),
+        'obs': observation,
+        'obs_label': obs.obs_label(observation),
+        'obs_clear_url': obs.obs_clear_url(request),
+    })
 
 
 def employee_form(request, pk=None):

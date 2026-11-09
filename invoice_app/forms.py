@@ -88,7 +88,7 @@ class ClientForm(StyledForm):
         fields = ['name', 'brand_name', 'address', 'country_ref', 'state_ref', 'district_ref', 'pin_code', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
                   'terms_mode', 'terms_text', 'tax_treatment', 'gstin', 'state_code', 'state_name', 'lut_number',
                   'vendor_code', 'invoice_format', 'cin_llpin', 'nda_signed_date', 'nda_expiry_date',
-                  'invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc',
+                  'is_email_active', 'invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc',
                   'invoice_email_use_custom_subject', 'invoice_email_subject_template', 'invoice_email_custom_subject',
                   'invoice_email_use_custom_body', 'invoice_email_body_template', 'invoice_email_custom_body',
                   'active', 'notes']
@@ -114,7 +114,7 @@ class ClientForm(StyledForm):
 
     ADDRESS_BLOCK = ('name', 'country_ref', 'state_ref', 'district_ref', 'pin_code')
     INVOICE_EMAIL_BLOCK = (
-        'invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc',
+        'is_email_active', 'invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc',
         'invoice_email_use_custom_subject', 'invoice_email_subject_template', 'invoice_email_custom_subject',
         'invoice_email_use_custom_body', 'invoice_email_body_template', 'invoice_email_custom_body',
     )

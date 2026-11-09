@@ -6,6 +6,7 @@
 <div><small class="muted">Country</small><br>{{ client.country_ref.name|default:client.country|default:"-" }}</div><div><small class="muted">State</small><br>{{ client.state_ref.name|default:"-" }}</div><div><small class="muted">District</small><br>{{ client.district_ref.name|default:"-" }}</div><div><small class="muted">PIN</small><br>{{ client.pin_code|default:"-" }}</div>
 <div><small class="muted">Contact</small><br>{{ client.contact_person|default:"-" }} {{ client.phone }}</div>
 <div><small class="muted">Email</small><br>{{ client.email|default:"-" }}</div>
+<div><small class="muted">Invoice email</small><br>{% if client.is_email_active %}<span class="badge ok">Email on</span>{% else %}<span class="badge off">Email off</span>{% endif %}</div>
 <div><small class="muted">Tax information</small><br>{{ client.tax_id|default:"-" }}</div>
 <div><small class="muted">Payment term (billing type)</small><br>{{ client.get_billing_type_display }}</div>
 <div><small class="muted">Terms (days until due)</small><br>{% if client.terms_mode == 'month_days' %}Days in invoice month (auto){% else %}{{ client.terms_text|default:'profile default' }}{% endif %}</div>

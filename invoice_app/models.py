@@ -271,6 +271,10 @@ class Client(models.Model):
     nda_expiry_date = models.DateField('NDA expiry date', null=True, blank=True)
 
     # --- Invoice email (To/CC/BCC + subject/body templates) ---
+    is_email_active = models.BooleanField(
+        'Invoice email active', default=False,
+        help_text='When off, this customer cannot be selected or emailed from Email invoices. '
+                  'Default is off for new and existing customers.')
     invoice_email_to = models.TextField(
         'Invoice email To', blank=True,
         help_text='One or more addresses for To, separated by commas or semicolons. '

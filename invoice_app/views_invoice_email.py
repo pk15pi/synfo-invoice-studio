@@ -29,7 +29,7 @@ def invoice_email_list(request):
         'search': search,
         'smtp_ready': pub['password_set'],
         'send_gap_seconds': pub['send_gap_seconds'],
-        'all_row_ids': [row.pk for row in rows],
+        'all_row_ids': [row.pk for row in rows if row.client.is_email_active],
         'send_json_url_template': reverse('invoice_email_send_json', args=[0]).replace('/0/', '/__ID__/'),
     })
 
@@ -40,6 +40,15 @@ def invoice_email_send(request, pk):
         Invoice.objects.select_related('client'),
         pk=pk, status=Invoice.FINALIZED, cancelled=False,
     )
+    nxt = request.POST.get('next') or reverse('invoice_email')
+    if not nxt.startswith('/'):
+        nxt = reverse('invoice_email')
+    if not invoice.client.is_email_active:
+        messages.error(
+            request,
+            f'Invoice email is off for {invoice.client.name}. Enable it on the customer page first.',
+        )
+        return redirect(nxt)
     log = IE.send_invoice(invoice)
     if log.success:
         messages.success(request, f'Sent invoice {invoice.invoice_number} to {log.recipient_email}.')
@@ -72,6 +81,12 @@ def invoice_email_send_json(request, pk):
         return JsonResponse({
             'ok': True, 'status': 'skipped', 'reason': 'already_sent',
             'code': invoice.invoice_number,
+        })
+    if not invoice.client.is_email_active:
+        return JsonResponse({
+            'ok': False, 'status': 'skipped', 'reason': 'email_inactive',
+            'code': invoice.invoice_number,
+            'error': 'Invoice email is off for this customer',
         })
     if not IE.customer_email(invoice.client):
         log = IE.send_invoice(invoice)

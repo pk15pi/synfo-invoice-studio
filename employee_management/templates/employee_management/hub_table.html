@@ -1,6 +1,7 @@
 {% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% load filter_ui %}{% block title %}{{ title }} &middot; QuantBud{% endblock %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">{{ section }}</p><h1>{{ title }}</h1><p class="muted">{{ intro }}</p></div>
 <div>{% for label, url in actions %}<a class="button secondary" href="{{ url }}">{{ label }}</a> {% endfor %}</div></div>
+{% if obs_label %}<p class="filter-chip obs-chip" data-obs-chip><b>Showing:</b> {{ obs_label }} <a class="obs-chip-clear" href="{{ obs_clear_url }}" title="Clear observation filter" aria-label="Clear observation filter">&#10005;</a></p>{% endif %}
 {% if month_exports %}<div class="panel"><div class="panel-head"><h2>Download payslips &middot; {{ fy_label }}</h2><a class="button primary" href="{{ year_zip_url }}">Download full financial year (ZIP)</a></div>
 <form method="get" class="qb-filter-form panel filters compact-filters" data-filter-form style="margin-bottom:12px">
 {% include 'invoice_app/_standard_period_filter.html' %}

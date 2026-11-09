@@ -851,7 +851,7 @@ class IconActionTests(TestCase):
     def test_customer_row_actions_are_accessible_icons(self):
         c = Client.objects.create(name='Icon Co', default_terms_days=30)
         html = self.client.get(reverse('clients')).content.decode()
-        for label in ('Deactivate', 'Edit'):
+        for label in ('Deactivate', 'Enable email', 'Edit'):
             self.assertIn(f'title="{label}" aria-label="{label}"', html)
         self.assertIn('<svg class="ico ico-edit"', html)
         self.assertIn(reverse('client_edit', args=[c.pk]), html)
@@ -871,4 +871,8 @@ class IconActionTests(TestCase):
             "return confirm('Deactivate customer Active Co (BrandX)?", html)
         self.assertIn(
             "return confirm('Activate customer Idle Co (Quiet)?", html)
+        self.assertIn(
+            "return confirm('Enable invoice email for Active Co (BrandX)?", html)
+        self.assertIn(
+            "return confirm('Enable invoice email for Idle Co (Quiet)?", html)
         self.assertNotIn('client_delete', html)

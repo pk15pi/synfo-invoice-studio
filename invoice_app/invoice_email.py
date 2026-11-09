@@ -146,8 +146,11 @@ def invoices_for_period(period, search=''):
 
 
 def bulk_queue(invoices):
-    pending, skipped_sent, skipped_email = [], [], []
+    pending, skipped_sent, skipped_email, skipped_inactive = [], [], [], []
     for inv in invoices:
+        if not getattr(inv.client, 'is_email_active', False):
+            skipped_inactive.append(inv.pk)
+            continue
         to_list, _cc, _bcc = resolve_recipients(inv.client)
         if inv.last_sent_at:
             skipped_sent.append(inv.pk)
@@ -159,7 +162,8 @@ def bulk_queue(invoices):
         'pending_ids': pending,
         'skipped_already_sent': len(skipped_sent),
         'skipped_no_email': len(skipped_email),
-        'total': len(pending) + len(skipped_sent) + len(skipped_email),
+        'skipped_email_inactive': len(skipped_inactive),
+        'total': len(pending) + len(skipped_sent) + len(skipped_email) + len(skipped_inactive),
     }
 
 

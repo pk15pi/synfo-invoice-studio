@@ -38,6 +38,7 @@ class InvoiceEmailTemplateSendTests(TestCase):
         })
         self.customer = Client.objects.create(
             name='Acme Corp', brand_name='Acme', email='billing@acme.example',
+            is_email_active=True,
         )
         self.pdf_patch = mock.patch(
             'invoice_app.invoice_email.render_for_invoice', return_value=b'%PDF-mock%',
@@ -237,7 +238,7 @@ class ClientInvoiceEmailFormTests(TestCase):
 
     def test_page_shows_to_cc_bcc(self):
         self.customer = Client.objects.create(
-            name='Show Co', email='s@x.com',
+            name='Show Co', email='s@x.com', is_email_active=True,
             invoice_email_to='to@x.com', invoice_email_cc='cc@x.com', invoice_email_bcc='bcc@x.com',
         )
         inv = Invoice.objects.create(

@@ -30,8 +30,8 @@
 </tr></thead>
 {% paginate rows as qb_pg1 %}<tbody>
 {% for inv in qb_pg1 %}
-<tr>
-<td><input type="checkbox" class="qb-email-row" value="{{ inv.pk }}" aria-label="Select {{ inv.invoice_number }}"></td>
+<tr{% if not inv.client.is_email_active %} class="qb-email-inactive"{% endif %}>
+<td>{% if inv.client.is_email_active %}<input type="checkbox" class="qb-email-row" value="{{ inv.pk }}" aria-label="Select {{ inv.invoice_number }}">{% else %}<input type="checkbox" class="qb-email-row" value="{{ inv.pk }}" disabled title="Invoice email is off for this customer" aria-label="Select {{ inv.invoice_number }} (email off)">{% endif %}</td>
 <td><a href="{% url 'invoice_detail' inv.pk %}">{{ inv.invoice_number }}</a></td>
 <td>{{ inv.client.name }}{% if inv.client.brand_name %} <span class="muted">({{ inv.client.brand_name }})</span>{% endif %}</td>
 {% with to=inv.client.invoice_email_to|default:inv.client.email %}
@@ -47,7 +47,7 @@
 <a class="icon-btn qb-email-row-action" href="{% url 'invoice_pdf' inv.pk %}" target="_blank" rel="noopener" title="View PDF" aria-label="View PDF">{% icon "pdf" %}</a>
 <form method="post" action="{% url 'invoice_email_send' inv.pk %}" style="display:inline">{% csrf_token %}
 <input type="hidden" name="next" value="{{ request.get_full_path }}">
-<button class="button qb-email-row-action {% if inv.email_attempted %}secondary{% else %}primary{% endif %}" type="submit" title="Generate the invoice PDF and email it to this customer.">{% if inv.email_attempted %}Resend{% else %}Send{% endif %}</button>
+{% if inv.client.is_email_active %}<button class="button qb-email-row-action {% if inv.email_attempted %}secondary{% else %}primary{% endif %}" type="submit" title="Generate the invoice PDF and email it to this customer.">{% if inv.email_attempted %}Resend{% else %}Send{% endif %}</button>{% else %}<button class="button qb-email-row-action secondary" type="button" disabled title="Invoice email is off for this customer">{% if inv.email_attempted %}Resend{% else %}Send{% endif %}</button>{% endif %}
 </form>
 </td>
 </tr>

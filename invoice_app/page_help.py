@@ -38,13 +38,13 @@ _add("profile_edit", "Business profile", "Maintain the company identity and cont
      rules=["Use authoritative company records. The profile does not itself verify legal or tax identifiers."],
      related=["Invoice PDFs, document generation and report headers may use these details."])
 _add("clients", "Customer list", "Find customer records and open customer-specific work.",
-     "Customer master records reduce repeated entry and connect invoices and projects to the right client.",
-     ["Search or filter the list.", "Open a customer to see its details and linked projects.", "Use Add customer to create a new record."],
-     rules=["Use the customer status controls to deactivate/reactivate where available; deleting a customer may be restricted when records refer to it."],
-     related=["Customer records are used by invoices, projects, manpower deployments and recruitment agreements."])
+     "Customer master records reduce repeated entry and connect invoices and projects to the right client. Invoice email starts off for every customer until you enable it.",
+     ["Search or filter the list.", "Open a customer to see its details and linked projects.", "Use Add customer to create a new record.", "Use the mail icon to enable or disable invoice email for a customer (confirm first)."],
+     rules=["Use the customer status controls to deactivate/reactivate where available; deleting a customer may be restricted when records refer to it.", "Invoice email must be enabled before Email invoices can select or send to that customer."],
+     related=["Customer records are used by invoices, projects, manpower deployments and recruitment agreements.", "Email invoices respects each customer’s invoice-email active flag."])
 _add("client_add client_edit", "Add or edit customer", "Enter the customer identity, billing preferences, contact information and invoice email settings.",
-     "This page stores the customer master used by invoices and client workflows, including To/CC/BCC and email subject/body for invoice mailing.",
-     ["Enter the customer name and applicable address/tax details.", "Choose the billing type and payment terms where shown.", "In Invoice email, set To/CC/BCC and choose a subject/body template or custom text (optional Save as template). Placeholders include {invoice_month} and {invoice_year} from the invoice date.", "Review required fields and save. The last subject/body choice becomes the default for new customers."],
+     "This page stores the customer master used by invoices and client workflows, including whether invoice email is active, To/CC/BCC and email subject/body for invoice mailing.",
+     ["Enter the customer name and applicable address/tax details.", "Choose the billing type and payment terms where shown.", "In Invoice email, turn Invoice email active on when this customer should receive mailed invoices, then set To/CC/BCC and choose a subject/body template or custom text (optional Save as template). Placeholders include {invoice_month} and {invoice_year} from the invoice date.", "Review required fields and save. The last subject/body choice becomes the default for new customers."],
      rules=["Use the correct legal/customer name and verified tax details.", "Billing type and due terms affect later invoice calculations or due dates."],
      related=["Invoices, projects, manpower deployments and recruitment placements can refer to this customer."])
 _add("client_detail", "Customer details", "Review one customer and the work linked to that record.",
@@ -296,14 +296,14 @@ _add("email_templates email_template_add email_template_edit invoice_email_templ
      rules=["Deleting a template that customers still reference or that is a salary default is blocked.", "Saving a template from Customer Add/Edit creates a Customer-category row.", "Salary slips always use the Shared salary default subject/body — not per employee."],
      related=["Email invoices, Email salary slips, and Add/Edit customer."])
 _add("invoice_email", "Email invoices", "Filter finalized invoices by period and email each customer their invoice PDF.",
-     "Each row is one invoice. Send uses the customer's To/CC/BCC and subject/body template or custom text. Send is used the first time; after any attempt the button becomes Resend.",
-     ["Choose the period with the shared Yearly / Financial year / Custom date picker.",
-      "Confirm the customer email address.",
-      "Use Send/Resend for one invoice, or check rows and use Send selected / Bulk send selected."],
-     rules=["Only finalized non-cancelled invoices are listed.",
-            "Outgoing email password is set under Shared → Settings; it is never shown after save.",
-            "Send selected waits the shared gap; Bulk send selected does not. Already-sent selected rows are resent."],
-     related=["Invoice list, customer email field and Shared → Settings outgoing email."])
+     "Each row is one invoice. Only customers with Invoice email active can be selected or sent. Send uses the customer's To/CC/BCC and subject/body template or custom text. Send is used the first time; after any attempt the button becomes Resend. Defaults to the previous calendar month.",
+     ["Choose the period (defaults to previous month).",
+      "Confirm the customer has Invoice email enabled and a To address.",
+      "Select eligible rows (inactive-email customers stay disabled) and use Send selected or Bulk send selected, or Send on one row.",
+      "View PDF still works when email is off for that customer."],
+     rules=["Outgoing SMTP must be configured under Shared → Settings.", "Customers with invoice email off are skipped by send selected / bulk send and refused by the send endpoint.", "Already-sent selected rows are resent when you use Send selected."],
+     related=["Invoice list, customer Invoice email settings and Shared → Settings outgoing email."])
+
 _add("em:payslip_email", "Email salary slips", "Filter finalized payslips by period and email each employee their salary slip PDF.",
      "Each row is one employee and salary month. Send is used the first time; after any attempt the button becomes Resend. Selected rows can be mailed with the shared gap or in bulk.",
      ["Choose the period with the shared Yearly / Financial year / Custom date picker.", "Confirm the employee email address.", "Use Send/Resend for one slip, or check rows and use Send selected / Bulk send selected."],

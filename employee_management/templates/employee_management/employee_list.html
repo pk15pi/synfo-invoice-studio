@@ -1,6 +1,9 @@
 {% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}{% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Employee Management</p><h1>Employees</h1></div><a class="button primary" href="{% url 'em:employee_new' %}">+ Add employee</a></div>
-<form class="qb-filter-form panel filters compact-filters" method="get" data-filter-form><label class="compact-filter-label"><span>Search</span><input class="field" name="q" value="{{ q }}" placeholder="Search ID, name, alias, designation, phone, email"></label>
+{% if obs_label %}<p class="filter-chip obs-chip" data-obs-chip><b>Showing:</b> {{ obs_label }} <a class="obs-chip-clear" href="{{ obs_clear_url }}" title="Clear observation filter" aria-label="Clear observation filter">&#10005;</a></p>{% endif %}
+<form class="qb-filter-form panel filters compact-filters" method="get" data-filter-form>
+{% if obs %}<input type="hidden" name="obs" value="{{ obs }}">{% endif %}
+<label class="compact-filter-label"><span>Search</span><input class="field" name="q" value="{{ q }}" placeholder="Search ID, name, alias, designation, phone, email"></label>
 <label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="employed" {% if status == 'employed' %}selected{% endif %}>Currently employed</option><option value="all" {% if status == 'all' %}selected{% endif %}>All statuses</option>{% for k, l in statuses %}<option value="{{ k }}" {% if status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
 <label class="compact-filter-label"><span>Department</span><select class="field" name="department"><option value="">All departments</option>{% for d in departments %}<option value="{{ d.pk }}" {% if dept == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
 {% filter_actions %}</form>

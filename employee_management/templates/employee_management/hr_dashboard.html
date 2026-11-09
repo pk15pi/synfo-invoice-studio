@@ -8,11 +8,11 @@
 <a class="card" href="{% url 'em:departments' %}"><span class="muted">Active departments</span><strong>{{ departments }}</strong></a>
 <a class="card" href="{% url 'em:payroll' %}?year={{ y }}&month={{ m }}"><span class="muted">Payroll {{ month_label }}</span><strong>{% if period %}{{ period.get_status_display }}{% else %}Not started{% endif %}</strong></a>
 </div>
-<div class="panel"><div class="panel-head"><h2>Document expiry alerts</h2></div>
+<div class="panel"><div class="panel-head"><h2><a href="{% url 'em:documents' %}?obs=expiring">Document expiry alerts{% if expiring_count %} ({{ expiring_count }}){% endif %}</a></h2></div>
 {% if expiring %}<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Document</th><th>Expiry</th><th></th></tr></thead>{% paginate expiring as qb_pg1 %}<tbody>
 {% for d in qb_pg1 %}<tr><td><a href="{% url 'em:employee_detail' d.employee.pk %}?tab=documents">{{ d.employee }}</a></td><td>{{ d.get_document_type_display }}</td><td>{{ d.expiry_date|date:"d-m-Y" }}</td><td>{% if d.expiry_date < today %}<span class="badge off">Expired</span>{% else %}<span class="badge">Expiring soon</span>{% endif %}</td></tr>{% endfor %}
 </tbody></table>{% pager qb_pg1 %}</div>{% else %}<p class="muted">No documents expiring soon.</p>{% endif %}</div>
 <div class="panel"><div class="panel-head"><h2>Data gaps</h2></div>
-<p>{{ missing_bank }} employed staff without a current bank account.</p>
-{% if missing_salary %}<p>Without a salary structure: {% for e in missing_salary %}<a href="{% url 'em:salary_new' e.pk %}">{{ e.employee_id }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}</div>
+<p><a href="{% url 'em:employees' %}?status=employed&amp;obs=missing_bank">{{ missing_bank }} employed staff without a current bank account.</a></p>
+{% if missing_salary %}<p><a href="{% url 'em:employees' %}?status=employed&amp;obs=missing_salary">Without a salary structure ({{ missing_salary_count }}):</a> {% for e in missing_salary %}<a href="{% url 'em:salary_new' e.pk %}">{{ e.employee_id }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}</div>
 {% endblock %}

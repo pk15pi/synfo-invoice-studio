@@ -62,7 +62,7 @@ urlpatterns = [
     p('payroll/salary-payments/<int:spid>/cancel/', v.salary_payment_cancel, 'salary_payment_cancel'),
     p('payroll/period/<int:pid>/pay-all/', v.salary_pay_all, 'salary_pay_all'),
     p('personal-details/', h.personal_details, 'personal_details'),
-    p('documents/', h.documents, 'documents'),
+    p('employee-documents/', h.documents, 'documents'),
     p('bank-details/', h.bank_details, 'bank_details'),
     p('payroll/salary-structures/', h.salary_structures, 'salary_structures'),
     p('payroll/payslips/', h.payslips, 'payslips'),

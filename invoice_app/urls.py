@@ -17,6 +17,7 @@ urlpatterns = [
     path('customers/documents/<int:pk>/', views.client_document, name='client_document'),
     path('customers/<int:pk>/delete/', views.client_delete, name='client_delete'),
     path('customers/<int:pk>/toggle/', views.client_toggle, name='client_toggle'),
+    path('customers/<int:pk>/toggle-email/', views.client_toggle_email, name='client_toggle_email'),
     path('projects/', views.projects_hub, name='projects_hub'),
     path('manpower/', views.manpower_deployments, name='manpower_deployments'),
     path('manpower/add/', views.manpower_deployment_edit, name='manpower_deployment_add'),

@@ -62,9 +62,11 @@ def _emp(e):
     return _c(e.employee_id, reverse('em:employee_detail', args=[e.pk]))
 
 
-def _hub(request, section, title, intro, headers, rows, actions=()):
-    return render(request, HUB, {'section': section, 'title': title, 'intro': intro, 'headers': headers,
-                                 'rows': rows, 'actions': actions})
+def _hub(request, section, title, intro, headers, rows, actions=(), **extra):
+    ctx = {'section': section, 'title': title, 'intro': intro, 'headers': headers,
+           'rows': rows, 'actions': actions}
+    ctx.update(extra)
+    return render(request, HUB, ctx)
 
 
 def personal_details(request):
@@ -77,12 +79,29 @@ def personal_details(request):
 
 
 def documents(request):
-    qs = EmployeeDocument.objects.filter(is_current=True).select_related('employee').order_by('employee__employee_id', 'document_type')
+    from . import observations as obs
+    observation = obs.normalize_obs(request.GET.get('obs'), obs.DOCUMENT_OBS)
+    if observation == 'expiring':
+        qs = obs.expiring_documents_qs()
+    elif observation == 'expired':
+        qs = obs.expired_documents_qs()
+    else:
+        qs = (
+            EmployeeDocument.objects.filter(is_current=True)
+            .select_related('employee')
+            .order_by('employee__employee_id', 'document_type')
+        )
     rows = [[_emp(d.employee), _c(d.employee.full_name), _c(d.get_document_type_display()), _c(d.document_name),
              _c(d.number_masked), _c(d.expiry_date and d.expiry_date.strftime('%d-%m-%Y')),
              _c('View', reverse('em:document_view', args=[d.employee_id, d.pk]))] for d in qs]
-    return _hub(request, 'Employee Management', 'Documents', 'Document repository: current version of every employee document. Files are served only through these controlled links; replaced versions stay in each document\'s history.',
-                ['ID', 'Name', 'Type', 'Document', 'Number', 'Expiry', ''], rows)
+    return _hub(
+        request, 'Employee Management', 'Documents',
+        'Document repository: current version of every employee document. Files are served only through these controlled links; replaced versions stay in each document\'s history.',
+        ['ID', 'Name', 'Type', 'Document', 'Number', 'Expiry', ''], rows,
+        obs=observation,
+        obs_label=obs.obs_label(observation),
+        obs_clear_url=obs.obs_clear_url(request),
+    )
 
 
 def bank_details(request):

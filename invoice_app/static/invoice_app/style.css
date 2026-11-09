@@ -868,3 +868,5 @@ main>*{min-width:0}
 
 /* Email send pages: row action size matches other compact table controls; colors stay .button.primary/.secondary */
 .table-wrap .button.qb-email-row-action{min-height:32px;padding:6px 10px;font-size:12px;white-space:nowrap}
+
+.obs-chip{display:inline-flex;align-items:center;gap:8px;margin:0 0 12px;padding:6px 10px;border:1px solid #d7e1e9;border-radius:999px;background:#f3f7fb;font-size:13px}.obs-chip-clear{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;text-decoration:none;color:#40576a;font-weight:700}.obs-chip-clear:hover{background:#e5eef5}

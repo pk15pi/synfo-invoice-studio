@@ -391,6 +391,19 @@ def client_toggle(request, pk):
 
 
 @require_POST
+def client_toggle_email(request, pk):
+    c = get_object_or_404(Client, pk=pk)
+    c.is_email_active = not c.is_email_active
+    c.save(update_fields=['is_email_active'])
+    messages.success(
+        request,
+        f'Invoice email for {c.name} is now '
+        f'{"enabled" if c.is_email_active else "disabled"}.',
+    )
+    return _back(request, 'clients')
+
+
+@require_POST
 def project_toggle(request, client_id, pk):
     p = get_object_or_404(ProjectTemplate, pk=pk, client_id=client_id)
     p.active = not p.active
