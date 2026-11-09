@@ -169,8 +169,6 @@ def render_payslip(d: PayslipData) -> bytes:
             ('Date of Joining', d.date_of_joining.strftime('%d-%m-%Y') if d.date_of_joining else '-',
              'PAN', d.pan_masked or '-'),
             ('Bank', d.bank_name or '-', 'Account No.', d.account_masked or '-'),
-            ('Calendar Days', _days(d.calendar_days), 'Salary Divisor', _days(d.divisor_days)),
-            ('Working Days', _days(d.working_days), 'Payable Days', _days(d.payable_days)),
             ('LWP Days', _days(d.lwp_days), 'Paid / Unpaid Leave',
              f'{_days(d.paid_leave_days)} / {_days(d.unpaid_leave_days)}')]
     rh = 15
@@ -250,9 +248,7 @@ def render_payslip(d: PayslipData) -> bytes:
         c.drawString(L + 6, y - 36, f'Includes rounding adjustment of INR {money(d.rounding_adjustment)}')
     y -= box_h + 14
     c.setFont('Helvetica', 9)
-    pay = d.payment_date.strftime('%d-%m-%Y') if d.payment_date else '-'
-    c.drawString(L, y, f'Payment date: {pay}')
-    c.drawString(L + 150, y, f'Status: {d.status}')
+    c.drawString(L, y, f'Status: {d.status}')
 
     # signature
     sy = max(y - 70, 40 * mm)

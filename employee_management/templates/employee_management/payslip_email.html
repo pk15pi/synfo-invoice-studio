@@ -40,7 +40,7 @@
 <td>{% if p.last_sent_at %}<span class="badge">Sent</span>{% else %}<span class="muted">Not sent</span>{% endif %}</td>
 <td>{% if p.last_sent_at %}{{ p.last_sent_at|date:"d-m-Y H:i:s" }}{% else %}&mdash;{% endif %}</td>
 <td>
-<a class="button qb-email-row-action secondary" href="{% url 'em:payslip' p.pk %}" target="_blank" rel="noopener" title="Open this payslip PDF in a new tab.">View</a>
+<a class="icon-btn qb-email-row-action" href="{% url 'em:payslip' p.pk %}" target="_blank" rel="noopener" title="View PDF" aria-label="View PDF">{% icon "pdf" %}</a>
 <form method="post" action="{% url 'em:payslip_email_send' p.pk %}" style="display:inline">{% csrf_token %}
 <input type="hidden" name="next" value="{{ request.get_full_path }}">
 <button class="button qb-email-row-action {% if p.email_attempted %}secondary{% else %}primary{% endif %}" type="submit" title="Generate the payslip PDF and email it to this employee.">{% if p.email_attempted %}Resend{% else %}Send{% endif %}</button>

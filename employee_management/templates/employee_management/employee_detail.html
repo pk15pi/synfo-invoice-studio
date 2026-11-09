@@ -51,7 +51,7 @@
 
 {% elif tab == 'payroll' %}
 <div class="panel"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Rev.</th><th>Status</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Net</th><th></th></tr></thead>{% paginate payrolls as qb_pg5 %}<tbody>
-{% for p in qb_pg5 %}<tr><td>{{ p.period.label }}</td><td>{{ p.revision }}{% if not p.is_current %} <small class="muted">(superseded/draft)</small>{% endif %}</td><td>{{ p.get_status_display }}</td><td class="num">{{ p.gross_earnings }}</td><td class="num">{{ p.total_deductions }}</td><td class="num">{{ p.net_salary }}</td><td><a class="icon-btn" href="{% url 'em:payroll_detail' p.pk %}" title="Open" aria-label="Open">{% icon "view" %}</a> &middot; <a class="icon-btn" href="{% url 'em:payslip' p.pk %}" target="_blank" title="Payslip" aria-label="Payslip">{% icon "pdf" %}</a></td></tr>
+{% for p in qb_pg5 %}<tr><td>{{ p.period.label }}</td><td>{{ p.revision }}{% if not p.is_current %} <small class="muted">(superseded/draft)</small>{% endif %}</td><td>{{ p.get_status_display }}</td><td class="num">{{ p.gross_earnings }}</td><td class="num">{{ p.total_deductions }}</td><td class="num">{{ p.net_salary }}</td><td><a class="icon-btn" href="{% url 'em:payroll_detail' p.pk %}" title="Open" aria-label="Open">{% icon "view" %}</a> &middot; <a class="icon-btn" href="{% url 'em:payslip' p.pk %}" target="_blank" rel="noopener" title="View PDF" aria-label="View PDF">{% icon "pdf" %}</a></td></tr>
 {% empty %}<tr><td colspan="7" class="empty">No payroll yet.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg5 %}</div></div>
 
 {% else %}

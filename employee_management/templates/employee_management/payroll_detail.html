@@ -1,7 +1,7 @@
 {% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load ui_icons %}{% block content %}
 <div class="page-heading split"><div><a class="back" href="{{ back_url }}">&larr; Payroll {{ p.period.label }}</a><h1>{{ p.code }} {{ p.snap_name }} &middot; {{ p.period.label }}</h1>
 <p><span class="badge {% if p.is_finalized %}ok{% endif %}">{{ p.get_status_display }}</span> Revision {{ p.revision }}{% if not p.is_current %} <span class="badge off">Not current</span>{% endif %}</p></div>
-<div><a class="button secondary" href="{% url 'em:payslip' p.pk %}" target="_blank">View payslip</a> <a class="button secondary" href="{% url 'em:payslip' p.pk %}?download=1">Download PDF</a>
+<div><a class="icon-btn" href="{% url 'em:payslip' p.pk %}" target="_blank" rel="noopener" title="View PDF" aria-label="View PDF">{% icon "pdf" %}</a> <a class="button secondary" href="{% url 'em:payslip' p.pk %}?download=1">Download PDF</a>
 {% if not p.is_finalized %}<a class="button secondary" href="{% url 'em:payroll_edit' p.pk %}">{% icon "adjust" %} Adjust</a>
 <form class="inline" method="post" action="{% url 'em:payroll_finalize_one' p.pk %}" onsubmit="return confirm('Finalize? It becomes read-only.')">{% csrf_token %}<button class="button primary">Finalize</button></form>
 <form class="inline" method="post" action="{% url 'em:payroll_delete' p.pk %}" onsubmit="return confirm('Discard this draft?')">{% csrf_token %}<button class="link danger">Discard draft</button></form>{% endif %}</div></div>

@@ -44,7 +44,7 @@
 <td>{% if inv.last_sent_at %}<span class="badge">Sent</span>{% else %}<span class="muted">Not sent</span>{% endif %}</td>
 <td>{% if inv.last_sent_at %}{{ inv.last_sent_at|date:"d-m-Y H:i:s" }}{% else %}&mdash;{% endif %}</td>
 <td>
-<a class="button qb-email-row-action secondary" href="{% url 'invoice_pdf' inv.pk %}" target="_blank" rel="noopener" title="Open this invoice PDF in a new tab.">View</a>
+<a class="icon-btn qb-email-row-action" href="{% url 'invoice_pdf' inv.pk %}" target="_blank" rel="noopener" title="View PDF" aria-label="View PDF">{% icon "pdf" %}</a>
 <form method="post" action="{% url 'invoice_email_send' inv.pk %}" style="display:inline">{% csrf_token %}
 <input type="hidden" name="next" value="{{ request.get_full_path }}">
 <button class="button qb-email-row-action {% if inv.email_attempted %}secondary{% else %}primary{% endif %}" type="submit" title="Generate the invoice PDF and email it to this customer.">{% if inv.email_attempted %}Resend{% else %}Send{% endif %}</button>

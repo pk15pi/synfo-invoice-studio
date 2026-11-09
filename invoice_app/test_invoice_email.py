@@ -118,9 +118,13 @@ class InvoiceEmailPageTests(TestCase):
         self.assertContains(r, 'Not sent')
         self.assertContains(r, 'page_size')
         self.assertContains(r, '1000.00')
-        self.assertContains(r, '>View<')
         self.assertContains(r, reverse('invoice_pdf', args=[inv.pk]))
         self.assertContains(r, 'target="_blank"')
+        self.assertContains(r, 'rel="noopener"')
+        self.assertContains(r, 'title="View PDF"')
+        self.assertContains(r, 'aria-label="View PDF"')
+        self.assertContains(r, 'ico-pdf')
+        self.assertNotContains(r, '>View</a>')
         from pathlib import Path
         from django.conf import settings
         js = (Path(settings.BASE_DIR) / 'invoice_app' / 'static' / 'invoice_app' / 'email_select_send.js').read_text(encoding='utf-8')

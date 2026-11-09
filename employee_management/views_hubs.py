@@ -54,8 +54,8 @@ def _export_fy_start(period, params):
 HUB = 'employee_management/hub_table.html'
 
 
-def _c(text, url=None):
-    return {'t': '' if text is None else text, 'u': url}
+def _c(text, url=None, *, blank=False, icon=None):
+    return {'t': '' if text is None else text, 'u': url, 'blank': blank, 'icon': icon}
 
 
 def _emp(e):
@@ -126,7 +126,7 @@ def payslips(request):
     rows = [
         [_c(p.code, reverse('em:employee_detail', args=[p.employee_id])), _c(p.snap_name), _c(p.period.label),
          _c(p.revision), _c('Current' if p.is_current else 'Superseded'), _c(f'{p.net_salary:.2f}'),
-         _c('PDF', reverse('em:payslip', args=[p.pk]))]
+         _c('View PDF', reverse('em:payslip', args=[p.pk]), blank=True, icon='pdf')]
         for p in qs
     ]
 

@@ -583,6 +583,25 @@ class PayrollLifecycleTests(Base):
         self.assertEqual(d.account_masked, 'XXXXXXXX3333')
         self.assertEqual(d.company_name, BusinessProfile.current().name)
 
+    def test_payslip_pdf_omits_days_divisor_and_payment_date(self):
+        """Salary slip PDF no longer shows calendar/working/payable days, divisor, or payment date."""
+        import fitz
+        from .pdf.payslip import build_payslip_data, render_payslip
+        from invoice_app.models import BusinessProfile
+        rec = engine.generate(self.period())[0][0]
+        data = build_payslip_data(rec, PayrollSettings.current(), BusinessProfile.current())
+        pdf = render_payslip(data)
+        text = ''.join(page.get_text() for page in fitz.open(stream=pdf, filetype='pdf'))
+        lowered = text.lower()
+        for label in (
+            'calendar days', 'calender days', 'working days', 'payable days',
+            'salary divisor', 'payment date',
+        ):
+            self.assertNotIn(label, lowered, msg=f'PDF still contains {label!r}')
+        self.assertIn('employee id', lowered)
+        self.assertIn('net salary', lowered)
+        self.assertIn('lwp days', lowered)
+
     def test_exports(self):
         from openpyxl import load_workbook
         rec = engine.generate(self.period())[0][0]
