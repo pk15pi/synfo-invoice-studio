@@ -110,3 +110,142 @@ def bank_xlsx(period, payrolls, payment_date, full=False):
 
 def generic_xlsx(title, headers, rows, money=()):
     return _book([(title, headers, rows, set(money))])
+# ---------------------------------------------------------------------------
+# CA salary TDS — Indian FY quarterly export (one row per employee)
+# ---------------------------------------------------------------------------
+import calendar
+from decimal import Decimal, ROUND_HALF_UP
+
+from django.db.models import Q
+
+_ZERO = Decimal('0.00')
+
+
+def _q2(value):
+    return Decimal(value).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+
+def quarter_months(fy_start, quarter):
+    """Return [(year, month), ...] for Indian FY quarter 1..4.
+
+    Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec (fy_start); Q4 Jan–Mar (fy_start + 1).
+    """
+    if quarter not in (1, 2, 3, 4):
+        raise ValueError(f'quarter must be 1..4, got {quarter!r}')
+    month_nos = {1: (4, 5, 6), 2: (7, 8, 9), 3: (10, 11, 12), 4: (1, 2, 3)}[quarter]
+    return [(fy_start if month >= 4 else fy_start + 1, month) for month in month_nos]
+
+
+def _month_label(year, month):
+    return f'{calendar.month_abbr[month]} {year}'
+
+
+def _line_sum(lines, code, employee_side_only=False):
+    total = _ZERO
+    for line in lines:
+        if line.code != code:
+            continue
+        if employee_side_only and getattr(line, 'side', 'employee') != 'employee':
+            continue
+        total += line.amount
+    return total
+
+
+def salary_tds_quarter_rows(fy_start, quarter):
+    """Build headers/rows for the CA TDS workbook. Reads finalized current payroll only."""
+    from .models import EmployeePayroll, PayrollDeduction
+
+    months = quarter_months(fy_start, quarter)
+    period_q = Q()
+    for year, month in months:
+        period_q |= Q(period__year=year, period__month=month)
+    slips = (
+        EmployeePayroll.objects.filter(
+            period_q, status=EmployeePayroll.FINALIZED, is_current=True,
+        )
+        .select_related('period', 'employee')
+        .prefetch_related('earnings', 'deductions')
+        .order_by('snap_employee_code', 'employee__employee_id', 'period__year', 'period__month')
+    )
+
+    by_employee = {}
+    for slip in slips:
+        key = slip.employee_id
+        info = by_employee.get(key)
+        if info is None:
+            info = {
+                'code': slip.code,
+                'name': slip.snap_name,
+                'pan': (slip.employee.pan_number or '').strip().upper(),
+                'department': slip.snap_department,
+                'designation': slip.snap_designation,
+                'months': {},
+                'latest': None,
+            }
+            by_employee[key] = info
+        month_key = (slip.period.year, slip.period.month)
+        info['months'][month_key] = slip
+        if info['latest'] is None or month_key > info['latest']:
+            info['latest'] = month_key
+            info['code'] = slip.code
+            info['name'] = slip.snap_name
+            info['department'] = slip.snap_department
+            info['designation'] = slip.snap_designation
+
+    headers = ['Employee ID', 'Employee Name', 'PAN', 'Department', 'Designation']
+    for year, month in months:
+        label = _month_label(year, month)
+        headers.extend([f'{label} Gross', f'{label} TDS'])
+    headers.extend([
+        'Gross Salary (Quarter)', 'Basic', 'HRA', 'Other Earnings',
+        'Employee PF', 'Professional Tax', 'Income Tax / TDS', 'Other Deductions',
+        'Net Pay (Quarter)',
+    ])
+
+    rows = []
+    for info in sorted(by_employee.values(), key=lambda item: (item['code'] or '', item['name'] or '')):
+        row = [info['code'], info['name'], info['pan'], info['department'], info['designation']]
+        q_gross = q_basic = q_hra = q_pf = q_pt = q_tds = q_net = q_other_earn = q_other_ded = _ZERO
+        for month_key in months:
+            slip = info['months'].get(month_key)
+            if slip is None:
+                row.extend(['', ''])
+                continue
+            earnings = list(slip.earnings.all())
+            deductions = list(slip.deductions.all())
+            basic = _line_sum(earnings, 'basic')
+            hra = _line_sum(earnings, 'hra')
+            tds = _line_sum(deductions, 'tds', employee_side_only=True)
+            pf = _line_sum(deductions, 'pf', employee_side_only=True)
+            pt = _line_sum(deductions, 'professional_tax', employee_side_only=True)
+            emp_ded = sum(
+                (line.amount for line in deductions if line.side == PayrollDeduction.EMPLOYEE),
+                _ZERO,
+            )
+            row.extend([float(slip.gross_earnings), float(tds)])
+            q_gross += slip.gross_earnings
+            q_net += slip.net_salary
+            q_basic += basic
+            q_hra += hra
+            q_other_earn += slip.gross_earnings - basic - hra
+            q_pf += pf
+            q_pt += pt
+            q_tds += tds
+            q_other_ded += emp_ded - pf - pt - tds
+        row.extend([
+            float(q_gross), float(q_basic), float(q_hra), float(q_other_earn),
+            float(q_pf), float(q_pt), float(q_tds), float(q_other_ded), float(q_net),
+        ])
+        rows.append(row)
+
+    money_cols = set(range(6, len(headers) + 1))
+    fy_tag = f'FY{fy_start}-{str(fy_start + 1)[-2:]}'
+    sheet_title = f'TDS Q{quarter} {fy_tag}'
+    filename = f'Salary_TDS_Q{quarter}_{fy_tag}.xlsx'
+    return headers, rows, money_cols, sheet_title, filename
+
+
+def salary_tds_quarter_xlsx(fy_start, quarter):
+    headers, rows, money_cols, sheet_title, filename = salary_tds_quarter_rows(fy_start, quarter)
+    return _book([(sheet_title, headers, rows, money_cols)]), filename
+

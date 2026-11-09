@@ -7,8 +7,8 @@ the only UI boundary. Keep export packages private and use OS/disk encryption fo
 <form method="post" action="{% url 'backup:create' %}">{% csrf_token %}<input name="note" placeholder="Note (optional)" size="40"> <button type="submit">Create backup now</button></form>
 <form method="post" action="{% url 'backup:retention' %}" style="margin-top:8px">{% csrf_token %}<button type="submit">Apply retention (keep last {{ keep }})</button></form>{% endif %}
 <h2>PostgreSQL sync</h2>
-<p class="muted">Clone all data between this SQLite database and a PostgreSQL server (connection settings, Test connection, SQLite &rarr; PostgreSQL and PostgreSQL &rarr; SQLite). The app keeps running on SQLite.</p>
-<p><a href="{% url 'backup:pg_home' %}">Open PostgreSQL sync &rarr;</a></p>
+<p class="muted">Clone all data between this SQLite database and a PostgreSQL server (connection settings, Test connection, SQLite &rarr; PostgreSQL and PostgreSQL &rarr; SQLite). The app keeps running on SQLite. Also available under <strong>Shared &rarr; PostgreSQL sync</strong>.</p>
+<p><a class="button secondary" href="{% url 'backup:pg_home' %}">Open PostgreSQL sync &rarr;</a></p>
 <h2>Offline data exchange</h2>
 <p class="muted">Export creates a portable, checksummed package for merging on another installation. Import always validates and previews first.
 The merge is additive: existing records and financial history are never overwritten. Schema migrations must match exactly.</p>

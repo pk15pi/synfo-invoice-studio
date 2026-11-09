@@ -73,6 +73,17 @@ class ConfigTests(_Cfg):
         self.assertContains(r, P.CONFIRM_TO_SQLITE)
         self.assertContains(self.client.get(reverse('backup:home')), reverse('backup:pg_home'))
 
+    def test_postgres_sync_linked_from_shared_nav_and_backups_home(self):
+        """t72u: sync must be reachable from Shared menu, not only buried on Backups."""
+        home = self.client.get(reverse('home'))
+        self.assertEqual(home.status_code, 200)
+        self.assertContains(home, reverse('backup:pg_home'))
+        self.assertContains(home, 'PostgreSQL sync')
+        self.assertContains(home, reverse('backup:home'))
+        backups = self.client.get(reverse('backup:home'))
+        self.assertContains(backups, reverse('backup:pg_home'))
+        self.assertContains(backups, 'Open PostgreSQL sync')
+
     def test_save_view_keeps_password(self):
         self.save()
         r = self.client.post(reverse('backup:pg_settings'), {'host': 'h2', 'port': '5433', 'name': 'qb', 'user': 'u',

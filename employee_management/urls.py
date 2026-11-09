@@ -65,6 +65,7 @@ urlpatterns = [
     p('bank-details/', h.bank_details, 'bank_details'),
     p('payroll/salary-structures/', h.salary_structures, 'salary_structures'),
     p('payroll/payslips/', h.payslips, 'payslips'),
+    p('payroll/payslips/tds/q<int:quarter>.xlsx', h.payslip_quarter_tds, 'payslip_quarter_tds'),
     p('storage/', h.storage, 'storage'),
     p('payroll/period/<int:pid>/register.csv', v.export_register_csv, 'export_register_csv'),
     p('payroll/reports/', v.reports, 'reports'),

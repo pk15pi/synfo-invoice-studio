@@ -112,7 +112,11 @@ def payslips(request):
                'actions': [], 'fy_start': fy_start, 'fy_label': fy_label,
                'fy_choices': [(year, f'FY {year}-{str(year + 1)[-2:]}')
                               for year in sorted(fy_choices, reverse=True)], 'month_exports': month_exports,
-               'year_zip_url': reverse('em:payslip_year_zip', args=[fy_start])}
+               'year_zip_url': reverse('em:payslip_year_zip', args=[fy_start]),
+               'quarter_exports': [
+                   {'label': f'Export Q{q}',
+                    'url': reverse('em:payslip_quarter_tds', args=[q]) + f'?fy={fy_start}'}
+                   for q in (1, 2, 3, 4)]}
     return render(request, HUB, context)
 
 
@@ -136,3 +140,24 @@ def storage(request):
             [_c('Database'), _c(str(settings.DATABASES['default']['NAME']))]]
     return _hub(request, 'Shared', 'Document storage', 'Employee files live in a private folder that is never mapped to a URL; they are only served by the controlled document views. Back up this folder together with db.sqlite3 (manage.py backup_data).',
                 ['Item', 'Value'], rows, [('Open document repository', reverse('em:documents'))])
+def payslip_quarter_tds(request, quarter):
+    """Excel download: one row per employee for an Indian FY quarter (CA salary TDS)."""
+    from django.http import Http404, HttpResponse
+    from .exports import salary_tds_quarter_xlsx
+
+    if quarter not in (1, 2, 3, 4):
+        raise Http404
+    today = timezone.localdate()
+    current_fy = today.year if today.month >= 4 else today.year - 1
+    try:
+        fy_start = int(request.GET.get('fy', current_fy))
+    except (TypeError, ValueError):
+        fy_start = current_fy
+    if fy_start < 2000 or fy_start > 2100:
+        fy_start = current_fy
+    data, filename = salary_tds_quarter_xlsx(fy_start, quarter)
+    resp = HttpResponse(
+        data, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+

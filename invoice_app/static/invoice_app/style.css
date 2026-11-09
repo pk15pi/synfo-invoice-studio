@@ -815,28 +815,52 @@ main>*{min-width:0}
 .client-alias{color:#4a6377;font-size:12px;font-weight:600;margin:2px 0 0}
 @media(max-width:640px){.topbar .brand .brand-logo{height:32px;max-width:120px}}
 
-/* ---- t64u: elegant menus with light animation (main nav + all dropdowns) ---- */
-.topbar{box-shadow:0 1px 0 rgba(23,53,74,.04),0 6px 18px -14px rgba(23,53,74,.35)}
-.topbar nav.groups>a,.topbar nav.groups>.navgroup>a{position:relative;letter-spacing:.01em;transition:background-color .18s ease,color .18s ease,box-shadow .18s ease}
-.topbar nav.groups>a::after,.topbar nav.groups>.navgroup>a::after{content:"";position:absolute;left:10px;right:10px;bottom:4px;height:2px;border-radius:2px;background:linear-gradient(90deg,#0B5394,#3d7fb8);transform:scaleX(0);transform-origin:left center;opacity:0;transition:transform .22s ease,opacity .22s ease}
+/* ---- t64u/t73u: elegant menus — clickable first ---- */
+/* Why t72u still left some menus unclickable:
+   Every .navmenu stayed display:block (only faded). Later siblings (Shared last)
+   stacked above earlier ones at the same z-index. pointer-events:none on those
+   overlays made hits pass through the stack and miss the open menu underneath —
+   so Shared worked, Invoice/Employees/Reports/etc. often did not.
+   Fix: closed menus use display:none (out of hit-test entirely). Open menu is
+   display:block at z-index 5000. No gap (top:100% + padding-top bridge). */
+.topbar{box-shadow:0 1px 0 rgba(23,53,74,.04),0 6px 18px -14px rgba(23,53,74,.35);overflow:visible}
+.navgroup{position:relative;overflow:visible;z-index:1}
+.navgroup:hover,.navgroup:focus-within{z-index:5000}
+.topbar nav.groups>a,.topbar nav.groups>.navgroup>a{position:relative;letter-spacing:.01em;transition:background-color .18s ease,color .18s ease}
+.topbar nav.groups>a::after,.topbar nav.groups>.navgroup>a::after{content:"";position:absolute;left:10px;right:10px;bottom:4px;height:2px;border-radius:2px;background:linear-gradient(90deg,#0B5394,#3d7fb8);transform:scaleX(0);transform-origin:left center;opacity:0;pointer-events:none;transition:transform .22s ease,opacity .22s ease}
 .topbar nav.groups>a:hover::after,.topbar nav.groups>a:focus-visible::after,
 .topbar nav.groups>.navgroup:hover>a::after,.topbar nav.groups>.navgroup:focus-within>a::after{transform:scaleX(1);opacity:1}
 .topbar nav.groups>.navgroup:hover>a,.topbar nav.groups>.navgroup:focus-within>a{background:#edf4f9;color:#164b78}
 .topbar nav a:focus-visible{outline:2px solid #8fb4d0;outline-offset:1px}
-/* dropdown: always rendered, faded/slid in instead of display toggling */
-.navmenu{display:block!important;visibility:hidden;opacity:0;transform:translateY(6px) scale(.985);transform-origin:top right;pointer-events:none;
- z-index:60;margin-top:6px;padding:6px;border:1px solid #dfe8ef;border-radius:12px;background:rgba(255,255,255,.98);
+/* Closed = not in the tree. Open = topmost layer. Padding-top is the hover bridge (no margin gap). */
+.topbar nav.groups .navmenu{
+ display:none;position:absolute;top:100%;right:0;left:auto;z-index:5001;margin:0;padding:10px 6px 6px;
+ min-width:210px;max-height:min(68vh,520px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;
+ border:1px solid #dfe8ef;border-radius:12px;background:rgba(255,255,255,.98);
  box-shadow:0 18px 38px -18px rgba(16,43,62,.45),0 4px 12px -6px rgba(16,43,62,.18);
- transition:opacity .18s ease,transform .18s ease,visibility 0s linear .18s}
-.navmenu::before{content:"";position:absolute;left:0;right:0;top:-10px;height:10px}/* hover bridge over the gap */
-.navgroup:hover>.navmenu,.navgroup:focus-within>.navmenu{visibility:visible;opacity:1;transform:none;pointer-events:auto;transition:opacity .18s ease,transform .18s ease,visibility 0s}
-.topbar nav .navmenu a{position:relative;color:#2a3f50!important;font-weight:600;border-radius:8px;transition:background-color .15s ease,color .15s ease,padding-left .15s ease,box-shadow .15s ease}
-.topbar nav .navmenu a:hover,.topbar nav .navmenu a:focus-visible{background:linear-gradient(90deg,#eaf3f9,#f5f9fc);color:#0B5394!important;padding-left:14px!important;box-shadow:inset 3px 0 0 #0B5394}
-.topbar nav .navmenu a+a{margin-top:1px}
+ transform-origin:top right;pointer-events:auto;visibility:visible;opacity:1}
+.topbar nav.groups .navgroup:hover>.navmenu,
+.topbar nav.groups .navgroup:focus-within>.navmenu{
+ display:block;animation:qb-nav-in .16s ease}
+@keyframes qb-nav-in{
+ from{opacity:0;transform:translateY(5px)}
+ to{opacity:1;transform:none}}
+.topbar nav.groups .navmenu a{
+ display:flex;width:100%;min-height:34px;padding:8px 10px;border-radius:8px;box-sizing:border-box;
+ color:#2a3f50!important;font-size:12px!important;font-weight:600;text-decoration:none;white-space:normal;
+ pointer-events:auto;position:relative;z-index:1;
+ transition:background-color .15s ease,color .15s ease,padding-left .15s ease,box-shadow .15s ease}
+.topbar nav.groups .navmenu a+a{margin-top:1px}
+.topbar nav.groups .navmenu a:hover,.topbar nav.groups .navmenu a:focus-visible{
+ background:linear-gradient(90deg,#eaf3f9,#f5f9fc);color:#0B5394!important;padding-left:14px;box-shadow:inset 3px 0 0 #0B5394}
 .qb-help-trigger,.qb-header-back{transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease}
 .qb-header-back:hover,.qb-help-trigger:hover{box-shadow:0 3px 10px -4px rgba(23,75,120,.35)}
-@media(max-width:850px){.navmenu{transform:translateY(6px);transform-origin:top center;margin-top:0}}
+@media(max-width:850px){
+ .topbar nav.groups .navmenu{transform-origin:top center}}
+@media(max-width:560px){
+ /* Full-width fixed menus on narrow screens — still display:none until open, so siblings cannot stack-steal clicks. */
+ .topbar nav.groups .navmenu{position:fixed;top:88px;right:10px;left:10px;max-height:70vh;transform-origin:top center}}
 @media(prefers-reduced-motion:reduce){
- .topbar nav a,.topbar nav a::after,.navmenu,.navgroup:hover>.navmenu,.navgroup:focus-within>.navmenu,.topbar nav .navmenu a,.qb-help-trigger,.qb-header-back{transition:none!important}
- .navmenu{transform:none!important}
-}
+ .topbar nav a,.topbar nav a::after,.topbar nav.groups .navmenu a,.qb-help-trigger,.qb-header-back{transition:none!important}
+ .topbar nav.groups .navgroup:hover>.navmenu,
+ .topbar nav.groups .navgroup:focus-within>.navmenu{animation:none!important}}
