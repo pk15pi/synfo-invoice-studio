@@ -1917,3 +1917,47 @@ main:has(.pg-settings)>details table{
     display:flex;
   }
 }
+
+/* 25. Asset workflow forms: keep checkboxes beside their labels and at the
+   same control height as the surrounding fields. */
+main:is(
+  :has(input[name="usage_type"]),
+  :has(input[name="acknowledgement_type"]),
+  :has(input[name="purchase_option"]),
+  :has(input[name="warranty_claim"]),
+  :has(input[name="work_performed"]),
+  :has(input[name="return_condition"])
+) .form-field.check-field{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+  min-height:38px;
+}
+main:is(
+  :has(input[name="usage_type"]),
+  :has(input[name="acknowledgement_type"]),
+  :has(input[name="purchase_option"]),
+  :has(input[name="warranty_claim"]),
+  :has(input[name="work_performed"]),
+  :has(input[name="return_condition"])
+) .form-field.check-field>label{
+  flex:0 1 auto;
+  margin:0;
+}
+main:is(
+  :has(input[name="usage_type"]),
+  :has(input[name="acknowledgement_type"]),
+  :has(input[name="purchase_option"]),
+  :has(input[name="warranty_claim"]),
+  :has(input[name="work_performed"]),
+  :has(input[name="return_condition"])
+) .form-field.check-field>input[type="checkbox"]{
+  order:-1;
+  flex:0 0 auto;
+  width:16px!important;
+  height:16px!important;
+  min-height:0!important;
+  margin:0;
+  accent-color:#0b5394;
+}

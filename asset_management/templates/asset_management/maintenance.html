@@ -1,0 +1,21 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
+{% block title %}Asset maintenance &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Asset maintenance</h1><p class="muted">Repairs reported, in progress and completed.</p></div>
+<div><a class="button secondary" href="{% url 'assets:home' %}">Dashboard</a> <a class="button primary" href="{% url 'assets:maintenance_new' %}">+ Report maintenance</a></div></div>
+<form method="get" class="qb-filter-form panel compact-filters" data-filter-form>
+<label class="compact-filter-label"><span>Search</span><input class="field" type="search" name="q" value="{{ search }}" placeholder="Asset, provider or issue"></label>
+<label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="">All statuses</option>{% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+{% filter_actions %}</form>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Service date</th><th>Provider</th><th>Issue</th><th>Cost</th><th>Status</th><th>Completed</th><th></th></tr></thead>
+{% paginate records as qb_pg1 %}<tbody>{% for record in qb_pg1 %}<tr>
+<td><a href="{% url 'assets:asset_detail' record.asset.pk %}">{{ record.asset.asset_code }}</a><br><small class="muted">{{ record.asset.name }}</small></td>
+<td>{{ record.service_date|date:"d-m-Y" }}</td>
+<td>{{ record.service_provider|default:"—" }}</td>
+<td>{{ record.issue_description|truncatechars:70 }}</td>
+<td>{{ record.repair_cost|default:"—" }}</td>
+<td>{{ record.get_status_display }}</td>
+<td>{{ record.completion_date|date:"d-m-Y"|default:"—" }}</td>
+<td>{% if record.status == 'reported' or record.status == 'in_progress' %}<a href="{% url 'assets:maintenance_update' record.pk %}">Update</a>{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="8" class="empty">No maintenance recorded.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
+{% endblock %}

@@ -140,17 +140,128 @@ class AssetManagementTests(TestCase):
         self.assertEqual(settings.next_asset_sequence, 3)
         self.assertEqual(settings.next_handover_sequence, 13)
 
-    def test_dashboard_register_and_phase_one_placeholders_are_local_only(self):
+    def test_dashboard_and_workflow_pages_are_local_only(self):
         self.assertEqual(self.client.get(reverse('assets:home')).status_code, 200)
         response = self.client.get(reverse('assets:register'))
         self.assertContains(response, self.asset.asset_code)
-        self.assertContains(self.client.get(reverse('assets:asset_new')), 'Register an asset')
-        self.assertContains(self.client.get(reverse('assets:assignments')), 'later phase')
-        self.assertContains(self.client.get(reverse('assets:leases')), 'later phase')
-        self.assertContains(self.client.get(reverse('assets:maintenance')), 'later phase')
-        self.assertEqual(
-            self.client.get(reverse('assets:home'), REMOTE_ADDR='10.1.1.1').status_code,
-            403,
+        detail = self.client.get(reverse('assets:asset_detail', args=(self.asset.pk,)))
+        self.assertContains(detail, self.asset.asset_code)
+        for name in ('asset_new', 'assignments', 'assignment_new', 'leases', 'lease_new',
+                     'maintenance', 'maintenance_new'):
+            with self.subTest(page=name):
+                self.assertEqual(self.client.get(reverse(f'assets:{name}')).status_code, 200)
+        for name in ('assets:home', 'assets:assignments', 'assets:asset_new'):
+            with self.subTest(page=name):
+                self.assertEqual(
+                    self.client.get(reverse(name), REMOTE_ADDR='10.1.1.1').status_code, 403,
+                )
+
+    def test_register_asset_allocates_code_and_records_event(self):
+        settings = AssetSettings.current()
+        settings.next_asset_sequence = 1
+        settings.asset_prefix = 'QB'
+        settings.save()
+        response = self.client.post(reverse('assets:asset_new'), {
+            'name': 'Dell monitor', 'category': self.category.pk, 'brand': 'Dell',
+            'model_number': 'P2422H', 'serial_number': 'CN-001', 'ownership_type': 'owned',
+            'usage_type': 'company', 'condition': 'good', 'current_location': '',
+            'purchase_date': '2026-04-01', 'purchase_price': '12000.00', 'vendor_name': 'Dell',
+            'invoice_number': 'INV-1', 'warranty_expiry': '2027-04-01', 'description': '',
+        })
+        asset = Asset.objects.get(name='Dell monitor')
+        self.assertRedirects(response, reverse('assets:asset_detail', args=(asset.pk,)))
+        self.assertEqual(asset.asset_code, 'QB-LAP-002')
+        self.assertEqual(asset.current_status, Asset.COMPANY_STATUS)
+        self.assertTrue(asset.events.filter(event_type='created').exists())
+
+    def test_assign_and_return_workflow_updates_custody_and_events(self):
+        asset = Asset.objects.create(
+            asset_code='QB-LAP-002', name='Assigned laptop', category=self.category,
+        )
+        response = self.client.post(reverse('assets:assignment_new'), {
+            'asset': asset.pk, 'employee': self.employee.pk, 'issue_date': '2026-05-01',
+            'expected_return_date': '2026-06-01', 'issue_condition': 'good',
+            'issue_notes': 'New joiner kit', 'accessories': 'charger, bag',
+            'acknowledgement_type': 'digital', 'acknowledgement_name': 'Asha Rao',
+            'confirmation_text': 'I confirm receipt of this asset.',
+        })
+        self.assertRedirects(response, reverse('assets:assignments'))
+        assignment = AssetAssignment.objects.get(asset=asset)
+        asset.refresh_from_db()
+        self.assertEqual(assignment.status, AssetAssignment.ACTIVE)
+        self.assertEqual(assignment.accessories_issued, ['charger', 'bag'])
+        self.assertEqual(asset.current_status, Asset.ASSIGNED)
+        self.assertEqual(asset.current_employee, self.employee)
+        acknowledgement = assignment.acknowledgements.get()
+        self.assertEqual(acknowledgement.acknowledgement_type, AssetAcknowledgement.DIGITAL)
+        self.assertTrue(asset.events.filter(event_type='assigned').exists())
+
+        response = self.client.post(reverse('assets:assignment_return', args=(assignment.pk,)), {
+            'actual_return_date': '2026-06-05', 'return_condition': 'fair',
+            'return_notes': 'Minor scratches', 'returned_accessories': 'charger, bag',
+        })
+        self.assertRedirects(response, reverse('assets:assignments'))
+        assignment.refresh_from_db()
+        asset.refresh_from_db()
+        self.assertEqual(assignment.status, AssetAssignment.RETURNED)
+        self.assertEqual(assignment.accessories_returned, ['charger', 'bag'])
+        self.assertEqual(asset.current_status, Asset.AVAILABLE)
+        self.assertIsNone(asset.current_employee)
+        self.assertTrue(asset.events.filter(event_type='returned').exists())
+
+    def test_lease_workflow_records_ownership_and_status_history(self):
+        asset = Asset.objects.create(
+            asset_code='QB-LAP-003', name='Leased laptop', category=self.category,
+        )
+        response = self.client.post(reverse('assets:lease_new'), {
+            'asset': asset.pk, 'lessor_name': 'RentCo', 'agreement_number': 'L-1',
+            'start_date': '2026-01-01', 'end_date': '2026-12-31', 'monthly_rent': '5000.00',
+            'security_deposit': '10000.00', 'billing_frequency': 'monthly',
+        })
+        self.assertRedirects(response, reverse('assets:leases'))
+        lease = AssetLease.objects.get(asset=asset)
+        asset.refresh_from_db()
+        self.assertEqual(lease.status, AssetLease.ACTIVE)
+        self.assertEqual(asset.ownership_type, Asset.LEASED)
+        self.assertTrue(asset.events.filter(event_type='lease').exists())
+
+        response = self.client.post(reverse('assets:lease_update', args=(lease.pk,)), {
+            'status': 'terminated', 'remarks': 'Equipment returned early.',
+        })
+        self.assertRedirects(response, reverse('assets:leases'))
+        lease.refresh_from_db()
+        self.assertEqual(lease.status, AssetLease.TERMINATED)
+        self.assertTrue(
+            asset.events.filter(event_type='lease', remarks__icontains='Terminated').exists(),
+        )
+
+    def test_maintenance_workflow_updates_asset_status(self):
+        asset = Asset.objects.create(
+            asset_code='QB-LAP-004', name='Repair laptop', category=self.category,
+        )
+        response = self.client.post(reverse('assets:maintenance_new'), {
+            'asset': asset.pk, 'service_date': '2026-03-01', 'service_provider': 'FixIt',
+            'issue_description': 'Battery does not hold charge.', 'warranty_claim': '',
+        })
+        self.assertRedirects(response, reverse('assets:maintenance'))
+        record = AssetMaintenance.objects.get(asset=asset)
+        asset.refresh_from_db()
+        self.assertEqual(record.status, 'reported')
+        self.assertEqual(asset.current_status, Asset.UNDER_MAINTENANCE)
+        self.assertTrue(asset.events.filter(event_type='maintenance').exists())
+
+        response = self.client.post(reverse('assets:maintenance_update', args=(record.pk,)), {
+            'status': 'completed', 'completion_date': '2026-03-05',
+            'work_performed': 'Battery replaced under warranty.', 'repair_cost': '0.00',
+            'remarks': 'Returned to store.',
+        })
+        self.assertRedirects(response, reverse('assets:maintenance'))
+        record.refresh_from_db()
+        asset.refresh_from_db()
+        self.assertEqual(record.status, 'completed')
+        self.assertEqual(asset.current_status, Asset.AVAILABLE)
+        self.assertTrue(
+            asset.events.filter(event_type='maintenance', remarks__icontains='Completed').exists(),
         )
 
     def test_all_asset_models_are_available_in_admin(self):

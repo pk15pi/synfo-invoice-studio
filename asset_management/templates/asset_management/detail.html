@@ -1,0 +1,57 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}{{ asset.asset_code }} &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>{{ asset.name }}</h1><p class="muted">{{ asset.asset_code }} &middot; {{ asset.category.name }} &middot; {{ asset.get_current_status_display }}</p></div>
+<div>{% if asset.current_status == 'available' %}<a class="button primary" href="{% url 'assets:assignment_new' %}?asset={{ asset.pk }}">Assign asset</a> {% endif %}<a class="button secondary" href="{% url 'assets:maintenance_new' %}?asset={{ asset.pk }}">Report maintenance</a> <a class="button secondary" href="{% url 'assets:register' %}">Register</a></div></div>
+
+<div class="panel"><div class="panel-head"><h2>Asset details</h2></div>
+<div class="form-grid">
+<div class="form-field"><label>Asset ID</label><div class="field readonly">{{ asset.asset_code }}</div></div>
+<div class="form-field"><label>Status</label><div class="field readonly">{{ asset.get_current_status_display }}</div></div>
+<div class="form-field"><label>Category</label><div class="field readonly">{{ asset.category.name }}</div></div>
+<div class="form-field"><label>Condition</label><div class="field readonly">{{ asset.get_condition_display }}</div></div>
+<div class="form-field"><label>Ownership</label><div class="field readonly">{{ asset.get_ownership_type_display }}</div></div>
+<div class="form-field"><label>Usage</label><div class="field readonly">{{ asset.get_usage_type_display }}</div></div>
+<div class="form-field"><label>Brand / model</label><div class="field readonly">{{ asset.brand|default:"—" }}{% if asset.model_number %} &middot; {{ asset.model_number }}{% endif %}</div></div>
+<div class="form-field"><label>Serial number</label><div class="field readonly">{{ asset.serial_number|default:"—" }}</div></div>
+<div class="form-field"><label>Current employee</label><div class="field readonly">{{ asset.current_employee|default:"—" }}</div></div>
+<div class="form-field"><label>Location</label><div class="field readonly">{{ asset.current_location|default:"—" }}</div></div>
+<div class="form-field"><label>Purchase date</label><div class="field readonly">{{ asset.purchase_date|date:"d-m-Y"|default:"—" }}</div></div>
+<div class="form-field"><label>Purchase price</label><div class="field readonly">{{ asset.purchase_price|default:"—" }}</div></div>
+<div class="form-field"><label>Vendor</label><div class="field readonly">{{ asset.vendor_name|default:"—" }}</div></div>
+<div class="form-field"><label>Invoice number</label><div class="field readonly">{{ asset.invoice_number|default:"—" }}</div></div>
+<div class="form-field"><label>Warranty expiry</label><div class="field readonly">{{ asset.warranty_expiry|date:"d-m-Y"|default:"—" }}</div></div>
+</div>
+{% if asset.description %}<p class="muted">{{ asset.description|linebreaksbr }}</p>{% endif %}
+</div>
+
+<div class="panel"><div class="panel-head"><h2>Current custody</h2>{% if active_assignment %}<a href="{% url 'assets:assignment_return' active_assignment.pk %}">Return asset</a>{% endif %}</div>
+{% if active_assignment %}<p><b>{{ active_assignment.employee }}</b> has held this asset since {{ active_assignment.issue_date|date:"d-m-Y" }}{% if active_assignment.expected_return_date %}; expected back by {{ active_assignment.expected_return_date|date:"d-m-Y" }}{% endif %}.</p>
+{% if active_assignment.accessories_issued %}<p class="muted">Accessories: {{ active_assignment.accessories_issued|join:", " }}</p>{% endif %}
+{% else %}<p class="muted">This asset is not assigned to an employee.</p>{% endif %}
+</div>
+
+<div class="panel"><div class="panel-head"><h2>Assignment history</h2><a href="{% url 'assets:assignments' %}">All assignments</a></div>
+{% if assignments %}<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Issued</th><th>Expected return</th><th>Returned</th><th>Condition</th><th>Status</th></tr></thead><tbody>
+{% for assignment in assignments %}<tr><td>{{ assignment.employee }}</td><td>{{ assignment.issue_date|date:"d-m-Y" }}</td><td>{{ assignment.expected_return_date|date:"d-m-Y"|default:"—" }}</td><td>{{ assignment.actual_return_date|date:"d-m-Y"|default:"—" }}</td><td>{{ assignment.get_issue_condition_display }}{% if assignment.return_condition %} &rarr; {{ assignment.get_return_condition_display }}{% endif %}</td><td>{{ assignment.get_status_display }}</td></tr>
+{% endfor %}</tbody></table></div>{% else %}<p class="muted">No assignments recorded for this asset.</p>{% endif %}
+</div>
+
+<div class="panel"><div class="panel-head"><h2>Lease history</h2><a href="{% url 'assets:leases' %}">All leases</a></div>
+{% if leases %}<div class="table-wrap"><table><thead><tr><th>Lessor</th><th>Agreement</th><th>Period</th><th>Monthly rent</th><th>Deposit</th><th>Status</th></tr></thead><tbody>
+{% for lease in leases %}<tr><td>{{ lease.lessor_name }}</td><td>{{ lease.agreement_number|default:"—" }}</td><td>{{ lease.start_date|date:"d-m-Y" }} &ndash; {{ lease.end_date|date:"d-m-Y" }}</td><td>{{ lease.monthly_rent }}</td><td>{{ lease.security_deposit }}</td><td>{{ lease.get_status_display }}</td></tr>
+{% endfor %}</tbody></table></div>{% else %}<p class="muted">No leases recorded for this asset.</p>{% endif %}
+</div>
+
+<div class="panel"><div class="panel-head"><h2>Maintenance history</h2><a href="{% url 'assets:maintenance' %}">All maintenance</a></div>
+{% if maintenance_records %}<div class="table-wrap"><table><thead><tr><th>Service date</th><th>Provider</th><th>Issue</th><th>Cost</th><th>Status</th><th>Completed</th></tr></thead><tbody>
+{% for record in maintenance_records %}<tr><td>{{ record.service_date|date:"d-m-Y" }}</td><td>{{ record.service_provider|default:"—" }}</td><td>{{ record.issue_description|truncatechars:80 }}</td><td>{{ record.repair_cost|default:"—" }}</td><td>{{ record.get_status_display }}</td><td>{{ record.completion_date|date:"d-m-Y"|default:"—" }}</td></tr>
+{% endfor %}</tbody></table></div>{% else %}<p class="muted">No maintenance recorded for this asset.</p>{% endif %}
+</div>
+
+<div class="panel"><div class="panel-head"><h2>Movement history</h2></div>
+{% if events %}<div class="table-wrap"><table><thead><tr><th>Date</th><th>Event</th><th>From</th><th>To</th><th>Status change</th><th>Note</th></tr></thead><tbody>
+{% for event in events %}<tr><td>{{ event.event_date|date:"d-m-Y H:i" }}</td><td>{{ event.get_event_type_display }}</td><td>{{ event.from_employee|default:event.from_location|default:"—" }}</td><td>{{ event.to_employee|default:event.to_location|default:"—" }}</td><td>{% if event.previous_status or event.new_status %}{{ event.previous_status|default:"—" }} &rarr; {{ event.new_status|default:"—" }}{% else %}—{% endif %}</td><td>{{ event.remarks|default:"—" }}</td></tr>
+{% endfor %}</tbody></table></div>{% else %}<p class="muted">No movement events recorded for this asset.</p>{% endif %}
+</div>
+{% endblock %}

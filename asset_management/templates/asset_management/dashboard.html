@@ -1,14 +1,21 @@
 {% extends 'invoice_app/base.html' %}
 {% block title %}Asset Management &middot; QuantBud{% endblock %}
 {% block content %}
-<div class="page-heading split"><div><h1>Asset Management</h1><p class="muted">Track company equipment and its current status.</p></div>
-<a class="button primary" href="{% url 'assets:register' %}">Asset register</a></div>
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Asset Management</h1><p class="muted">Track company equipment, custody and upkeep in one place.</p></div>
+<div><a class="button secondary" href="{% url 'assets:assignments' %}">Assignments</a> <a class="button primary" href="{% url 'assets:register' %}">Asset register</a></div></div>
 <div class="cards">
 <a class="card" href="{% url 'assets:register' %}"><span class="card-icon">&#9638;</span><h3>Registered assets</h3><p>Browse individually tracked assets.</p><b>{{ asset_count }} total</b></a>
 <a class="card" href="{% url 'assets:register' %}?status=available"><span class="card-icon">&#10003;</span><h3>Available</h3><p>Assets currently available for use.</p><b>{{ available_count }}</b></a>
-<a class="card" href="{% url 'assets:assignments' %}"><span class="card-icon">&#8644;</span><h3>Assignments</h3><p>Employee handovers and returns.</p><b>{{ assigned_count }} active</b></a>
+<a class="card" href="{% url 'assets:assignments' %}?status=active"><span class="card-icon">&#8644;</span><h3>Assigned</h3><p>Employee handovers and returns.</p><b>{{ assigned_count }} active</b></a>
+<a class="card" href="{% url 'assets:register' %}?status=company_use"><span class="card-icon">&#8962;</span><h3>Company use</h3><p>Shared equipment held by the company.</p><b>{{ company_count }}</b></a>
+<a class="card" href="{% url 'assets:leases' %}"><span class="card-icon">&#8635;</span><h3>Leases</h3><p>Rental agreements and lessor details.</p><b>{{ lease_count }} active</b></a>
+<a class="card" href="{% url 'assets:maintenance' %}"><span class="card-icon">&#9881;</span><h3>Maintenance</h3><p>Repairs reported, in progress and completed.</p><b>{{ maintenance_count }} open</b></a>
 </div>
-<div class="panel"><div class="panel-head"><h2>Phase 1 foundation</h2></div>
-<p class="muted">Asset register, categories, locations, lease history, assignments, acknowledgements, maintenance, and movement-event models are ready. Workflow screens will be added in a later phase.</p>
-<p class="note">Active categories: {{ category_count }} &middot; Open maintenance items: {{ maintenance_count }}</p></div>
+<div class="panel"><div class="panel-head"><h2>Recent asset activity</h2><a href="{% url 'assets:register' %}">Open register</a></div>
+{% if recent_events %}
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>Asset</th><th>Event</th><th>From</th><th>To</th><th>Note</th></tr></thead><tbody>
+{% for event in recent_events %}<tr><td>{{ event.event_date|date:"d-m-Y H:i" }}</td><td><a href="{% url 'assets:asset_detail' event.asset.pk %}">{{ event.asset.asset_code }}</a></td><td>{{ event.get_event_type_display }}</td><td>{{ event.from_employee|default:"-" }}</td><td>{{ event.to_employee|default:"-" }}</td><td>{{ event.remarks|default:"-"|truncatechars:70 }}</td></tr>
+{% endfor %}</tbody></table></div>
+{% else %}<p class="muted">No asset activity has been recorded yet.</p>{% endif %}
+</div>
 {% endblock %}

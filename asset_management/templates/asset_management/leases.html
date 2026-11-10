@@ -1,0 +1,21 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
+{% block title %}Asset leases &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Asset leases</h1><p class="muted">Rental agreements, lessor details and lease status.</p></div>
+<div><a class="button secondary" href="{% url 'assets:home' %}">Dashboard</a> <a class="button primary" href="{% url 'assets:lease_new' %}">+ Record lease</a></div></div>
+<form method="get" class="qb-filter-form panel compact-filters" data-filter-form>
+<label class="compact-filter-label"><span>Search</span><input class="field" type="search" name="q" value="{{ search }}" placeholder="Asset, lessor or agreement number"></label>
+<label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="">All statuses</option>{% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+{% filter_actions %}</form>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Lessor</th><th>Agreement</th><th>Period</th><th>Monthly rent</th><th>Deposit</th><th>Status</th><th></th></tr></thead>
+{% paginate leases as qb_pg1 %}<tbody>{% for lease in qb_pg1 %}<tr>
+<td><a href="{% url 'assets:asset_detail' lease.asset.pk %}">{{ lease.asset.asset_code }}</a><br><small class="muted">{{ lease.asset.name }}</small></td>
+<td>{{ lease.lessor_name }}</td>
+<td>{{ lease.agreement_number|default:"—" }}</td>
+<td>{{ lease.start_date|date:"d-m-Y" }} &ndash; {{ lease.end_date|date:"d-m-Y" }}</td>
+<td>{{ lease.monthly_rent }}</td>
+<td>{{ lease.security_deposit }}</td>
+<td>{{ lease.get_status_display }}</td>
+<td>{% if lease.status == 'active' %}<a href="{% url 'assets:lease_update' lease.pk %}">Update</a>{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="8" class="empty">No asset leases recorded.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
+{% endblock %}

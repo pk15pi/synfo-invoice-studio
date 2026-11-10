@@ -1,0 +1,21 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
+{% block title %}Asset assignments &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Asset assignments</h1><p class="muted">Employee handovers, expected returns and completed returns.</p></div>
+<div><a class="button secondary" href="{% url 'assets:home' %}">Dashboard</a> <a class="button primary" href="{% url 'assets:assignment_new' %}">+ Assign asset</a></div></div>
+<form method="get" class="qb-filter-form panel compact-filters" data-filter-form>
+<label class="compact-filter-label"><span>Search</span><input class="field" type="search" name="q" value="{{ search }}" placeholder="Asset ID, name or employee"></label>
+<label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="">All statuses</option>{% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+{% filter_actions %}</form>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Employee</th><th>Issued</th><th>Expected return</th><th>Returned</th><th>Condition</th><th>Status</th><th></th></tr></thead>
+{% paginate assignments as qb_pg1 %}<tbody>{% for assignment in qb_pg1 %}<tr>
+<td><a href="{% url 'assets:asset_detail' assignment.asset.pk %}">{{ assignment.asset.asset_code }}</a><br><small class="muted">{{ assignment.asset.name }}</small></td>
+<td>{{ assignment.employee }}</td>
+<td>{{ assignment.issue_date|date:"d-m-Y" }}</td>
+<td>{{ assignment.expected_return_date|date:"d-m-Y"|default:"—" }}</td>
+<td>{{ assignment.actual_return_date|date:"d-m-Y"|default:"—" }}</td>
+<td>{{ assignment.get_issue_condition_display }}{% if assignment.return_condition %} &rarr; {{ assignment.get_return_condition_display }}{% endif %}</td>
+<td>{{ assignment.get_status_display }}</td>
+<td>{% if assignment.status == 'active' %}<a href="{% url 'assets:assignment_return' assignment.pk %}">Return</a>{% endif %}</td>
+</tr>{% empty %}<tr><td colspan="8" class="empty">No asset assignments yet.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
+{% endblock %}
