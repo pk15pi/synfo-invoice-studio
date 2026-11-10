@@ -313,6 +313,25 @@ class ScreenTests(Base):
         self.client.post(url, {'year': 2026, 'month': 11, 'status_2026-11-02': 'HD', 'in_2026-11-02': '09:00'})
         self.assertEqual(AR.objects.get(date=date(2026, 11, 2)).status, AR.HALF_DAY)
 
+    def test_balances_filters_leave_type_and_month(self):
+        svc.approve(self.apply(date(2026, 11, 2), date(2026, 11, 3)))  # 2 CL days in November
+        sl = LeaveType.objects.get(code='SL')
+        LeaveBalance.for_year(self.emp, sl, 2026)
+        self.mark(2, AR.LEAVE, sl, m=12)  # 1 SL day in December
+        base = reverse('att:balances') + '?year=2026'
+        r = self.client.get(base + f'&leave_type={self.cl.pk}')
+        self.assertEqual([b.leave_type_id for b in r.context['rows']], [self.cl.pk])
+        r = self.client.get(base + '&month=11')
+        self.assertContains(r, 'Used in November')
+        self.assertEqual([(b.leave_type_id, b.month_used) for b in r.context['rows']],
+                         [(self.cl.pk, D('2'))])
+        r = self.client.get(base + '&month=12')
+        self.assertEqual([(b.leave_type_id, b.month_used) for b in r.context['rows']],
+                         [(sl.pk, D('1'))])
+        self.assertEqual(self.client.get(base + f'&month=11&leave_type={sl.pk}').context['rows'], [])
+        r = self.client.get(reverse('att:balances_export') + f'?year=2026&month=11&leave_type={self.cl.pk}')
+        self.assertEqual(r.content[:2], b'PK')
+
     def test_application_new_view_and_actions(self):
         r = self.client.post(reverse('att:application_new'), {
             'employee': self.emp.pk, 'leave_type': self.cl.pk, 'start_date': '2026-11-02',

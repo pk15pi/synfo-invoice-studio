@@ -40,6 +40,19 @@ def _years():
     return range(t - 3, t + 2)
 
 
+def _int_or_none(v):
+    v = (v or '').strip()
+    return int(v) if v.isdigit() else None
+
+
+def _balance_filters(request):
+    lt_id = _int_or_none(request.GET.get('leave_type'))
+    month = _int_or_none(request.GET.get('month'))
+    if month is not None and not 1 <= month <= 12:
+        month = None
+    return lt_id, month
+
+
 def _time(v):
     v = (v or '').strip()
     return datetime.strptime(v[:5], '%H:%M').time() if v else None
@@ -283,8 +296,19 @@ def balances(request):
         n = svc.ensure_balances(y)
         messages.success(request, f'{n} balance row(s) checked for {y}.')
         return redirect(f"{reverse('att:balances')}?year={y}")
+    lt_id, month = _balance_filters(request)
     rows = LeaveBalance.objects.filter(year=y).select_related('employee', 'leave_type')
-    return render(request, T + 'balances.html', {'rows': rows, 'y': y, 'years': _years()})
+    if lt_id:
+        rows = rows.filter(leave_type_id=lt_id)
+    if month:
+        usage = svc.month_leave_usage(y, month)
+        rows = [b for b in rows if usage.get((b.employee_id, b.leave_type_id), 0) > 0]
+        for b in rows:
+            b.month_used = usage.get((b.employee_id, b.leave_type_id), 0)
+    return render(request, T + 'balances.html', {
+        'rows': rows, 'y': y, 'years': _years(), 'leave_types': LeaveType.objects.order_by('name'),
+        'lt_id': lt_id, 'm': month, 'months': MONTHS,
+        'month_label': calendar.month_name[month] if month else ''})
 
 
 def balance_edit(request, pk):
@@ -308,9 +332,27 @@ def carry_forward_view(request):
 
 
 # ------------------------------------------------------------------ reports
-def _balance_rows(y):
-    return [[b.employee.employee_id, b.employee.full_name, b.leave_type.name, b.opening, b.accrued, b.used,
-             b.balance] for b in LeaveBalance.objects.filter(year=y).select_related('employee', 'leave_type')]
+def _balance_headers(month=None):
+    headers = ['Employee ID', 'Name', 'Leave type', 'Opening', 'Accrued', 'Used']
+    if month:
+        headers.append(f'Used in {calendar.month_name[month]}')
+    return headers + ['Balance']
+
+
+def _balance_rows(y, leave_type_id=None, month=None):
+    qs = LeaveBalance.objects.filter(year=y).select_related('employee', 'leave_type')
+    if leave_type_id:
+        qs = qs.filter(leave_type_id=leave_type_id)
+    usage = svc.month_leave_usage(y, month) if month else {}
+    if month:
+        qs = [b for b in qs if usage.get((b.employee_id, b.leave_type_id), 0) > 0]
+    rows = []
+    for b in qs:
+        row = [b.employee.employee_id, b.employee.full_name, b.leave_type.name, b.opening, b.accrued, b.used]
+        if month:
+            row.append(usage.get((b.employee_id, b.leave_type_id), 0))
+        rows.append(row + [b.balance])
+    return rows
 
 
 def reports(request):
@@ -361,11 +403,14 @@ def register_export(request, fmt):
 
 def balances_export(request):
     y = int(request.GET.get('year') or timezone.localdate().year)
-    rows = [[float(c) if hasattr(c, 'as_tuple') else c for c in r] for r in _balance_rows(y)]
-    resp = HttpResponse(generic_xlsx(f'Leave balances {y}', ['Employee ID', 'Name', 'Leave type', 'Opening',
-                                                             'Accrued', 'Used', 'Balance'], rows),
+    lt_id, month = _balance_filters(request)
+    rows = [[float(c) if hasattr(c, 'as_tuple') else c for c in r]
+            for r in _balance_rows(y, lt_id, month)]
+    title = f'Leave balances {calendar.month_name[month]} {y}' if month else f'Leave balances {y}'
+    name = f'Leave_Balances_{y}' + (f'_{calendar.month_abbr[month]}' if month else '')
+    resp = HttpResponse(generic_xlsx(title, _balance_headers(month), rows),
                         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    resp['Content-Disposition'] = f'attachment; filename="Leave_Balances_{y}.xlsx"'
+    resp['Content-Disposition'] = f'attachment; filename="{name}.xlsx"'
     return resp
 
 

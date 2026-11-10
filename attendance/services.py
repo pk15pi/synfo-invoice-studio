@@ -14,7 +14,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 
 from .models import (ZERO, AttendanceLockedError, AttendanceRecord, AttendanceSettings, Holiday, LeaveApplication,
                      LeaveBalance, LeaveType, daterange, month_bounds, now)
@@ -281,6 +281,20 @@ def cancel(app):
     app.status, app.decided_at = LeaveApplication.CANCELLED, now()
     app.save()
     return app
+
+
+def month_leave_usage(year, month):
+    """{(employee_id, leave_type_id): days} taken from attendance in the month (L=1, HD=0.5)."""
+    start, end = month_bounds(year, month)
+    grouped = (AttendanceRecord.objects
+               .filter(date__range=(start, end), leave_type__isnull=False,
+                       status__in=(AttendanceRecord.LEAVE, AttendanceRecord.HALF_DAY))
+               .values('employee_id', 'leave_type_id', 'status')
+               .annotate(n=Count('id')))
+    out = defaultdict(lambda: ZERO)
+    for r in grouped:
+        out[(r['employee_id'], r['leave_type_id'])] += r['n'] * (HALF if r['status'] == AttendanceRecord.HALF_DAY else ONE)
+    return dict(out)
 
 
 def ensure_balances(year, employees=None):
