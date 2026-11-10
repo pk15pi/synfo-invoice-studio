@@ -2,8 +2,20 @@ from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import RoleDefinition, UserProfile
+from .models import PasswordResetOTP, RoleDefinition, UserProfile
 from .permissions import role_label
+
+
+@admin.register(PasswordResetOTP)
+class PasswordResetOTPAdmin(admin.ModelAdmin):
+    list_display = ('user', 'channel', 'email', 'created_at', 'expires_at', 'used_at')
+    list_filter = ('channel',)
+    search_fields = ('user__username', 'email')
+    readonly_fields = ('user', 'channel', 'email', 'code_hash', 'created_at', 'expires_at',
+                       'attempts', 'used_at')
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(RoleDefinition)

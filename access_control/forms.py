@@ -3,6 +3,8 @@ import re
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 from .models import RoleDefinition, UserProfile
 from .permissions import MODULE_LABELS, SELF_SERVICE, SHARED, USERS
@@ -155,4 +157,63 @@ class UserEditForm(BaseUserForm):
         cleaned = super().clean()
         if cleaned.get('new_password') != cleaned.get('new_password_confirm'):
             self.add_error('new_password_confirm', 'The two passwords do not match.')
+        return cleaned
+
+
+class ResetIdentifierForm(forms.Form):
+    identifier = forms.CharField(
+        label='Username or email', max_length=254,
+        widget=forms.TextInput(attrs={
+            'autofocus': True, 'autocomplete': 'username',
+            'placeholder': 'Username or work/personal email',
+        }))
+
+    def clean_identifier(self):
+        return self.cleaned_data['identifier'].strip()
+
+
+class ResetChannelForm(forms.Form):
+    channel = forms.ChoiceField(label='Send the code to', widget=forms.RadioSelect, choices=[])
+
+    def __init__(self, *args, channels=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['channel'].choices = [(item['code'], item['label']) for item in channels]
+
+
+class ResetPasswordForm(forms.Form):
+    code = forms.CharField(
+        label='Verification code', min_length=6, max_length=6,
+        widget=forms.TextInput(attrs={
+            'autocomplete': 'one-time-code', 'inputmode': 'numeric',
+            'placeholder': '6-digit code',
+        }))
+    password = forms.CharField(
+        label='New password', min_length=8,
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}))
+    password_confirm = forms.CharField(
+        label='Confirm new password',
+        widget=forms.PasswordInput(attrs={'autocomplete': 'new-password'}))
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs['class'] = f"{field.widget.attrs.get('class', '')} field".strip()
+
+    def clean_code(self):
+        code = self.cleaned_data['code'].strip()
+        if not code.isdigit():
+            raise forms.ValidationError('Enter the 6-digit code from the email.')
+        return code
+
+    def clean(self):
+        cleaned = super().clean()
+        password, confirm = cleaned.get('password'), cleaned.get('password_confirm')
+        if password and confirm != password:
+            self.add_error('password_confirm', 'The two passwords do not match.')
+        if password and self.user:
+            try:
+                validate_password(password, self.user)
+            except ValidationError as exc:
+                self.add_error('password', exc)
         return cleaned

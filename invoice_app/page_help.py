@@ -911,6 +911,8 @@ NON_PAGE_ROUTES = {
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
     "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json", "invoice_email_template_delete", "email_template_delete", "email_template_set_salary_default",
     "access_control:login", "access_control:logout", "access_control:me_payslip",
+    "access_control:password_reset", "access_control:password_reset_choose",
+    "access_control:password_reset_verify",
 }
 
 # Shared guidance for pages that use the standardized calendar/FY period controls.

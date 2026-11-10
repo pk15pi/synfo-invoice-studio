@@ -2366,6 +2366,23 @@ main .card a.btn:hover{
 }
 .login-field input:focus{border-color:#6e9fc2;outline:none;box-shadow:0 0 0 3px rgba(69,132,174,.14)}
 .login-submit{width:100%;min-height:42px;margin-top:4px}
+.reset-card{width:min(480px,100%)}
+.reset-options{display:flex;flex-direction:column;gap:10px;margin:2px 0 4px}
+.reset-option{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #d5e0e8;border-radius:10px;background:#f9fbfd;cursor:pointer}
+.reset-option input{width:16px;height:16px;min-height:0;margin:0;flex:0 0 auto;accent-color:#0b5394}
+.reset-option span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.reset-option strong{font-size:13px;color:#17354a}
+.reset-option small{font-size:12px;color:#5a6b7a;overflow-wrap:anywhere}
+.reset-option:has(input:checked){border-color:#6e9fc2;background:#eef6fb;box-shadow:0 0 0 2px rgba(69,132,174,.10)}
+.reset-code input{letter-spacing:.28em;font-weight:700}
+.reset-back{margin:18px 0 0;text-align:center;font-size:12px;color:#5a6b7a}
+.reset-back a{color:#0b5394;font-weight:700;text-decoration:none}
+.reset-back a:hover{text-decoration:underline}
+.login-card .button.secondary.login-submit{width:100%;min-height:40px;margin-top:0}
+.login-help{margin:-2px 0 0;text-align:right;font-size:12px}
+.login-help a{color:#0b5394;font-weight:700;text-decoration:none}
+.login-help a:hover{text-decoration:underline}
+.field-hint{color:#7a8794;font-size:11px}
 .field-error{margin:0;color:#a43c3c;font-size:12px}
 .login-card .message.error{margin:0 0 16px;border:1px solid #efc9c9;background:#fbeeee;color:#8a2f2f}
 .login-note{margin:18px 0 0;color:#7a8794;font-size:11px;line-height:1.5;text-align:center}

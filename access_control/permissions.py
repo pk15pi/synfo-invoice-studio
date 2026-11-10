@@ -134,7 +134,7 @@ READ_ONLY_ROLES = frozenset({Role.AUDITOR, Role.MANAGEMENT, Role.EMPLOYEE})
 USER_MANAGEMENT_ROLES = (Role.ADMIN, Role.DIRECTOR, Role.IT_ADMIN)
 
 # Login itself, asset serving and Django admin have their own handling.
-EXEMPT_PREFIXES = ('/login/', '/logout/', '/admin/', '/static/', '/media/', '/favicon.ico', '/business/logo/')
+EXEMPT_PREFIXES = ('/login/', '/logout/', '/password-reset/', '/admin/', '/static/', '/media/', '/favicon.ico', '/business/logo/')
 
 
 def is_exempt_path(path):

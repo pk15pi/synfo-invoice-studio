@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class UserProfile(models.Model):
@@ -51,3 +52,32 @@ class RoleDefinition(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class PasswordResetOTP(models.Model):
+    """One-time email code for self-service password reset."""
+
+    WORK = 'work'
+    PERSONAL = 'personal'
+    CHANNELS = [(WORK, 'Work email'), (PERSONAL, 'Personal email')]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name='password_reset_codes')
+    channel = models.CharField(max_length=10, choices=CHANNELS)
+    email = models.EmailField(help_text='Address the code was sent to at the time of request.')
+    code_hash = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['user', 'created_at'], name='pwreset_user_created_idx')]
+
+    def __str__(self):
+        return f'{self.user_id} · {self.get_channel_display()} · {self.created_at:%Y-%m-%d %H:%M}'
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
