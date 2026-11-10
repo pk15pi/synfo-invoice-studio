@@ -29,6 +29,7 @@ from document_generation.models import (
 )
 from document_generation.services import create_clause_version
 from document_generation.standard_library import FIELD_SETS, TEMPLATES
+from document_generation.template_engine import BUILTIN_KEYS, CONDITIONAL, PLACEHOLDER, resolve_template
 
 
 GENERATION_TYPES = (
@@ -511,3 +512,141 @@ class UniversalDocumentGenerationTests(TestCase):
             parsed = WordDocumentReader(BytesIO(word.read()))
         self.assertGreater(len(parsed.paragraphs), 30)
         self.assertGreaterEqual(len(parsed.tables[0].rows), 35)
+
+
+PRIORITY_DOCUMENT_TYPES = (
+    'non-disclosure-agreement-nda',
+    'mutual-nda',
+    'master-client-agreement-mca',
+    'experience-certificate',
+    'relieving-letter',
+)
+
+
+class PriorityDocumentTemplateTests(TestCase):
+    """NDA, MCA, experience and relieving drafts cover every configured field."""
+
+    def _version(self, code):
+        document_type = DocumentType.objects.get(code=code)
+        return document_type.templates.get(
+            name=TEMPLATES[code]['name'],
+        ).versions.get(version_number=1)
+
+    def _values(self, version, **overrides):
+        values = {}
+        for definition in version.template.document_type.field_definitions.filter(is_active=True):
+            values[definition.field_key] = (
+                '2026-01-15' if definition.value_type == 'date'
+                else f'Sample {definition.label}'
+            )
+        values.update(overrides)
+        return values
+
+    def _render(self, code, **overrides):
+        version = self._version(code)
+        return resolve_template(
+            version, self._values(version, **overrides), 'QB-TEST-001',
+            date(2026, 11, 10), date(2026, 11, 10), None,
+            CompanyDocumentProfile.current(), allow_review_clauses=True,
+        )['content']
+
+    def test_placeholders_and_configured_fields_are_fully_used(self):
+        for code in PRIORITY_DOCUMENT_TYPES:
+            with self.subTest(code=code):
+                document_type = DocumentType.objects.get(code=code)
+                body = self._version(code).body_template
+                configured = set(document_type.field_definitions.filter(
+                    is_active=True,
+                ).values_list('field_key', flat=True))
+                placeholders = set(PLACEHOLDER.findall(
+                    CONDITIONAL.sub(lambda match: match.group(2), body),
+                ))
+                conditions = {key for key, _ in CONDITIONAL.findall(body)}
+                self.assertFalse((placeholders | conditions) - (configured | BUILTIN_KEYS))
+                self.assertEqual(configured, placeholders - BUILTIN_KEYS)
+                self.assertEqual(
+                    {item['field_key'] for item in FIELD_SETS[code]}, configured,
+                )
+
+    def test_library_metadata_is_complete(self):
+        for code in PRIORITY_DOCUMENT_TYPES:
+            with self.subTest(code=code):
+                template = DocumentType.objects.get(code=code).templates.get(
+                    name=TEMPLATES[code]['name'],
+                )
+                self.assertTrue(template.description)
+                self.assertTrue(template.business_scenario)
+                self.assertEqual(template.applicable_party_type, TEMPLATES[code]['party_type'])
+                self.assertTrue(template.category_id)
+
+    def test_agreements_include_parties_terms_and_execution(self):
+        nda = self._render(
+            'non-disclosure-agreement-nda',
+            first_party_address='1 Provider Road', second_party_address='2 Client Street',
+        )
+        for expected in ('1 Provider Road', '2 Client Street', '## 8. Return or destruction',
+                         'Governing law: Sample Governing law', '## 12. Entire agreement and execution'):
+            self.assertIn(expected, nda)
+
+        mutual = self._render(
+            'mutual-nda',
+            first_party_address='1 Provider Road', second_party_address='2 Client Street',
+        )
+        for expected in ('1 Provider Road', '2 Client Street', '## 3. Mutual obligations',
+                         '## 9. Entire agreement and execution'):
+            self.assertIn(expected, mutual)
+
+        mca = self._render(
+            'master-client-agreement-mca',
+            payment_terms='30 days from invoice',
+        )
+        for expected in ('Payment terms summary: 30 days from invoice', '## 8. Notices',
+                         'Governing law: Sample Governing law',
+                         'Jurisdiction / forum: Sample Jurisdiction',
+                         '## 10. Execution'):
+            self.assertIn(expected, mca)
+
+    def test_certificates_and_letters_print_verified_employment_details(self):
+        experience = self._render(
+            'experience-certificate',
+            employee_name='Asha Rao', employee_id='QB-E-100', designation='Engineer',
+            department='Engineering', employment_type='Full time', work_location='Pune',
+            reporting_manager='R. Manager', date_of_joining='2022-05-02',
+            last_working_date='2026-10-31', service_description='Application development.',
+            conduct_remarks='Conduct was satisfactory.', certificate_purpose='employment verification',
+        )
+        for expected in ('## Certificate of Experience', 'Asha Rao', 'Full time', 'Pune',
+                         'R. Manager', '2026-10-31', 'Conduct was satisfactory.',
+                         'for employment verification'):
+            self.assertIn(expected, experience)
+
+        relieving = self._render(
+            'relieving-letter',
+            employee_name='Asha Rao', employee_id='QB-E-100', designation='Engineer',
+            department='Engineering', employment_type='Full time', work_location='Pune',
+            reporting_manager='R. Manager', date_of_joining='2022-05-02',
+            resignation_date='2026-09-30', last_working_date='2026-10-31',
+            handover_status='Completed', clearance_status='Cleared by all departments',
+            property_return_status='Laptop returned', pending_obligations='',
+        )
+        for expected in ('## Relieving Letter', 'Resignation date: 2026-09-30',
+                         'Last working date: 2026-10-31', 'Handover status: Completed',
+                         'Clearance status: Cleared by all departments',
+                         'Laptop returned',
+                         'is relieved of employment duties with effect from 2026-10-31'):
+            self.assertIn(expected, relieving)
+        self.assertNotIn('Pending obligations:', relieving)
+
+        with_obligations = self._render(
+            'relieving-letter', pending_obligations='Submit final expense statement.',
+        )
+        self.assertIn('Pending obligations: Submit final expense statement.', with_obligations)
+
+    def test_optional_certificate_sections_are_omitted_when_blank(self):
+        experience = self._render(
+            'experience-certificate', last_working_date='', conduct_remarks='',
+            certificate_purpose='',
+        )
+        self.assertNotIn('Last working date:', experience)
+        self.assertNotIn('Conduct', experience)
+        self.assertNotIn('for .', experience)

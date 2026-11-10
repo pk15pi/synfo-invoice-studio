@@ -6,7 +6,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from invoice_app.pagination import paginate as qb_paginate
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Exists, F, OuterRef, Q
+from django.db.models import Count, F, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -119,16 +119,19 @@ def settings(request):
     })
 
 
+def _approved_types():
+    return DocumentType.objects.filter(
+        is_active=True,
+        templates__is_active=True,
+        templates__active_version__status=DocumentTemplateVersion.APPROVED,
+    ).distinct()
+
+
 def _approved_type(pk):
     if not pk:
         return None
     try:
-        return DocumentType.objects.filter(
-            pk=pk,
-            is_active=True,
-            templates__is_active=True,
-            templates__active_version__status=DocumentTemplateVersion.APPROVED,
-        ).distinct().first()
+        return _approved_types().filter(pk=pk).first()
     except (TypeError, ValueError):
         return None
 
@@ -144,14 +147,8 @@ def _active_type(pk):
 
 def _generation_context(form, document_type=None, **extra):
     categories = DocumentCategory.objects.filter(is_active=True)
-    approved_templates = DocumentTemplate.objects.filter(
-        document_type_id=OuterRef('pk'),
-        is_active=True,
-        active_version__status=DocumentTemplateVersion.APPROVED,
-    )
-    document_types = DocumentType.objects.filter(is_active=True).annotate(
-        has_approved_template=Exists(approved_templates),
-    )
+    approved_types = _approved_types()
+    document_types = approved_types
     category_id = form.data.get('category') or form.initial.get('category')
     if category_id:
         document_types = document_types.filter(categories__id=category_id)
@@ -159,6 +156,7 @@ def _generation_context(form, document_type=None, **extra):
         'form': form,
         'categories': categories,
         'document_types': document_types.order_by('name'),
+        'has_any_approved_template': approved_types.exists(),
         'selected_type': document_type,
         'selected_category': str(category_id or ''),
         'has_approved_template': bool(

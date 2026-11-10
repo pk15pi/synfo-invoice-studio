@@ -90,17 +90,40 @@ class DocumentGenerationViewTests(TestCase):
         self.assertContains(response, 'no active, approved template yet')
         self.assertContains(response, '/admin/document_generation/documenttemplate/')
 
-    def test_category_filters_all_active_document_types(self):
+    def test_generation_dropdown_lists_only_approved_document_types(self):
+        response = self.client.get(reverse('document_generation:generate'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'No document templates are approved yet')
+        self.assertNotContains(response, 'Master Client Agreement')
+
+    def test_category_filters_approved_document_types(self):
+        user = get_user_model().objects.create_user(
+            username='dropdown-approver', password='test-password',
+        )
         offer_type = DocumentType.objects.get(code='offer-letter')
+        template = DocumentTemplate.objects.create(document_type=offer_type, name='Approved offer')
+        version = DocumentTemplateVersion.objects.create(
+            template=template,
+            version_number=1,
+            status=DocumentTemplateVersion.APPROVED,
+            approved_by=user,
+            approved_at=timezone.now(),
+            body_template='{{ candidate_name }}',
+        )
+        template.active_version = version
+        template.save(update_fields=('active_version', 'updated_at'))
         category = offer_type.categories.get(code='candidate')
+
         response = self.client.get(
             reverse('document_generation:generate'), {'category': category.pk},
         )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f'value="{offer_type.pk}"')
-        self.assertContains(response, 'template approval required')
-        self.assertNotContains(response, 'Choose a category first')
+        self.assertNotContains(response, 'No document templates are approved yet')
+        self.assertNotContains(response, 'template approval required')
+        self.assertNotContains(response, 'interview-invitation')
         self.assertNotContains(response, 'Asset Management Policy')
+        self.assertNotContains(response, 'Choose a category first')
 
     def test_approved_document_type_loads_its_fields(self):
         user = get_user_model().objects.create_user(

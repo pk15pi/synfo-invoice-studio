@@ -46,7 +46,9 @@ FREELANCER_PARTY_FIELDS = (
 FIELD_SETS = {
     'non-disclosure-agreement-nda': (
         field('first_party_name', 'First party', required=True, source='company', source_field='display_name'),
+        field('first_party_address', 'First party address', 'multiline', source='company', source_field='address'),
         field('second_party_name', 'Second party', required=True, source='client', source_field='name'),
+        field('second_party_address', 'Second party address', 'multiline', source='client', source_field='address'),
         field('purpose_of_disclosure', 'Purpose of disclosure', 'multiline', True),
         field('confidential_information', 'Confidential information', 'multiline', True),
         field('agreement_duration', 'Agreement duration'),
@@ -57,6 +59,7 @@ FIELD_SETS = {
     ),
     'mutual-nda': (
         field('first_party_name', 'First party', required=True, source='company', source_field='display_name'),
+        field('first_party_address', 'First party address', 'multiline', source='company', source_field='address'),
         field('second_party_name', 'Second party', required=True),
         field('second_party_address', 'Second party address', 'multiline'),
         field('purpose_of_disclosure', 'Purpose of disclosure', 'multiline', True),
@@ -74,6 +77,8 @@ FIELD_SETS = {
         field('provider_responsibilities', 'Provider responsibilities', 'multiline', True),
         field('client_responsibilities', 'Client responsibilities', 'multiline', True),
         field('fees_and_commercial_terms', 'Fees and commercial terms', 'multiline', True),
+        field('payment_terms', 'Payment terms summary', 'multiline'),
+        field('agreement_duration', 'Agreement duration'),
         field('invoice_payment_terms', 'Invoicing and payment terms', 'multiline', True),
         field('tax_terms', 'Tax and statutory deduction handling', 'multiline'),
         field('acceptance_criteria', 'Acceptance criteria', 'multiline'),
@@ -277,11 +282,15 @@ FIELD_SETS = {
     ),
     'experience-certificate': (
         *EMPLOYEE_FIELDS,
+        field('employment_type', 'Employment type', source='employee', source_field='employment_type'),
         field('last_working_date', 'Last working date', 'date', source='employee', source_field='last_working_date'),
         field('service_description', 'Role / service description', 'multiline'),
+        field('conduct_remarks', 'Conduct and performance remarks (verified)', 'multiline'),
+        field('certificate_purpose', 'Purpose of certificate'),
     ),
     'relieving-letter': (
         *EMPLOYEE_FIELDS,
+        field('employment_type', 'Employment type', source='employee', source_field='employment_type'),
         field('resignation_date', 'Resignation date', 'date'),
         field('last_working_date', 'Last working date', 'date', True, 'employee', 'last_working_date'),
         field('handover_status', 'Handover status (verified)', 'multiline'),
@@ -438,91 +447,127 @@ CLAUSES = (
 TEMPLATES = {
     'non-disclosure-agreement-nda': {
         'name': 'Client Non-Disclosure Agreement',
-        'body': """## 1. Parties and purpose
-This agreement is between {{ first_party_name }} ({{ first_party_address }}) and {{ second_party_name }} ({{ second_party_address }}). Its purpose is {{ purpose_of_disclosure }}.
+        'description': 'One-way confidentiality agreement for sharing confidential information with a client or prospective client.',
+        'party_type': 'client',
+        'scenario': 'Client confidentiality',
+        'body': """## 1. Parties and effective date
+This Non-Disclosure Agreement is made effective {{ effective_date }} between {{ first_party_name }}, having its address at {{ first_party_address }} (the Disclosing Party), and {{ second_party_name }}, having its address at {{ second_party_address }} (the Receiving Party).
 
-## 2. Information covered
-Confidential information includes: {{ confidential_information }}. The receiving party will use it only for the stated purpose, protect it with reasonable care, and restrict access to authorised persons.
+## 2. Purpose
+The Receiving Party may receive confidential information solely for the following purpose: {{ purpose_of_disclosure }}.
 
-## 3. Permitted disclosure and exclusions
+## 3. Confidential information
+Confidential information means non-public information disclosed by the Disclosing Party, in any form, including: {{ confidential_information }}. It also includes the existence and contents of the parties' discussions where those are disclosed in confidence.
+
+## 4. Obligations of the Receiving Party
+The Receiving Party will: (a) use the confidential information only for the stated purpose; (b) protect it with at least reasonable care and no less care than it applies to its own confidential information; (c) limit access to representatives who need to know it and are bound by confidentiality obligations at least as protective as this agreement; and (d) not copy or reproduce it except as necessary for the stated purpose.
+
+## 5. Exclusions and compelled disclosure
+Confidential information does not include information that the Receiving Party can demonstrate: (a) was lawfully known to it without a duty of confidence before disclosure; (b) is or becomes publicly available without breach; (c) was independently developed without use of the confidential information; or (d) was lawfully received from another source without a duty of confidence. If disclosure is required by law or a competent authority, the Receiving Party will, where lawful, notify the Disclosing Party promptly and disclose only the required portion.
+
+## 6. Permitted disclosures
 {{ permitted_disclosures }}
-Information independently developed, already lawfully known, publicly available without breach, or lawfully received from another source is not confidential to the extent the receiving party can demonstrate that status. A compelled disclosure may be made only to the extent legally required, with prior notice where lawful.
+Any other disclosure requires the Disclosing Party's prior written consent.
 
-## 4. Protection and permitted use
-No intellectual-property right is transferred by disclosure. The parties will apply appropriate data-protection and information-security controls and promptly address suspected unauthorised access.
+## 7. Term and survival
+This agreement commences on the effective date and continues for {{ agreement_duration }}. The confidentiality obligations survive for {{ confidentiality_period }} after the end of the agreement or after the relevant disclosure, whichever is later.
 
-## 5. Duration and return
-Agreement duration: {{ agreement_duration }}. Confidentiality survival period: {{ confidentiality_period }}. On request or termination, information will be returned or securely destroyed, subject to lawful retention.
+## 8. Return or destruction
+On written request or at the end of the agreement, the Receiving Party will promptly return or securely destroy the confidential information and, on request, confirm that it has done so, except for one archival copy retained only to comply with law or professional record-keeping obligations.
 
-## 6. Remedies and relationship
-The parties may seek remedies available under applicable law; no outcome or remedy is guaranteed by this draft. Disclosure does not create a partnership, employment, or agency relationship.
+## 9. Intellectual property and no licence
+No licence, assignment or other right in any intellectual property is granted by this agreement. All confidential information remains the property of the Disclosing Party.
 
-## 7. Governing law and dispute resolution
-Governing law: {{ governing_law }}. Jurisdiction / forum: {{ jurisdiction }}. Complete and review these terms before issue.
+## 10. Remedies and relationship
+The parties acknowledge that damages may be an inadequate remedy for a breach of this agreement, and the Disclosing Party may seek equitable relief available under applicable law in addition to any other remedy. Disclosure does not create a partnership, employment, or agency relationship.
 
-## 8. Signatures
-Each signatory confirms authority to sign for the relevant party. This document remains unsigned until completed and executed by the parties.""",
+## 11. Governing law and jurisdiction
+Governing law: {{ governing_law }}. Jurisdiction / forum: {{ jurisdiction }}. The parties will attempt in good faith to resolve any dispute before commencing proceedings.
+
+## 12. Entire agreement and execution
+This agreement records the parties' entire understanding on confidentiality for the stated purpose and may be amended only in writing signed by both parties. Each signatory confirms authority to sign for the party represented. This document remains unsigned until completed and executed by the parties.""",
         'clauses': ('confidentiality', 'data-protection', 'information-security', 'governing-law', 'jurisdiction'),
         'parties': ('issuer', 'counterparty'),
     },
     'mutual-nda': {
         'name': 'Mutual Non-Disclosure Agreement',
-        'body': """## 1. Parties and purpose
-This mutual agreement is between {{ first_party_name }} and {{ second_party_name }}. Each party may disclose information for {{ purpose_of_disclosure }}.
+        'description': 'Two-way confidentiality agreement for exploratory, commercial or joint-delivery discussions.',
+        'party_type': 'client',
+        'scenario': 'Joint discussions and confidentiality',
+        'body': """## 1. Parties and effective date
+This Mutual Non-Disclosure Agreement is made effective {{ effective_date }} between {{ first_party_name }}, having its address at {{ first_party_address }}, and {{ second_party_name }}, having its address at {{ second_party_address }} (each a Party and together the Parties).
 
-## 2. Mutual obligations
-Each receiving party will use the other party's confidential information only for the stated purpose, protect it with reasonable care, and disclose it only to authorised persons with a need to know.
+## 2. Purpose
+Each Party may disclose confidential information to the other for: {{ purpose_of_disclosure }}.
 
-## 3. Confidential information and exclusions
+## 3. Mutual obligations
+Each receiving Party will use the other Party's confidential information only for the stated purpose, protect it with at least reasonable care, limit access to representatives who need to know it and are bound by equivalent confidentiality obligations, and not copy it except as necessary for the purpose.
+
+## 4. Confidential information and exclusions
 {{ confidential_information }}
-Information independently developed, publicly available without breach, already lawfully known, or lawfully received from another source is excluded where the receiving party can demonstrate the exclusion. Compelled disclosure is limited to the legally required extent.
+Confidential information does not include information that the receiving Party can demonstrate was lawfully known before disclosure without a duty of confidence, is or becomes publicly available without breach, was independently developed without use of the disclosed information, or was lawfully received from another source without a duty of confidence. Compelled disclosure is limited to the legally required extent, with prior notice where lawful.
 
-## 4. Permitted disclosure, security and ownership
+## 5. Permitted disclosures and ownership
 {{ permitted_disclosures }}
-Each party will apply appropriate safeguards. No intellectual-property right is transferred by disclosure.
+No intellectual-property right or licence is granted by disclosure. Confidential information remains the property of the disclosing Party. Each Party will apply appropriate data-protection and information-security safeguards and promptly address suspected unauthorised access.
 
-## 5. Duration, return and remedies
-Agreement duration: {{ agreement_duration }}. Survival period: {{ confidentiality_period }}. On request, information will be returned or securely destroyed except where retention is legally required. Remedies remain subject to applicable law.
+## 6. Term, return and survival
+This agreement commences on the effective date and continues for {{ agreement_duration }}. Confidentiality obligations survive for {{ confidentiality_period }} after the end of the agreement or the relevant disclosure, whichever is later. On request or at the end of the agreement, each receiving Party will return or securely destroy the other Party's confidential information, except for one archival copy retained only to comply with law or professional record-keeping obligations.
 
-## 6. Governing law and dispute resolution
-Governing law: {{ governing_law }}. Jurisdiction / forum: {{ jurisdiction }}. Complete and review these terms before issue.
+## 7. Remedies
+The Parties acknowledge that damages may be an inadequate remedy for a breach of this agreement. Each Party may seek equitable relief available under applicable law in addition to any other remedy; no outcome or remedy is guaranteed by this draft.
 
-## 7. Signatures
-Each signatory confirms authority for the party represented. This draft is not executed until signed.""",
+## 8. Governing law and jurisdiction
+Governing law: {{ governing_law }}. Jurisdiction / forum: {{ jurisdiction }}. The Parties will attempt good-faith resolution before commencing proceedings.
+
+## 9. Entire agreement and execution
+This agreement records the Parties' entire understanding on confidentiality for the stated purpose and may be amended only in writing signed by both Parties. Each signatory confirms authority for the Party represented. This draft is not executed until signed by both Parties.""",
         'clauses': ('confidentiality', 'data-protection', 'information-security', 'dispute-resolution', 'governing-law', 'jurisdiction'),
         'parties': ('issuer', 'counterparty'),
     },
     'master-client-agreement-mca': {
         'name': 'Master Client Services Agreement',
-        'body': """## 1. Parties and background
-This agreement is between {{ company_display_name }} and {{ client_name }} (the Client). Client address: {{ client_address }}. Client contact: {{ client_contact_person }}; {{ client_email }}; {{ client_phone }}; GSTIN {{ client_gstin }}. Effective date: {{ effective_date }}.
+        'description': 'Master framework for ongoing client engagements, with scope, fees and delivery set per statement of work.',
+        'party_type': 'client',
+        'scenario': 'Client engagements',
+        'body': """## 1. Parties and effective date
+This Master Client Services Agreement is made effective {{ effective_date }} between {{ company_display_name }} (the Provider) and {{ client_name }} (the Client), having its address at {{ client_address }}. Client contact: {{ client_contact_person }}; {{ client_email }}; {{ client_phone }}; GSTIN {{ client_gstin }}.
 
 ## 2. Purpose and service scope
-The parties may use this agreement for IT services, software development, recruitment, staffing, consulting, or technology solutions only as selected for each engagement. Services: {{ services_description }}.
+The Provider may provide IT services, software development, recruitment, staffing, consulting, or technology solutions to the Client only as selected in a statement of work. Services: {{ services_description }}.
 
 ## 3. Statements of Work and delivery
 {{ sow_process }}
-Each statement of work should identify scope, deliverables, resources, timeline, dependencies, acceptance criteria, and commercial terms. No unlisted service is implied.
+Each statement of work should identify scope, deliverables, resources, timeline, dependencies, acceptance criteria, and commercial terms. No service is included unless it is described in an executed statement of work.
 
 ## 4. Responsibilities
 Provider responsibilities: {{ provider_responsibilities }}
 Client responsibilities: {{ client_responsibilities }}
 
 ## 5. Fees, invoicing and taxes
-Fees: {{ fees_and_commercial_terms }}
+Fees and commercial terms: {{ fees_and_commercial_terms }}
+Payment terms summary: {{ payment_terms }}
 Invoicing and payment: {{ invoice_payment_terms }}
 Tax and statutory deduction handling: {{ tax_terms }}
 
 ## 6. Change, acceptance and service-specific terms
 Acceptance criteria: {{ acceptance_criteria }}
-Changes require a written change request approved by both parties. Any recruitment, staffing, software, or consulting-specific terms must be included in the applicable statement of work.
+Changes require a written change request approved by both parties before the changed work begins. Any recruitment, staffing, software, or consulting-specific terms must be included in the applicable statement of work.
 
-## 7. Term, termination and consequences
+## 7. Term and termination
+Agreement duration: {{ agreement_duration }}
 {{ term_and_termination }}
-On termination, the parties will address accrued amounts, transition, return of property, and continuing obligations in accordance with the reviewed agreement.
+On termination, the parties will address accrued amounts, transition, return of property, and continuing obligations in accordance with this agreement and the applicable statement of work.
 
-## 8. General and execution
-Confidentiality, intellectual property, data protection, security, warranties, indemnities, liability limits, force majeure, non-solicitation (if applicable), Notices: {{ notices_method }}. Dispute resolution, governing law, and jurisdiction must be completed from approved terms before issue. This draft creates no unfilled commercial term.""",
+## 8. Notices
+{{ notices_method }}
+Notices must be in writing and delivered to the addresses and contacts stated in this agreement or updated by written notice.
+
+## 9. General terms
+Confidentiality, intellectual property, data protection, information security, warranties, indemnities, liability limits, force majeure and non-solicitation (if applicable) apply as set out below and in the applicable statement of work. Governing law: {{ governing_law }}. Jurisdiction / forum: {{ jurisdiction }}. The parties will attempt good-faith resolution before commencing proceedings.
+
+## 10. Execution
+Each signatory confirms authority to sign for the party represented. This agreement creates no unfilled commercial term and is not executed until signed by both parties.""",
         'clauses': ('confidentiality', 'intellectual-property', 'payment-terms', 'data-protection', 'information-security', 'project-acceptance', 'change-management', 'warranty-disclaimer', 'indemnification', 'limitation-of-liability', 'force-majeure', 'dispute-resolution', 'governing-law', 'jurisdiction'),
         'parties': ('issuer', 'counterparty'),
     },
@@ -890,31 +935,58 @@ Your response will be considered before any decision. This draft does not make a
     },
     'experience-certificate': {
         'name': 'Experience Certificate',
-        'body': """## Experience certificate
-This is to certify that {{ employee_name }} (Employee ID {{ employee_id }}) was employed by {{ company_display_name }} as {{ designation }} in the {{ department }} department.
+        'description': "Certificate confirming an employee's designation, department, tenure and verified service record.",
+        'party_type': 'employee',
+        'scenario': 'Employee exit documentation',
+        'body': """## Certificate of Experience
 
-Employment commenced on {{ date_of_joining }} and ended on {{ last_working_date }}.
+To whom it may concern,
+
+This is to certify that {{ employee_name }} (Employee ID {{ employee_id }}) has been employed as {{ designation }}[[if department]] in the {{ department }} department[[endif]] with {{ company_display_name }}.
+
+Date of joining: {{ date_of_joining }}.
+[[if last_working_date]]Last working date: {{ last_working_date }}.[[endif]]
+[[if employment_type]]Employment type: {{ employment_type }}.[[endif]]
+[[if work_location]]Work location: {{ work_location }}.[[endif]]
+[[if reporting_manager]]Reporting manager: {{ reporting_manager }}.[[endif]]
+
 {{ service_description }}
 
-This certificate is based on the employment information reviewed as of the issue date. It is issued at the employee's request without additional representation.""",
+[[if conduct_remarks]]{{ conduct_remarks }}[[endif]]
+
+This certificate is issued at the employee's request on {{ document_date }}[[if certificate_purpose]] for {{ certificate_purpose }}[[endif]]. It reflects the employment information recorded and verified as of the issue date and does not extend any recommendation beyond the facts stated above.""",
         'clauses': (),
         'parties': ('issuer',),
     },
     'relieving-letter': {
         'name': 'Relieving Letter',
-        'body': """## 1. Employment and resignation
-Employee: {{ employee_name }} ({{ employee_id }}), {{ designation }}.
-Date of joining: {{ date_of_joining }}. Resignation date: {{ resignation_date }}.
+        'description': "Letter confirming an employee's last working date and verified handover and clearance status.",
+        'party_type': 'employee',
+        'scenario': 'Employee exit documentation',
+        'body': """## Relieving Letter
+
+To whom it may concern,
+
+This is to confirm that {{ employee_name }} (Employee ID {{ employee_id }}) was employed as {{ designation }}[[if department]] in the {{ department }} department[[endif]] with {{ company_display_name }}.
+
+Date of joining: {{ date_of_joining }}.
+[[if resignation_date]]Resignation date: {{ resignation_date }}.[[endif]]
 Last working date: {{ last_working_date }}.
+[[if employment_type]]Employment type: {{ employment_type }}.[[endif]]
+[[if work_location]]Work location: {{ work_location }}.[[endif]]
+[[if reporting_manager]]Reporting manager: {{ reporting_manager }}.[[endif]]
 
-## 2. Handover and clearance
-Handover status: {{ handover_status }}
-Clearance status: {{ clearance_status }}
-Company property return status: {{ property_return_status }}
-Pending obligations: {{ pending_obligations }}
+## Handover and clearance
+[[if handover_status]]Handover status: {{ handover_status }}[[endif]]
+[[if clearance_status]]Clearance status: {{ clearance_status }}[[endif]]
+[[if property_return_status]]Company property return status: {{ property_return_status }}[[endif]]
+[[if pending_obligations]]Pending obligations: {{ pending_obligations }}[[endif]]
 
-## 3. Relieving confirmation
-Relieving and clearance must be confirmed by authorised records before issue. This draft does not itself certify that outstanding obligations or clearances are complete.""",
+Subject to the clearances recorded above, {{ employee_name }} is relieved of employment duties with effect from {{ last_working_date }}. Any pending obligations recorded above remain the employee's responsibility and are not waived by this letter. This letter does not certify completion of any obligation that is not recorded above.
+
+Continuing confidentiality, intellectual-property and other surviving obligations remain in effect after the last working date.
+
+Issued on {{ document_date }} by {{ company_display_name }}.""",
         'clauses': ('return-company-property', 'confidentiality'),
         'parties': ('issuer',),
     },

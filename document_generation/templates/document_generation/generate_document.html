@@ -16,6 +16,14 @@
 
 <section class="card">
   <h2>Step 1: Select document</h2>
+  {% if not has_any_approved_template %}
+    <div class="message warning">
+      No document templates are approved yet. Only approved templates are available for generation.
+      Review and approve a template in the
+      <a href="{% url 'document_generation:template_versions' %}">template library</a>
+      to make its document type available here.
+    </div>
+  {% else %}
   <form id="document-selection-form" method="get" class="filter-form">
     <label for="id_category">Category</label>
     <select id="id_category" name="category" required>
@@ -28,9 +36,7 @@
     <select id="id_type" name="type" required {% if not selected_category %}disabled{% endif %}>
       <option value="">{% if selected_category %}Select a document type{% else %}Choose a category first{% endif %}</option>
       {% for item in document_types %}
-        <option value="{{ item.pk }}" {% if selected_type.pk == item.pk %}selected{% endif %}>
-          {{ item.name }}{% if not item.has_approved_template %} (template approval required){% endif %}
-        </option>
+        <option value="{{ item.pk }}" {% if selected_type.pk == item.pk %}selected{% endif %}>{{ item.name }}</option>
       {% endfor %}
     </select>
     {% if selected_type and has_approved_template %}
@@ -47,6 +53,7 @@
     {% if form.revision_of.value %}<input type="hidden" name="revise" value="{{ form.revision_of.value }}">{% endif %}
     <button class="button primary" type="submit">Load fields</button>
   </form>
+  {% endif %}
 </section>
 
 {% if selected_type and not has_approved_template %}
