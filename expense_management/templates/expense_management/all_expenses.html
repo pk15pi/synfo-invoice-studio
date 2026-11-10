@@ -29,11 +29,11 @@
       <div class="ae-filter-group">
         <span class="ae-filter-group-label">Vendor / Paid by</span>
         <label class="compact-filter-label"><span>Vendor</span><select class="field" name="vendor" data-combo="ae-vendor"><option value="">All vendors</option>{% for v in vendors_all %}<option value="{{ v.pk }}" {% if params.vendor == v.pk|stringformat:"s" %}selected{% endif %}>{{ v.name }}</option>{% endfor %}</select></label>
-        <label class="compact-filter-label"><span>Employee</span><select class="field" name="employee" data-combo="ae-employee"><option value="">All employees</option>{% for e in employees_all %}<option value="{{ e.pk }}" {% if params.employee == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.employee_id }} {{ e.full_name }}</option>{% endfor %}</select></label>
+        <label class="compact-filter-label"><span>Employee</span><select class="field" name="employee" data-combo="ae-employee"><option value="">All employees</option><option value="none"{% if params.employee == "none" %} selected{% endif %}>Unassigned</option>{% for e in employees_all %}<option value="{{ e.pk }}" {% if params.employee == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.employee_id }} {{ e.full_name }}</option>{% endfor %}</select></label>
       </div>
       <div class="ae-filter-group">
         <span class="ae-filter-group-label">Organisation</span>
-        <label class="compact-filter-label"><span>Department</span><select class="field" name="department" data-combo="ae-department"><option value="">All departments</option>{% for d in departments_all %}<option value="{{ d.pk }}" {% if params.department == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
+        <label class="compact-filter-label"><span>Department</span><select class="field" name="department" data-combo="ae-department"><option value="">All departments</option><option value="none"{% if params.department == "none" %} selected{% endif %}>Unassigned</option>{% for d in departments_all %}<option value="{{ d.pk }}" {% if params.department == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.name }}</option>{% endfor %}</select></label>
       </div>
     </div>
   </details>
@@ -49,12 +49,16 @@
   {% endif %}
 </form>
 <div class="panel"><p class="muted">{{ total_rows }} record(s){% if has_dates %} &middot; {{ f.label }}{% endif %}{% if truncated %} (showing first 500){% endif %}. Cancelled company expenses are shown for history. Use Cancel to remove a mistaken company expense from totals while keeping its history.</p>
+{% if not rows %}
+<p class="ae-empty-filters">No expenses match these filters. <a href="{% url 'exp:all' %}" data-filter-clear>Clear filters</a></p>
+{% else %}
 <div class="table-wrap"><table id="all-table" data-server-sort="expense"><thead><tr><th data-sort-key="id">Expense ID</th><th data-sort-key="date" data-sort-type="date">Date</th><th data-sort-key="type">Type</th><th data-sort-key="category">Category</th><th data-sort-key="party">Vendor / Employee</th><th data-sort-key="reference">Invoice / Claim No.</th><th class="num" data-sort-key="amount" data-sort-type="currency">Amount</th><th data-sort-key="status" data-sort-type="status">Status</th><th>Actions</th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
 {% for r in qb_pg1 %}<tr><td><a href="{{ r.url }}">{{ r.id }}</a></td><td>{{ r.date|date:"d-m-Y" }}</td><td><span class="xm-type {{ r.kind }}">{% if r.kind == 'company' %}Company Expense{% else %}Employee Claim{% endif %}</span></td><td>{{ r.category }}</td><td>{{ r.party }}</td><td>{{ r.ref }}</td><td class="num">{{ r.amount|money:r.currency }}</td><td><span class="badge st-{{ r.status_key }}">{{ r.status }}</span></td><td><div class="xm-row-actions">
 <a class="icon-btn" href="{{ r.url }}" title="View details" aria-label="View details">{% icon 'view' %}</a>
 {% if r.can_edit %}<a class="icon-btn" title="Edit" aria-label="Edit" href="{% if r.kind == 'company' %}{% url 'exp:expense_edit' r.pk %}{% else %}{% url 'exp:claim_edit' r.pk %}{% endif %}">{% icon 'edit' %}</a>{% endif %}
 {% if r.can_cancel %}<details class="xm-cancel"><summary class="icon-btn danger" title="Cancel" aria-label="Cancel">{% icon 'deactivate' %}</summary><form method="post" action="{% if r.kind == 'company' %}{% url 'exp:expense_cancel' r.pk %}{% else %}{% url 'exp:claim_action' r.pk 'cancel' %}{% endif %}" onsubmit="return confirm('Cancel {{ r.id }}? It will be excluded from totals and kept in history.')">{% csrf_token %}{% if r.kind == 'claim' %}<input type="hidden" name="next" value="{{ current_url }}">{% endif %}<label>Reason <input class="field" name="reason" required maxlength="300" placeholder="Why is this entry wrong?"></label><button class="button secondary" type="submit">Cancel entry</button></form></details>{% endif %}
 </div></td></tr>
-{% empty %}<tr><td colspan="9" class="empty">No expenses match.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
+{% empty %}<tr><td colspan="9" class="empty">No expenses match.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
+{% endif %}</div>
 <script src="{% static 'invoice_app/combobox.js' %}"></script>
 {% endblock %}

@@ -31,6 +31,28 @@ def _int(v):
         return None
 
 
+
+UNASSIGNED = 'none'
+
+
+def _entity_value(params, k):
+    raw = (params.get(k) or '').strip()
+    if k in ('employee', 'department') and raw.lower() == UNASSIGNED:
+        return UNASSIGNED
+    return _int(raw)
+
+
+def _apply_entity_filters(qs, f, keys):
+    """Apply entity filters. employee/department may be 'none' to match NULL (Unassigned)."""
+    for k in keys:
+        val = f.get(k)
+        if val == UNASSIGNED:
+            qs = qs.filter(**{f'{k}_id__isnull': True})
+        elif val:
+            qs = qs.filter(**{f'{k}_id': val})
+    return qs
+
+
 def parse_filters(params, default_period='current_fy'):
     if params.get('period_mode'):
         shared = resolve_shared_period(params, default=default_period)
@@ -39,7 +61,7 @@ def parse_filters(params, default_period='current_fy'):
         start, end, label, key = resolve_period(params, default_period)
     f = dict(start=start, end=end, label=label, period=key)
     for k in ('category', 'vendor', 'employee', 'department', 'client', 'project'):
-        f[k] = _int(params.get(k))
+        f[k] = _entity_value(params, k)
     return f
 
 
@@ -50,9 +72,7 @@ def company_qs(f, include_cancelled=False, include_draft=False):
         qs = qs.filter(is_draft=False)
     if not include_cancelled:
         qs = qs.exclude(payment_status=CompanyExpense.CANCELLED)
-    for k in ('category', 'vendor', 'employee', 'department', 'client', 'project'):
-        if f.get(k):
-            qs = qs.filter(**{f'{k}_id': f[k]})
+    qs = _apply_entity_filters(qs, f, ('category', 'vendor', 'employee', 'department', 'client', 'project'))
     return qs
 
 
@@ -61,9 +81,7 @@ def claims_qs(f, statuses=C.APPROVED_STATES, date_field='expense_date'):
         **{f'{date_field}__range': (f['start'], f['end'])})
     if statuses:
         qs = qs.filter(status__in=statuses)
-    for k in ('category', 'employee', 'department', 'client', 'project'):
-        if f.get(k):
-            qs = qs.filter(**{f'{k}_id': f[k]})
+    qs = _apply_entity_filters(qs, f, ('category', 'employee', 'department', 'client', 'project'))
     if f.get('vendor'):
         qs = qs.none()
     return qs
@@ -73,8 +91,11 @@ def reimb_qs(f):
     qs = EmployeeReimbursement.objects.select_related('claim', 'claim__department', 'claim__employee').filter(
         reimbursement_date__range=(f['start'], f['end']))
     for k in ('category', 'employee', 'department', 'client', 'project'):
-        if f.get(k):
-            qs = qs.filter(**{f'claim__{k}_id': f[k]})
+        val = f.get(k)
+        if val == UNASSIGNED:
+            qs = qs.filter(**{f'claim__{k}_id__isnull': True})
+        elif val:
+            qs = qs.filter(**{f'claim__{k}_id': val})
     if f.get('vendor'):
         qs = qs.none()
     return qs

@@ -140,18 +140,24 @@ def _all_expenses_filter_chips(request):
             value = dict([('draft', 'Draft'), *CompanyExpense.STATUSES]).get(raw, raw)
         elif key == 'claim_status':
             value = dict(C.STATUSES).get(raw, raw)
-        elif key == 'category':
-            hit = ExpenseCategory.objects.filter(pk=raw).first()
-            value = hit.name if hit else raw
-        elif key == 'vendor':
-            hit = Vendor.objects.filter(pk=raw).first()
-            value = hit.name if hit else raw
-        elif key == 'employee':
-            hit = Employee.objects.filter(pk=raw).first()
-            value = (f'{hit.employee_id} {hit.full_name}' if hit else raw)
-        elif key == 'department':
-            hit = Department.objects.filter(pk=raw).first()
-            value = hit.name if hit else raw
+        elif key in ('category', 'vendor', 'employee', 'department'):
+            if key in ('employee', 'department') and raw.lower() == 'none':
+                value = 'Unassigned'
+            elif not raw.isdigit():
+                continue  # ignore non-numeric values; never 500
+            else:
+                if key == 'category':
+                    hit = ExpenseCategory.objects.filter(pk=raw).first()
+                    value = hit.name if hit else raw
+                elif key == 'vendor':
+                    hit = Vendor.objects.filter(pk=raw).first()
+                    value = hit.name if hit else raw
+                elif key == 'employee':
+                    hit = Employee.objects.filter(pk=raw).first()
+                    value = (f'{hit.employee_id} {hit.full_name}' if hit else raw)
+                else:
+                    hit = Department.objects.filter(pk=raw).first()
+                    value = hit.name if hit else raw
         chips.append({'key': key, 'label': label, 'value': value, 'url': chip_url({key})})
 
     if any((g.get(k) or '').strip() for k in period_keys):
@@ -184,7 +190,7 @@ def all_expenses(request):
     kind, q = g.get('type', ''), (g.get('q') or '').strip()
     pay_status, claim_status = g.get('payment_status', ''), g.get('claim_status', '')
     rows = []
-    if kind in ('', 'company') and not claim_status:
+    if kind in ('', 'company'):
         qs = reports.company_qs(f, include_cancelled=True, include_draft=True)
         if pay_status == 'draft':
             qs = qs.filter(is_draft=True)

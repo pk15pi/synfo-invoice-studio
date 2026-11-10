@@ -313,3 +313,58 @@ class AllExpensesFilterLayoutTests(Base):
         self.assertIn("vendor", chips)
         self.assertNotIn("type=", chips["type"]["url"])
         self.assertIn(f"vendor={d.vendor_id}", chips["type"]["url"])
+
+
+    def test_claim_status_keeps_company_expenses(self):
+        e = self.expense()
+        c = self.claim()
+        r = self.client.get(reverse("exp:all"), {"claim_status": "draft"})
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn(e.expense_id, body)
+        self.assertIn(c.claim_id, body)
+        self.assertIn("Claim status: Draft", body)
+        # Type=claim still hides company rows
+        body = self.client.get(reverse("exp:all"), {"claim_status": "draft", "type": "claim"}).content.decode()
+        self.assertNotIn(e.expense_id, body)
+        self.assertIn(c.claim_id, body)
+
+    def test_unassigned_employee_and_department_filters_and_chips(self):
+        unassigned = self.expense()
+        assigned = self.expense(employee=self.emp, department=self.dept, invoice_number="ASN-1")
+        # Unassigned options are in the More filters dropdowns
+        page = self.client.get(reverse("exp:all")).content.decode()
+        self.assertIn('name="employee"', page)
+        self.assertRegex(page, r'name="employee"[\s\S]*?<option value="none"')
+        self.assertRegex(page, r'name="department"[\s\S]*?<option value="none"')
+        body = self.client.get(reverse("exp:all"), {"employee": "none"}).content.decode()
+        self.assertIn(unassigned.expense_id, body)
+        self.assertNotIn(assigned.expense_id, body)
+        self.assertIn("Employee: Unassigned", body)
+        body = self.client.get(reverse("exp:all"), {"department": "none"}).content.decode()
+        self.assertIn(unassigned.expense_id, body)
+        self.assertNotIn(assigned.expense_id, body)
+        self.assertIn("Department: Unassigned", body)
+        body = self.client.get(reverse("exp:all"), {"employee": str(self.emp.pk)}).content.decode()
+        self.assertNotIn(unassigned.expense_id, body)
+        self.assertIn(assigned.expense_id, body)
+
+    def test_empty_filters_show_clear_message(self):
+        self.expense()
+        r = self.client.get(reverse("exp:all"), {"type": "claim"})
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode()
+        self.assertIn("No expenses match these filters", body)
+        self.assertIn("Clear filters", body)
+        self.assertIn(f'href="{reverse("exp:all")}"', body)
+        self.assertNotIn('id="all-table"', body)
+
+    def test_non_numeric_entity_filter_does_not_500_and_is_ignored(self):
+        e = self.expense()
+        for params in ({"category": "Office"}, {"vendor": "Host Co"}, {"employee": "Asha"}, {"department": "Engineering"}):
+            r = self.client.get(reverse("exp:all"), params)
+            self.assertEqual(r.status_code, 200, params)
+            body = r.content.decode()
+            self.assertIn(e.expense_id, body)
+            # No removable chip for the invalid value (hidden filter-summary may still echo the raw query).
+            self.assertNotRegex(body, r'class="ae-chip"[^>]*>\s*(Category|Vendor|Employee|Department):')
