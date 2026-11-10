@@ -520,6 +520,28 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  .payroll-exports .button,.qb-email-actions .button{flex:0 0 auto}
 }
 
+/* Payslips hub: all downloads in the header row, filters and table search in one compact row. */
+.payslip-panel{padding:14px 16px}
+.payslip-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.payslip-head h2{margin:0;font-size:15px;color:var(--navy);white-space:nowrap}
+.payslip-downloads{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:4px;min-width:0}
+.payslip-downloads .button{min-height:30px;padding:5px 8px;font-size:11px;border-radius:6px;white-space:nowrap}
+.payslip-downloads .button.primary{padding:5px 10px}
+.payslip-downloads .button:disabled{opacity:.45;cursor:not-allowed}
+.payslip-dl-label{margin:0 2px 0 8px;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.payslip-filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+.payslip-filters .standard-period-filter{flex:1 1 auto;width:auto;max-width:100%;gap:8px}
+.payslip-filters .standard-period-filter .field{min-height:35px}
+.payslip-search{flex:0 0 170px;width:170px;min-height:35px;padding:6px 8px;font-size:12px}
+.payslip-filters .filter-actions .button{min-height:35px;padding:6px 11px;font-size:12px}
+.payslip-filters .filter-actions{margin-left:auto}
+@media(max-width:850px){
+ .payslip-head{align-items:flex-start}
+ .payslip-downloads{justify-content:flex-start}
+ .payslip-search{flex:1 1 160px;width:auto}
+ .payslip-filters .filter-actions{margin-left:0}
+}
+
 .invoice-list-filters{display:grid;gap:14px}
 .invoice-filter-toolbar{display:flex;align-items:center;gap:8px;min-width:0;overflow-x:auto;padding-bottom:2px}
 .invoice-list-filters .segmented{display:flex;flex:0 0 auto;flex-wrap:nowrap;gap:4px}
@@ -1027,5 +1049,871 @@ a.doc-pill:hover,summary.doc-pill:hover{background:#dceaf6;border-color:#9fb6cc;
   .pr-filters input[name="q"]{
     width:100%;
     max-width:none;
+  }
+}
+
+/* ==========================================================================
+   Unified filter system (CSS only)
+   One rhythm for every filter bar in the project: shared micro-caps labels,
+   36px controls, 8px radius, actions anchored to the control baseline and a
+   consistent summary line. Appended last so it harmonises the per-page filter
+   layers already in this file without touching markup or behaviour.
+   ========================================================================== */
+:root{
+  --qb-filter-h:36px;
+  --qb-filter-radius:8px;
+  --qb-filter-gap-row:8px;
+  --qb-filter-gap-col:10px;
+  --qb-filter-border:#d6e2ea;
+  --qb-filter-label:#5b7084;
+}
+
+/* 1. Row rhythm: consistent gaps, shared control baseline, actions to the right. */
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.bk-review-filters,.list-filters){
+  gap:var(--qb-filter-gap-row) var(--qb-filter-gap-col);
+  align-items:flex-end;
+  min-width:0;
+}
+main form.qb-filter-form.all-expenses-filters{gap:var(--qb-filter-gap-row);align-items:stretch}
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.list-filters)>.filter-actions{
+  margin-left:auto;
+  align-self:flex-end;
+  gap:8px;
+}
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar)>.button{flex:0 0 auto}
+main form.qb-filter-form>button.button,
+main form.filters>button.button,
+main form.filter-toolbar>button.button{order:55}
+
+/* 2. Card surface: one padding and radius for every standalone filter card. */
+main form.qb-filter-form.panel{
+  padding:12px 14px;
+  border-radius:12px;
+  margin-bottom:14px;
+  background:#fff;
+}
+main :is(form.filter-toolbar,form.qb-filter-form.filter-form,form.qb-filter-form.rp-bar){
+  padding:12px 14px;
+  border:1px solid #e1e8ee;
+  border-radius:12px;
+  background:#fff;
+  margin:0 0 14px;
+}
+
+/* 3. Labels: one micro-caps caption style, inline with its control on desktop. */
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.bk-review-filters,.list-filters) label:has(>input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),>select){
+  font-size:10px;
+  font-weight:800;
+  line-height:1.25;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  color:var(--qb-filter-label);
+}
+main .list-filters .compact-filter-label>span:first-child{
+  font-size:10px;
+  font-weight:800;
+  line-height:1.25;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  color:var(--qb-filter-label);
+}
+
+/* 4. Controls: identical height, padding, radius and type across every bar. */
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.bk-review-filters,.list-filters) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]),select){
+  height:var(--qb-filter-h);
+  min-height:var(--qb-filter-h);
+  padding:0 10px;
+  border:1px solid var(--qb-filter-border);
+  border-radius:var(--qb-filter-radius);
+  background:#fff;
+  color:#1f3446;
+  font-family:inherit;
+  font-size:12px;
+  font-weight:500;
+  line-height:1.2;
+  letter-spacing:normal;
+  text-transform:none;
+  box-sizing:border-box;
+}
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.bk-review-filters,.list-filters) select{padding-right:26px}
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.bk-review-filters,.list-filters) :is(input,select):hover:not(:focus){border-color:#bccfdd}
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.bk-review-filters,.list-filters) :is(input,select):focus{
+  outline:none;
+  border-color:#6e9fc2;
+  box-shadow:0 0 0 3px rgba(69,132,174,.14);
+}
+
+/* 5. Buttons: same size as the controls they sit beside. */
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.list-filters) .filter-actions .button,
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.list-filters)>.button,
+main form.qb-filter-form.fr-filter .fr-filter-action .button{
+  height:var(--qb-filter-h);
+  min-height:var(--qb-filter-h);
+  padding:0 13px;
+  border-radius:var(--qb-filter-radius);
+  font-size:12px;
+  font-weight:700;
+  line-height:1;
+}
+
+/* 6. Period picker: share the row with the other filters instead of owning a line. */
+main form.qb-filter-form:not(.all-expenses-filters)>.standard-period-filter{
+  flex:1 1 auto;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px 10px;
+  min-width:0;
+  max-width:100%;
+}
+
+/* 7. Segmented quick filters: one compact, uniform pill row. */
+main .segmented{gap:4px;letter-spacing:normal;text-transform:none}
+main .segmented a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:32px;
+  margin:0;
+  padding:0 11px;
+  border-radius:7px;
+  font-size:11.5px;
+  font-weight:700;
+  line-height:1;
+  letter-spacing:normal;
+  text-transform:none;
+}
+main .segmented a:hover{background:#f1f7fb;border-color:#b9cfe0}
+main .segmented a.on,main .segmented a.on:hover{background:#174b78;border-color:#174b78;color:#fff}
+main .invoice-list-filters .segmented a{min-height:32px;padding:0 10px;font-size:11px}
+
+/* 8. Page-specific alignment fixes that need no markup change. */
+main .invoice-list-filters{display:grid;gap:10px;padding:14px 16px}
+main .invoice-list-filters form.qb-filter-form.invoice-period-form{
+  padding:0;
+  margin:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
+}
+main .invoice-list-filters .invoice-filter-toolbar{min-width:0;padding-bottom:0}
+main .invoice-filter-summary{margin:0;padding:0;font-size:11.5px;color:#5b7084}
+main form.qb-filter-form>label[for="asset-filter"]{display:none!important}
+main .bk-review-filters{align-items:flex-end;gap:8px 10px}
+main .bk-review-filters label:has(input[type="search"]){flex:0 0 auto;width:180px;max-width:180px;min-width:0}
+main form.qb-filter-form.fr-filter{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 10px}
+main form.qb-filter-form.fr-filter .fr-filter-title{display:none}
+main form.qb-filter-form.fr-filter .fr-filter-action{
+  margin-left:auto;
+  align-self:flex-end;
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+main form.qb-filter-form.fr-filter .fr-filter-action .button{width:auto}
+main .payroll-toolbar .button{min-height:var(--qb-filter-h);height:var(--qb-filter-h)}
+
+/* 9. Summary: one tidy line with chips, matching the active-filter chips elsewhere. */
+main .filter-summary{
+  flex:1 1 100%;
+  order:60;
+  align-self:flex-end;
+  margin:0;
+  padding-top:7px;
+  border-top:1px solid #eef3f7;
+  font-size:11.5px;
+  line-height:1.5;
+  color:#5b7084;
+}
+main .filter-summary b{
+  font-size:9.5px;
+  font-weight:800;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  color:#7a8c9b;
+}
+main .filter-summary [data-filter-key]{
+  display:inline-flex;
+  align-items:center;
+  margin:2px 2px 0 0;
+  padding:2px 8px;
+  border:1px solid #dbe8f1;
+  border-radius:999px;
+  background:#f4f9fc;
+  color:#35566f;
+  font-size:11px;
+  line-height:1.45;
+}
+main form.qb-filter-form>span.muted{
+  order:70;
+  flex:1 1 100%;
+  align-self:flex-end;
+  margin:0;
+  padding-top:7px;
+  border-top:1px solid #eef3f7;
+  font-size:11.5px;
+  line-height:1.5;
+  color:#5b7084;
+}
+
+/* 10. Expenses keeps its purpose-built two-row layout; only the tokens are aligned. */
+main form.qb-filter-form.all-expenses-filters :is(input:not([type="checkbox"]):not([type="hidden"]),select){
+  height:var(--qb-filter-h)!important;
+  min-height:var(--qb-filter-h)!important;
+  padding:0 10px!important;
+  border-radius:var(--qb-filter-radius)!important;
+  font-size:12px!important;
+}
+
+@media(max-width:640px){
+  /* Apply/Clear take their own full-width row, aligned right like every other page. */
+  main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.list-filters)>.filter-actions{
+    width:100%;
+    margin-left:0;
+    justify-content:flex-end;
+  }
+  main form.qb-filter-form.panel{padding:12px}
+  main .invoice-list-filters{padding:12px}
+  main .invoice-list-filters form.qb-filter-form.invoice-period-form{padding:0}
+  main .filter-summary,main form.qb-filter-form>span.muted{width:100%}
+  main .bk-review-filters label:has(input[type="search"]){flex:1 1 100%;width:auto;max-width:none}
+}
+
+/* 11. Captions for combo-enhanced selects follow the same micro-caps style. */
+main :is(form.qb-filter-form,form.filters,form.filter-toolbar,.bk-review-filters,.list-filters) label:has(>.qb-combo){
+  font-size:10px;
+  font-weight:800;
+  line-height:1.25;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+  color:var(--qb-filter-label);
+}
+
+@media(min-width:641px){
+  /* 12. Search captions sit inline with their input like every other caption. The
+     former stacked 180px column wasted a row and left the actions stranded. */
+  main :is(form.qb-filter-form:not(.all-expenses-filters),form.filters:not(.all-expenses-filters),form.filter-toolbar,.bk-review-filters,.list-filters) :is(.compact-filter-label,label):has(>input[name="q"],>input[type="search"]){
+    flex-direction:row!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    gap:8px!important;
+    width:auto!important;
+    max-width:none!important;
+    flex:0 1 auto!important;
+    white-space:nowrap!important;
+  }
+  main :is(form.qb-filter-form:not(.all-expenses-filters),form.filters:not(.all-expenses-filters),form.filter-toolbar,.bk-review-filters,.list-filters) :is(input[name="q"],input[type="search"]){
+    width:220px!important;
+    max-width:220px!important;
+    flex:0 0 220px!important;
+  }
+
+  /* 13. "More filters" joins the row when collapsed and claims its own row when
+     expanded, so Apply/Clear no longer sit alone under an empty band. */
+  main form.qb-filter-form:not(.all-expenses-filters)>details.more-filters{
+    flex:0 1 auto;
+    order:45;
+    width:auto;
+  }
+  main form.qb-filter-form:not(.all-expenses-filters)>details.more-filters[open]{
+    flex:1 1 100%;
+    width:100%;
+  }
+
+  /* 14. Export link in the audit filter bar matches the adjacent buttons. */
+  main form.qb-filter-form.filters>.audit-export{
+    order:56;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    height:var(--qb-filter-h);
+    min-height:var(--qb-filter-h);
+    padding:0 13px;
+    border:1px solid #cfd8e3;
+    border-radius:var(--qb-filter-radius);
+    background:#fff;
+    color:#1f3b57;
+    font-size:12px;
+    font-weight:700;
+    line-height:1;
+    text-decoration:none;
+    white-space:nowrap;
+  }
+  main form.qb-filter-form.filters>.audit-export:hover{border-color:#9db7cc;background:#f6fafd}
+}
+
+/* 15. Payroll month picker wraps inside the heading instead of clipping at the
+   start when the toolbar is narrower than the form. */
+main .payroll-toolbar{
+  overflow-x:visible;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-items:flex-end;
+  row-gap:6px;
+  min-width:0;
+}
+main .payroll-toolbar>.filters{
+  flex:0 1 auto;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  align-items:flex-end;
+  gap:6px 10px;
+  max-width:100%;
+  min-width:0;
+}
+@media(max-width:850px){
+  main .page-heading.split.payroll-heading:has(>div:first-child){grid-template-columns:minmax(0,1fr)}
+  main .payroll-toolbar{justify-content:flex-start}
+  main .payroll-toolbar>.filters{flex:1 1 100%;justify-content:flex-start}
+  main .payroll-heading~.panel .filters{overflow-x:visible;flex-wrap:wrap;width:100%;gap:8px 10px;align-items:flex-end}
+}
+@media(max-width:640px){
+  main .payroll-toolbar>.filters select[name="month"],
+  main .payroll-toolbar>.filters select[name="year"],
+  main .payroll-toolbar>.filters select[name="department"]{width:auto;min-width:0}
+}
+
+/* 16. Status pills that live inside a filter row match the control height beside them. */
+main .list-filters .segmented a{
+  min-height:var(--qb-filter-h);
+  padding:0 12px;
+  border-radius:var(--qb-filter-radius);
+  font-size:12px;
+}
+
+/* ==========================================================================
+   Shared module pages
+   Business profile, Email templates, Payroll settings, Document storage,
+   Documents, Audit log, Backups, PostgreSQL sync.
+   Every selector is page-scoped; pages are detected by their own content.
+   ========================================================================== */
+
+/* 17. Paths, SHA hashes and template placeholders read as chips, not raw runs. */
+main:is(
+  :has(input[name="gstin"]),
+  :has(input[name="employee_id_prefix"]),
+  :has(.page-heading a[href$="/doc-index/check/"]),
+  :has(.page-heading a[href$="/shared/email-templates/add/"]),
+  :has(.page-heading a[href$="/employee-documents/"]),
+  :has(.audit-page),
+  :has(form[action$="/backups/create/"]),
+  :has(.pg-settings)
+) code{
+  padding:1px 5px;
+  border:1px solid #e2eaf1;
+  border-radius:5px;
+  background:#f1f5f9;
+  color:#375062;
+  font-size:11.5px;
+  overflow-wrap:anywhere;
+}
+
+/* 18. Heading actions sit beside Back / help instead of floating mid-hero. */
+main:is(
+  :has(input[name="gstin"]),
+  :has(input[name="employee_id_prefix"]),
+  :has(.page-heading a[href$="/doc-index/check/"]),
+  :has(.page-heading a[href$="/shared/email-templates/add/"]),
+  :has(.page-heading a[href$="/employee-documents/"]),
+  :has(.audit-page),
+  :has(form[action$="/backups/create/"]),
+  :has(.pg-settings)
+) .page-heading.split.qb-help-heading-anchor:has(>div.qb-header-controls)>div:nth-last-child(2){
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:8px;
+  min-width:0;
+  max-width:100%;
+}
+main:is(
+  :has(input[name="gstin"]),
+  :has(input[name="employee_id_prefix"]),
+  :has(.page-heading a[href$="/doc-index/check/"]),
+  :has(.page-heading a[href$="/shared/email-templates/add/"]),
+  :has(.page-heading a[href$="/employee-documents/"]),
+  :has(.audit-page),
+  :has(form[action$="/backups/create/"]),
+  :has(.pg-settings)
+) .page-heading.split.qb-help-heading-anchor:has(>div.qb-header-controls)>div:nth-last-child(2) .button{
+  white-space:nowrap;
+}
+@media(max-width:850px){
+  main:is(
+    :has(input[name="gstin"]),
+    :has(input[name="employee_id_prefix"]),
+    :has(.page-heading a[href$="/doc-index/check/"]),
+    :has(.page-heading a[href$="/shared/email-templates/add/"]),
+    :has(.page-heading a[href$="/employee-documents/"]),
+    :has(.audit-page),
+    :has(form[action$="/backups/create/"]),
+    :has(.pg-settings)
+  ) .page-heading.split.qb-help-heading-anchor:has(>div.qb-header-controls)>div:nth-last-child(2){
+    justify-content:flex-start;
+  }
+}
+
+/* 19. Settings forms: checkbox rows keep their box next to the label, file
+   pickers become full controls, and Save buttons match the field height. */
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .check-field{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+  min-height:38px;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .check-field>input[type="checkbox"]{
+  flex:0 0 auto;
+  width:16px!important;
+  height:16px!important;
+  min-height:0!important;
+  margin:0;
+  accent-color:#0b5394;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .check-field>label{
+  flex:0 1 auto;
+  width:auto!important;
+  max-width:none!important;
+  margin:0;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.35;
+  color:#40576a;
+  white-space:normal;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-field:has(>input[type="file"]){
+  display:block;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-field:has(>input[type="file"])>label:first-child{
+  display:block;
+  margin:0 0 6px;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-field:has(>input[type="file"])>a{
+  font-size:12px;
+  overflow-wrap:anywhere;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-field:has(>input[type="file"])>input[type="checkbox"]{
+  display:inline-block;
+  width:16px!important;
+  height:16px!important;
+  margin:0 6px 0 0;
+  vertical-align:-2px;
+  accent-color:#0b5394;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-field:has(>input[type="file"])>input[type="checkbox"]+label{
+  display:inline-block;
+  width:auto!important;
+  max-width:none!important;
+  margin:0 10px 0 0;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.35;
+  color:#40576a;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-field:has(>input[type="file"])>input[type="file"]{
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-height:38px;
+  margin:2px 0 0;
+  padding:4px 8px;
+  border:1px solid #d9e2e9;
+  border-radius:8px;
+  background:#fbfcfd;
+  color:#40576a;
+  font-size:12px;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-field:has(>input[type="file"])>small{
+  display:block;
+  margin-top:6px;
+}
+main:is(:has(input[name="gstin"]),:has(input[name="employee_id_prefix"])) .form-actions .button{
+  min-height:38px;
+}
+main:is(
+  :has(input[name="gstin"]),
+  :has(input[name="employee_id_prefix"]),
+  :has(.page-heading a[href$="/doc-index/check/"]),
+  :has(.page-heading a[href$="/shared/email-templates/add/"]),
+  :has(.page-heading a[href$="/employee-documents/"]),
+  :has(.audit-page),
+  :has(form[action$="/backups/create/"]),
+  :has(.pg-settings)
+) input[type="file"]::file-selector-button{
+  margin-right:10px;
+  padding:5px 10px;
+  border:1px solid #cfd8e3;
+  border-radius:6px;
+  background:#eef4f8;
+  color:#1f3b57;
+  font:700 12px Inter,Segoe UI,Arial,sans-serif;
+  cursor:pointer;
+}
+
+/* 20. Hub list search stays a control, not a full-width band. */
+main:has(.page-heading a[href$="/employee-documents/"]) .panel>input.field[data-filter]{
+  max-width:380px;
+  min-height:38px;
+  margin:0 0 12px;
+}
+@media(max-width:640px){
+  main:has(.page-heading a[href$="/employee-documents/"]) .panel>input.field[data-filter]{
+    max-width:none;
+  }
+}
+
+/* 21. Template previews keep readable columns and scroll inside the panel. */
+main:has(.page-heading a[href$="/shared/email-templates/add/"]) .panel table{
+  min-width:760px;
+}
+
+/* 22. Audit filters sit on the same card surface as the list below them. */
+main:has(.audit-page) .audit-page>h1{
+  margin:4px 0 10px;
+  font-size:clamp(26px,3vw,32px);
+  letter-spacing:-.035em;
+  color:#1a3043;
+}
+main:has(.audit-page) .audit-page form.qb-filter-form{
+  margin:0 0 12px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 3px 12px #17354a08;
+}
+@media(max-width:640px){
+  main:has(.audit-page) .audit-page form.qb-filter-form{padding:10px}
+}
+
+/* 23. Backups: section rhythm, action cards and tables that scroll on mobile. */
+main:has(form[action$="/backups/create/"])>h1,
+main:has(.pg-settings)>h1{
+  margin:6px 0 18px;
+  font-size:clamp(26px,3vw,30px);
+  letter-spacing:-.035em;
+  color:#1a3043;
+}
+main:has(form[action$="/backups/create/"])>h2,
+main:has(.pg-settings)>h2{
+  margin:30px 0 12px;
+  padding-top:20px;
+  border-top:1px solid #e4ebf1;
+  font-size:19px;
+  line-height:1.3;
+  color:#20394c;
+}
+main:has(form[action$="/backups/create/"])>h3{
+  margin:24px 0 10px;
+  font-size:15px;
+  color:#20394c;
+}
+main:has(form[action$="/backups/create/"])>p.muted,
+main:has(.pg-settings)>p{
+  max-width:1000px;
+  margin:0 0 14px;
+  font-size:13px;
+  line-height:1.7;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/create/"]{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+  margin:0 0 10px;
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 3px 12px #17354a08;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/create/"] input[name="note"]{
+  flex:1 1 240px;
+  max-width:360px;
+  min-height:38px;
+  padding:9px 11px;
+  border:1px solid #d9e2e9;
+  border-radius:8px;
+  background:#fff;
+  color:var(--ink);
+  font:13px inherit;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/create/"] input[name="note"]:focus{
+  border-color:#6f9fbe;
+  outline:2px solid #c5dcec;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/create/"] button,
+main:has(form[action$="/backups/create/"])>form[action$="/backups/import/"] button{
+  min-height:38px;
+  padding:0 16px;
+  border:1px solid var(--navy);
+  border-radius:8px;
+  background:var(--navy);
+  color:#fff;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/create/"] button:hover,
+main:has(form[action$="/backups/create/"])>form[action$="/backups/import/"] button:hover{
+  border-color:#0a467c;
+  background:#0a467c;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/retention/"],
+main:has(form[action$="/backups/create/"])>form[action$="/backups/export/"]{
+  margin:0 0 16px;
+  padding:0;
+  border:0;
+  background:none;
+  box-shadow:none;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/retention/"] button,
+main:has(form[action$="/backups/create/"])>form[action$="/backups/export/"] button{
+  min-height:38px;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/import/"]{
+  margin:0 0 14px;
+  padding:14px 16px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 3px 12px #17354a08;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/import/"]>p{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px 12px;
+  margin:0 0 10px;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/import/"] label{
+  font-size:12px;
+  font-weight:700;
+  color:#40576a;
+}
+main:has(form[action$="/backups/create/"])>form[action$="/backups/import/"] input[type="file"]{
+  flex:1 1 260px;
+  width:auto;
+  max-width:480px;
+  min-height:38px;
+}
+main:has(form[action$="/backups/create/"])>table.table{
+  display:block;
+  max-width:100%;
+  overflow-x:auto;
+  margin:0 0 18px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 3px 12px #17354a08;
+  border-collapse:separate;
+  border-spacing:0;
+}
+main:has(form[action$="/backups/create/"])>table.table th{
+  padding:10px 12px;
+  border-bottom:1px solid #e4ebf1;
+  background:#f3f7fa;
+  white-space:nowrap;
+}
+main:has(form[action$="/backups/create/"])>table.table td{
+  padding:10px 12px;
+  border-bottom:1px solid #eef2f5;
+  white-space:nowrap;
+}
+
+/* 24. PostgreSQL sync: card sections with aligned label / control rows. */
+main:has(.pg-settings) form.pg-settings{
+  margin:0 0 4px;
+  padding:16px 18px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 3px 12px #17354a08;
+}
+main:has(.pg-settings) form.pg-settings>p{
+  display:grid;
+  grid-template-columns:128px minmax(0,320px) minmax(0,1fr);
+  align-items:center;
+  gap:4px 12px;
+  margin:0 0 10px;
+}
+main:has(.pg-settings) form.pg-settings>p>label{
+  margin:0;
+  font-size:12px;
+  font-weight:700;
+  color:#40576a;
+}
+main:has(.pg-settings) form.pg-settings>p>input:not([type="checkbox"]),
+main:has(.pg-settings) form.pg-settings>p>select{
+  width:100%;
+  min-height:38px;
+  padding:8px 10px;
+  border:1px solid #d9e2e9;
+  border-radius:8px;
+  background:#fff;
+  color:var(--ink);
+  font:13px inherit;
+}
+main:has(.pg-settings) form.pg-settings>p>.muted{
+  font-size:12px;
+  line-height:1.45;
+}
+main:has(.pg-settings) form.pg-settings>p:has(>input[type="checkbox"]){
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+}
+main:has(.pg-settings) form.pg-settings>p>input[type="checkbox"]{
+  flex:0 0 auto;
+  width:16px!important;
+  height:16px!important;
+  min-height:0;
+  margin:0;
+  accent-color:#0b5394;
+}
+main:has(.pg-settings) form.pg-settings>button{
+  min-height:38px;
+  padding:0 16px;
+  border:1px solid #cfd8e3;
+  border-radius:8px;
+  background:#fff;
+  color:#1f3b57;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+main:has(.pg-settings) form.pg-settings>button:hover{
+  border-color:#9db7cc;
+  background:#f6fafd;
+}
+main:has(.pg-settings) form.pg-settings>button+button{margin-left:8px}
+main:has(.pg-settings) form.pg-settings>button[name="then_test"]{
+  border-color:var(--navy);
+  background:var(--navy);
+  color:#fff;
+}
+main:has(.pg-settings) form.pg-settings>button[name="then_test"]:hover{
+  border-color:#0a467c;
+  background:#0a467c;
+}
+main:has(.pg-settings) form[action$="/postgres/test/"]{
+  margin:0 0 18px;
+  padding:0;
+  border:0;
+  background:none;
+  box-shadow:none;
+}
+main:has(.pg-settings) form[action$="/postgres/test/"] button{
+  min-height:38px;
+  padding:0 16px;
+  border:1px solid #cfd8e3;
+  border-radius:8px;
+  background:#fff;
+  color:#1f3b57;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]{
+  margin:0 0 14px;
+  padding:16px 18px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+  box-shadow:0 3px 12px #17354a08;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]>p{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px 10px;
+  margin:0 0 10px;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]>p>label{
+  font-size:12px;
+  font-weight:700;
+  color:#40576a;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]>p>input[name="phrase"]{
+  width:240px;
+  max-width:100%;
+  min-height:38px;
+  padding:8px 10px;
+  border:1px solid #d9e2e9;
+  border-radius:8px;
+  background:#fff;
+  color:var(--ink);
+  font:13px inherit;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]>p>input[type="checkbox"]{
+  flex:0 0 auto;
+  width:16px!important;
+  height:16px!important;
+  margin:0;
+  accent-color:#0b5394;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]>p>label[for]{
+  flex:1 1 320px;
+  min-width:0;
+  font-weight:600;
+  line-height:1.4;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]>button{
+  min-height:38px;
+  padding:0 16px;
+  border:1px solid var(--navy);
+  border-radius:8px;
+  background:var(--navy);
+  color:#fff;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+main:has(.pg-settings) form[action*="/postgres/sync/"]>button:hover{
+  border-color:#0a467c;
+  background:#0a467c;
+}
+main:has(.pg-settings) form.pg-settings>button:disabled,
+main:has(.pg-settings) form[action$="/postgres/test/"] button:disabled,
+main:has(.pg-settings) form[action*="/postgres/sync/"]>button:disabled{
+  border-color:#c8d1d8;
+  background:#e8edf1;
+  color:#52616d;
+  cursor:not-allowed;
+}
+main:has(.pg-settings)>details{
+  margin:6px 0 18px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#fff;
+}
+main:has(.pg-settings)>details summary{
+  color:var(--navy);
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+}
+main:has(.pg-settings)>details table{
+  margin-top:10px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  border-collapse:separate;
+  border-spacing:0;
+  overflow:hidden;
+}
+@media(max-width:640px){
+  main:has(.pg-settings) form.pg-settings>p{
+    grid-template-columns:minmax(0,1fr);
+    gap:4px;
+  }
+  main:has(.pg-settings) form.pg-settings>p>input:not([type="checkbox"]),
+  main:has(.pg-settings) form.pg-settings>p>select{
+    grid-column:1;
+  }
+  main:has(.pg-settings) form.pg-settings>p:has(>input[type="checkbox"]){
+    display:flex;
   }
 }

@@ -83,6 +83,22 @@ class PayslipHubFilterTests(Base):
         self.assertContains(r, 'name="page_size"')
         self.assertContains(r, 'value="50"')
 
+    def test_downloads_and_filters_share_compact_header_rows(self):
+        self._finalize(2026, 4)
+        r = self.client.get(reverse('em:payslips'), {'fy': '2026'})
+        html = r.content.decode()
+        head = html[html.index('class="payslip-head"'):html.index('payslip-filters')]
+        self.assertIn('Full year (ZIP)', head)
+        self.assertIn('title="April 2026 (ZIP)"', head)
+        self.assertIn('title="Export Q1 salary TDS (Excel)"', head)
+        self.assertIn('Monthly ZIP', head)
+        filters = html[html.index('payslip-filters'):html.index('id="hub-table"')]
+        self.assertIn('name="period_mode"', filters)
+        self.assertIn('class="field payslip-search"', filters)
+        self.assertIn('data-filter-actions', filters)
+        self.assertEqual(html.count('data-filter="#hub-table"'), 1)
+        self.assertNotIn('qb-tds-quarter', html)
+
     def test_legacy_fy_param_still_lists_and_exports(self):
         self._finalize(2026, 4)
         r = self.client.get(reverse('em:payslips'), {'fy': '2026'})

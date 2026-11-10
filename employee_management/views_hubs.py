@@ -273,6 +273,8 @@ def payslips(request):
         payroll_period = periods.get((year, month))
         month_exports.append({
             'label': f'{calendar.month_name[month]} {year}',
+            'short': calendar.month_abbr[month],
+            'title': f'{calendar.month_name[month]} {year} (ZIP)',
             'url': (
                 reverse('em:payslip_zip', args=[payroll_period.pk]) + '?finalized=1'
                 if payroll_period else None
@@ -285,8 +287,8 @@ def payslips(request):
         'section': 'Payroll Management',
         'title': 'Payslips',
         'intro': (
-            'Filter finalized payslips by salary month with the shared period picker, '
-            'then download monthly or full-year ZIPs and CA salary TDS Excel.'
+            'Finalized payslips by salary month, with monthly ZIP, full-year ZIP '
+            'and CA salary TDS Excel downloads.'
         ),
         'headers': ['ID', 'Name', 'Month', 'Revision', 'State', 'Net', ''],
         'rows': rows,
@@ -297,7 +299,12 @@ def payslips(request):
         'month_exports': month_exports,
         'year_zip_url': reverse('em:payslip_year_zip', args=[fy_start]),
         'quarter_exports': [
-            {'label': f'Export Q{q}', 'url': reverse('em:payslip_quarter_tds', args=[q]) + q_extra}
+            {
+                'label': f'Export Q{q}',
+                'short': f'Q{q}',
+                'title': f'Export Q{q} salary TDS (Excel)',
+                'url': reverse('em:payslip_quarter_tds', args=[q]) + q_extra,
+            }
             for q in (1, 2, 3, 4)
         ],
         'use_standard_period_filter': True,
