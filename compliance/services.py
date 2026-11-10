@@ -11,10 +11,14 @@ from django.utils import timezone
 from accounting.money import ZERO, q2
 from accounting.postings import L, bank_ledger, current, is_posted, m, mapped_or, sync, unpost
 
-from .models import PAYABLE_KEYS, DueDateEntry, GstInputClaim, GstInputEvent, StatutoryPayment, StatutoryRule
+from .models import (PAYABLE_KEYS, PAYMENT_KINDS, DueDateEntry, GstInputClaim, GstInputEvent, StatutoryPayment,
+                     StatutoryRule)
 
 NOT_CONFIGURED = 'rule not configured'
 TOLERANCE = Decimal('1.00')  # rupee rounding
+ENTRY_PAYMENT_KINDS = {**{kind: (kind,) for kind, _ in PAYMENT_KINDS},
+                       'gst_return': ('gst_cgst', 'gst_sgst', 'gst_igst'),
+                       'tds_return': ('tds_vendor', 'tds_salary'), 'other': ()}
 
 
 class RuleNotConfigured(Exception):
@@ -190,9 +194,12 @@ def due_calendar(start, months=3):
     """Due dates falling in [start month, start + months) from active configured entries."""
     out = []
     entries = list(DueDateEntry.objects.filter(active=True))
-    paid = {(p.kind, p.period_year, p.period_month)
-            for p in StatutoryPayment.objects.filter(cancelled=False)}
-    for i in range(-12, months + 1):
+    paid = {}
+    for p in StatutoryPayment.objects.filter(cancelled=False):
+        key = (p.kind, p.period_year, p.period_month)
+        paid[key] = paid.get(key, ZERO) + q2(p.amount)
+    offsets = [e.month_offset or 0 for e in entries]
+    for i in range(-(max(offsets, default=0) + 1), months + 1):
         py, pm = add_months(start.year, start.month, i)
         for e in entries:
             if e.month_list() and pm not in e.month_list():
@@ -202,6 +209,7 @@ def due_calendar(start, months=3):
             end = date(*add_months(start.year, start.month, months), 1)
             if not (date(start.year, start.month, 1) <= d < end):
                 continue
+            amt = q2(sum((paid.get((k, py, pm), ZERO) for k in ENTRY_PAYMENT_KINDS.get(e.kind, ())), ZERO))
             out.append({'date': d, 'entry': e, 'period': f'{pm:02d}/{py}',
-                        'paid': (e.kind, py, pm) in paid, 'overdue': d < timezone.localdate()})
+                        'paid': amt > 0, 'paid_amount': amt, 'overdue': d < timezone.localdate()})
     return sorted(out, key=lambda x: (x['date'], x['entry'].name))

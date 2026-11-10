@@ -359,6 +359,16 @@ td{font-variant-numeric:tabular-nums}
 .compact-date-range>.field{width:145px;min-width:125px;min-height:35px;padding:6px 8px;font-size:12px}
 .compact-entry-form{max-width:900px;margin-inline:auto}
 .compliance-payment-form{width:100%;max-width:none;margin-inline:0}
+.c-sub{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 12px}
+.c-sub a{color:#3b5b76;text-decoration:none;padding:2px 0;border-bottom:2px solid transparent}
+.c-sub a:hover{color:var(--navy)}
+.c-sub a.is-active{color:var(--navy);border-bottom-color:var(--navy);font-weight:700}
+.c-warn{border-left:4px solid #b3261e;background:#fdf1f0;padding:10px 14px;margin:0 0 14px;border-radius:0 8px 8px 0}
+.st-mismatch{color:#b3261e;font-weight:600}
+.st-not_configured{color:#8a5a00;font-weight:600}
+.st-ok{color:#1b6e2b}
+.st-due{color:#8a5a00;font-weight:600}
+@media(max-width:560px){.c-sub{gap:4px 10px;font-size:12px}}
 .compact-entry-form p:has(>label){display:grid;grid-template-columns:minmax(140px,210px) minmax(0,1fr);align-items:center;gap:6px 12px;margin:0 0 12px}
 .compact-entry-form p:has(>label)>label{font-size:12px;font-weight:700;color:#435462}
 .compact-entry-form p:has(>label)>input,.compact-entry-form p:has(>label)>select,.compact-entry-form p:has(>label)>textarea{grid-column:2;width:100%;max-width:440px}

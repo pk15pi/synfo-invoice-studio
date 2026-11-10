@@ -5,6 +5,7 @@ from . import views
 app_name = 'reporting'
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('customer-projects/', views.customer_projects, name='customer_projects'),
     path('section/<slug:slug>/', views.section, name='section'),
     path('r/<slug:key>/', views.report, name='report'),
     path('custom/', views.custom, name='custom'),

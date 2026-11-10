@@ -1,6 +1,6 @@
 {% extends 'compliance/base_c.html' %}{% load pagination_ui %}{% block c_title %}PF / ESI / PT payable{% endblock %}{% block c %}
 <div class="page-heading"><p class="eyebrow">Compliance</p><h1>PF / ESI / PT payable summary</h1></div>{% include 'compliance/_range.html' %}
 <div class="panel"><div class="table-wrap"><table><thead><tr><th>Period</th>{% for h in heads %}<th class="num">{{ h }}</th>{% endfor %}<th>PF due / paid / balance</th><th>ESI due / paid / balance</th><th>PT due / paid / balance</th></tr></thead>{% paginate rows as qb_pg1 %}<tbody>
-{% for r in qb_pg1 %}<tr><td>{{ r.label }}</td>{% for a in r.amounts %}<td class="num">{{ a }}</td>{% endfor %}{% for g in r.groups %}<td class="num">{{ g.due }} / {{ g.paid }} / <span class="{% if g.balance %}st-mismatch{% endif %}">{{ g.balance }}</span></td>{% endfor %}</tr>
+{% for r in qb_pg1 %}<tr><td>{{ r.label }}</td>{% for a in r.amounts %}<td class="num">{{ a }}</td>{% endfor %}{% for g in r.groups %}<td class="num">{{ g.due }} / {{ g.paid }} / <span class="{% if g.balance %}st-due{% endif %}">{{ g.balance }}</span></td>{% endfor %}</tr>
 {% empty %}<tr><td colspan="9" class="empty">No payroll periods in this range.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
-<p class="muted">From finalized current payslips. Ledger balances at end: {% for lab, b in ledger %}{{ lab }} {{ b }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}</p></div>{% endblock %}
+<p class="muted">From finalized current payslips. Paid is matched to the payroll period, not the deposit date. Ledger balances at end: {% for lab, b in ledger %}{{ lab }} {{ b }}{% if not forloop.last %} &middot; {% endif %}{% endfor %}</p></div>{% endblock %}

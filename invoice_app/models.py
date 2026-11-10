@@ -269,6 +269,11 @@ class Client(models.Model):
                                  help_text='Company (CIN) or LLP (LLPIN) identification number from MCA.')
     nda_signed_date = models.DateField('NDA signed date', null=True, blank=True)
     nda_expiry_date = models.DateField('NDA expiry date', null=True, blank=True)
+    created_on = models.DateField('Added on', null=True, blank=True, editable=False,
+                                  help_text='First recorded customer activity. Existing records were backfilled from '
+                                            'the earliest invoice, deployment or agreement.')
+    inactive_since = models.DateField('Inactive since', null=True, blank=True, editable=False,
+                                      help_text='Date the customer was last marked inactive; cleared when reactivated.')
 
     # --- Invoice email (To/CC/BCC + subject/body templates) ---
     is_email_active = models.BooleanField(
@@ -337,6 +342,15 @@ class Client(models.Model):
         if self.country_ref_id:
             self.country = self.country_ref.name
         self.pin_code = (self.pin_code or '').strip()
+        if not self.created_on:
+            self.created_on = timezone.localdate()
+        update_fields = kwargs.get('update_fields')
+        if self.pk and (update_fields is None or 'active' in update_fields):
+            was_active = Client.objects.filter(pk=self.pk).values_list('active', flat=True).first()
+            if was_active is not None and was_active != self.active:
+                self.inactive_since = None if self.active else timezone.localdate()
+                if update_fields is not None:
+                    kwargs['update_fields'] = set(update_fields) | {'inactive_since'}
         super().save(*args, **kwargs)
 
     @property

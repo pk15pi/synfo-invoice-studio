@@ -36,17 +36,21 @@ def check_invoice(inv):
     if not groups:
         groups = {gst.DEFAULT_SAC: inv.taxable_value}
     doc = inv.invoice_number
+    missing = False
     for sac, taxable in groups.items():
         try:
             e = S.expected_gst(taxable, sac, inv.invoice_date, igst=igst)
         except S.RuleNotConfigured as ex:
             rows.append(_row(doc, inv.invoice_date, f'GST SAC {sac}', inv.total_tax, status=NOT_CONFIGURED, note=str(ex)))
-            return rows
+            missing = True
+            continue
         for k in exp:
             exp[k] += e[k]
         if inv.tax_rate and q2(inv.tax_rate) != q2(e['rate']):
             rows.append(_row(doc, inv.invoice_date, f'GST rate SAC {sac}', inv.tax_rate, e['rate'], status=MISMATCH,
                              note=f'Invoice rate {inv.tax_rate}% vs rule {e["rate"]}%'))
+    if missing:
+        return rows
     for k in ('cgst', 'sgst', 'igst'):
         actual = getattr(inv, f'{k}_amount') or ZERO
         if actual or exp[k]:

@@ -1,0 +1,56 @@
+{% extends 'invoice_app/base.html' %}{% load filter_ui %}
+{% block title %}Customer &amp; Project Analysis{% endblock %}
+{% block content %}{% include 'reporting/_style.html' %}
+{% include 'reporting/_nav.html' %}
+<div class="page-heading split">
+  <div>
+    <p class="eyebrow">Reports &amp; Analytics</p>
+    <h1>Customer &amp; Project Analysis</h1>
+    <p class="rp-basis"><b>Period:</b> {{ period.label }} ({{ period.range_text }}) &middot; Customer movement, customer-wise earnings, projects and manpower. Revenue is invoice-date taxable value excluding GST; receipts use actual receipt dates.</p>
+  </div>
+</div>
+<form method="get" class="qb-filter-form rp-bar" data-filter-form>{% include 'invoice_app/_standard_period_filter.html' %}{% filter_actions %}</form>
+
+<section aria-label="Customer overview">
+  <h2 class="rp-section-title">Customer overview</h2>
+  <div class="rp-kpis">{% for c in cards %}<div class="rp-kpi"><div class="l">{{ c.label }}</div><div class="v">{{ c.value }}</div><div class="c">{{ c.note }}</div></div>{% endfor %}</div>
+</section>
+
+<section aria-label="Customer, project and manpower analytics">
+  <h2 class="rp-section-title">Trends and comparisons</h2>
+  <div class="rp-charts">{% for ch in charts %}<div class="rp-chart"><h3>{{ ch.title }}</h3>{{ ch.svg|safe }}{% if ch.note %}<p class="rp-note">{{ ch.note }}</p>{% endif %}</div>{% endfor %}</div>
+</section>
+
+<section aria-label="Customer scorecard">
+  <h2 class="rp-section-title">Customer scorecard</h2>
+  <div class="rp-wrap">
+    <table class="rp rp-scorecard">
+      <thead><tr><th>Customer</th><th>Status</th><th>Added</th><th class="n">Active projects</th><th class="n">Billed projects</th><th class="n">Manpower</th><th class="n">Revenue</th><th class="n">Received</th><th class="n">Outstanding</th><th>Last invoice</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a href="{{ r.url }}">{{ r.name }}</a></td>
+          <td>{% if r.active %}Active{% else %}Inactive{% endif %}{% if r.new %}<span class="rp-tag new">New</span>{% endif %}{% if r.left %}<span class="rp-tag left">Left</span>{% endif %}</td>
+          <td>{{ r.added|date:'d M Y'|default:'Not recorded' }}</td>
+          <td class="n">{{ r.projects }}</td>
+          <td class="n">{{ r.billed_projects }}</td>
+          <td class="n">{{ r.manpower }}</td>
+          <td class="n">{{ r.revenue }}</td>
+          <td class="n">{{ r.received }}</td>
+          <td class="n">{{ r.outstanding }}</td>
+          <td>{{ r.last_invoice|date:'d M Y'|default:'-' }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="10">No customer activity for this period.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="rp-note">Click a customer to open its customer-wise revenue report for the same period. Revenue, received and outstanding use different bases and do not add up to one another.</p>
+</section>
+
+<section aria-label="How these figures are calculated">
+  <h2 class="rp-section-title">How these figures are calculated</h2>
+  <ul class="rp-note">{% for note in notes %}<li>{{ note }}</li>{% endfor %}</ul>
+</section>
+{% endblock %}

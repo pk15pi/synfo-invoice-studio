@@ -1,5 +1,15 @@
 {% extends 'invoice_app/base.html' %}{% block title %}{% block c_title %}Compliance{% endblock %} &middot; QuantBud{% endblock %}
-{% block content %}<style>.c-sub a{margin-right:14px}.num{text-align:right;font-variant-numeric:tabular-nums}.c-warn{border-left:4px solid #b3261e;background:#fdf1f0;padding:10px 14px;margin:0 0 14px}.st-mismatch{color:#b3261e;font-weight:600}.st-not_configured{color:#8a5a00;font-weight:600}.st-ok{color:#1b6e2b}</style>
-<p class="c-sub muted"><a href="{% url 'compliance:home' %}">Overview</a><a href="{% url 'compliance:rules' %}">Rules</a><a href="{% url 'compliance:check' %}">Compliance check</a><a href="{% url 'compliance:gst_output' %}">Output GST</a><a href="{% url 'compliance:gst_input' %}">Input GST</a><a href="{% url 'compliance:tds' %}">TDS</a><a href="{% url 'compliance:payroll' %}">PF / ESI / PT</a><a href="{% url 'compliance:payments' %}">Statutory payments</a><a href="{% url 'compliance:due_dates' %}">Due dates</a></p>
+{% block content %}{% with u=request.resolver_match.url_name %}
+<nav class="c-sub muted" aria-label="Compliance">
+<a href="{% url 'compliance:home' %}"{% if u == 'home' %} class="is-active" aria-current="page"{% endif %}>Overview</a>
+<a href="{% url 'compliance:rules' %}"{% if u == 'rules' or u == 'rule_new' or u == 'rule_edit' %} class="is-active" aria-current="page"{% endif %}>Rules</a>
+<a href="{% url 'compliance:check' %}"{% if u == 'check' %} class="is-active" aria-current="page"{% endif %}>Compliance check</a>
+<a href="{% url 'compliance:gst_output' %}"{% if u == 'gst_output' %} class="is-active" aria-current="page"{% endif %}>Output GST</a>
+<a href="{% url 'compliance:gst_input' %}"{% if u == 'gst_input' %} class="is-active" aria-current="page"{% endif %}>Input GST</a>
+<a href="{% url 'compliance:tds' %}"{% if u == 'tds' %} class="is-active" aria-current="page"{% endif %}>TDS</a>
+<a href="{% url 'compliance:payroll' %}"{% if u == 'payroll' %} class="is-active" aria-current="page"{% endif %}>PF / ESI / PT</a>
+<a href="{% url 'compliance:payments' %}"{% if u == 'payments' %} class="is-active" aria-current="page"{% endif %}>Statutory payments</a>
+<a href="{% url 'compliance:due_dates' %}"{% if u == 'due_dates' or u == 'due_date_edit' %} class="is-active" aria-current="page"{% endif %}>Due dates</a>
+</nav>
 <div class="c-warn" role="alert"><strong>Verify every rate.</strong> {{ warning }} An empty rule set means "rule not configured" - the app never falls back to a built-in number.</div>
-{% block c %}{% endblock %}{% endblock %}
+{% block c %}{% endblock %}{% endwith %}{% endblock %}

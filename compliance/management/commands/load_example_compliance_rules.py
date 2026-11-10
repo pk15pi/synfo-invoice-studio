@@ -13,7 +13,7 @@ LABEL = 'EXAMPLE - NOT VERIFIED. Verify with your CA before activating.'
 EXAMPLE_RULES = [
     (StatutoryRule.GST, '998314', {'rate': '18'}),
     (StatutoryRule.TDS, '194J', {'rate': '10', 'threshold_single': '30000'}),
-    (StatutoryRule.TDS, '194C', {'rate': '2', 'threshold_single': '30000', 'threshold_annual': '100000'}),
+    (StatutoryRule.TDS, '194C', {'rate': '2', 'threshold_single': '30000'}),
     (StatutoryRule.PF, '', {'employee_pct': '12', 'employer_pct': '12', 'wage_ceiling': '15000'}),
     (StatutoryRule.ESI, '', {'employee_pct': '0.75', 'employer_pct': '3.25', 'wage_ceiling': '21000'}),
     (StatutoryRule.PT, 'Maharashtra', {'slabs': [{'from': '0', 'to': '7500', 'amount': '0'},

@@ -18,7 +18,7 @@ from expense_management.models import CompanyExpense, CompanyExpensePayment, Exp
 
 from . import checks, registers
 from . import services as S
-from .models import GstInputClaim, StatutoryPayment, StatutoryRule as R
+from .models import DueDateEntry, GstInputClaim, StatutoryPayment, StatutoryRule as R
 
 
 def rule(kind, key='', frm=date(2026, 4, 1), to=None, **params):
@@ -136,6 +136,13 @@ class CheckTests(PayslipBase):
             self.assertContains(r, 'verified by you or your CA')
         self.assertEqual(self.client.get(reverse('compliance:check'), REMOTE_ADDR='10.0.0.5').status_code, 403)
 
+    def test_invalid_start_keeps_valid_end_and_empty_selection(self):
+        r = self.client.get(reverse('compliance:check'), {'start': 'nope', 'end': '2026-06-30', 'filters': '1'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.context['end'], date(2026, 6, 30))
+        r = self.client.get(reverse('compliance:check'), {'filters': '1'})
+        self.assertEqual((r.context['rows'], r.context['which']), ([], []))
+
 
 class GstInputTests(TestCase):
     def setUp(self):
@@ -193,6 +200,20 @@ class GstInputTests(TestCase):
         self.client.post(reverse('compliance:gst_input_toggle', args=[e2.pk, 'mark']), {'reason': 'ok'})
         self.assertTrue(GstInputClaim.objects.filter(expense=e2, status='eligible').exists())
 
+    def test_toggle_rejects_unknown_action_and_offsite_next(self):
+        e = self.exp()
+        r = self.client.post(reverse('compliance:gst_input_toggle', args=[e.pk, 'delete']), {'reason': 'x'})
+        self.assertEqual(r.status_code, 404)
+        self.assertFalse(GstInputClaim.objects.filter(expense=e, status='eligible').exists())
+        r = self.client.post(reverse('compliance:gst_input_toggle', args=[e.pk, 'mark']),
+                             {'reason': 'ok', 'next': 'https://evil.test/pwn'})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r['Location'], reverse('compliance:gst_input'))
+        e2 = self.exp()
+        r = self.client.post(reverse('compliance:gst_input_toggle', args=[e2.pk, 'mark']),
+                             {'reason': 'ok', 'next': '/compliance/gst/input/?status=eligible'})
+        self.assertEqual(r['Location'], '/compliance/gst/input/?status=eligible')
+
     def test_tds_register_vendor_payment(self):
         e = self.exp()
         CompanyExpensePayment.objects.create(expense=e, payment_date=date(2026, 6, 1), amount=D('10800'),
@@ -220,6 +241,9 @@ class PaymentTests(PayslipBase):
         r = registers.tds_register(date(2026, 10, 1), date(2026, 11, 30))
         self.assertEqual((r['totals']['salary'], r['totals']['paid_salary'], r['totals']['due_salary']),
                          (D('3000.00'), D('3000.00'), D('0.00')))
+        october = registers.tds_register(date(2026, 10, 1), date(2026, 10, 31))
+        self.assertEqual((october['totals']['paid_salary'], october['totals']['due_salary']),
+                         (D('3000.00'), D('0.00')))
         S.cancel_payment(p, 'Wrong challan')
         self.assertIsNone(postings.current(S.statutory_payment_key(p)))
         self.assertEqual(acc.balance(acc.mapped_account('payroll.tds_payable')), D('0.00'))
@@ -244,6 +268,30 @@ class PaymentTests(PayslipBase):
         cal = S.due_calendar(date(2027, 1, 1), 1)
         self.assertIn(('Quarterly', date(2027, 1, 31)), [(c['entry'].name, c['date']) for c in cal])
 
+    def test_payment_period_and_duplicate_validation(self):
+        base = dict(kind='pf', period_year=2026, period_month=10, amount=D('100'),
+                    date=date(2026, 11, 10), challan_ref='PF-1')
+        for patch in ({'period_month': 0}, {'period_year': 0}, {'date': date(2020, 1, 1)}):
+            with self.assertRaises(ValidationError, msg=patch):
+                StatutoryPayment(**{**base, **patch}).full_clean()
+        first = StatutoryPayment(**base)
+        S.record_payment(first)
+        with self.assertRaises(ValidationError):
+            S.record_payment(StatutoryPayment(**base))
+        S.cancel_payment(first, 'Duplicate entry')
+        S.record_payment(StatutoryPayment(**base))
+
+    def test_due_calendar_matches_return_deposits_and_far_offsets(self):
+        DueDateEntry.objects.create(name='GST return', kind='gst_return', day_of_month=20, month_offset=1)
+        S.record_payment(StatutoryPayment(kind='gst_cgst', period_year=2026, period_month=10, amount=D('500'),
+                                          date=date(2026, 11, 20), challan_ref='GST-RET'))
+        row = next(c for c in S.due_calendar(date(2026, 11, 1), 1) if c['entry'].name == 'GST return')
+        self.assertTrue(row['paid'])
+        self.assertEqual(row['paid_amount'], D('500.00'))
+        DueDateEntry.objects.create(name='Far offset', kind='other', day_of_month=5, month_offset=18)
+        cal = S.due_calendar(date(2028, 4, 1), 1)
+        self.assertIn('Far offset', [c['entry'].name for c in cal])
+
 
 class InvoiceCheckTests(TestCase):
     def test_invoice_gst_mismatch(self):
@@ -262,3 +310,19 @@ class InvoiceCheckTests(TestCase):
         by = {r['item']: r for r in rows}
         self.assertEqual(by['CGST']['status'], checks.OK)
         self.assertEqual((by['SGST']['status'], by['SGST']['expected']), (checks.MISMATCH, D('9000.00')))
+
+    def test_missing_rule_keeps_earlier_rows(self):
+        from invoice_app.models import Client, Invoice, InvoiceLine
+        c = Client.objects.create(name='Beta')
+        d = date(2026, 7, 31)
+        i = Invoice.objects.create(client=c, invoice_number='CHK002', invoice_date=d, due_date=d)
+        InvoiceLine.objects.create(invoice=i, project_name='P', amount=D('100000'), sac_code='998314')
+        InvoiceLine.objects.create(invoice=i, project_name='P', amount=D('50000'), sac_code='999999')
+        Invoice.objects.filter(pk=i.pk).update(status=Invoice.FINALIZED, tax_type=Invoice.TAX_CGST_SGST,
+                                               tax_rate=D('12'), taxable_value=D('150000'), cgst_amount=D('9000'),
+                                               sgst_amount=D('9000'), total_tax=D('18000'))
+        rule(R.GST, '998314', rate='18')
+        rows, _ = checks.run(date(2026, 7, 1), date(2026, 7, 31), ['invoices'])
+        items = {(r['item'], r['status']) for r in rows}
+        self.assertIn(('GST rate SAC 998314', checks.MISMATCH), items)
+        self.assertIn(('GST SAC 999999', checks.NOT_CONFIGURED), items)

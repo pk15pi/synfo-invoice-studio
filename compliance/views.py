@@ -2,9 +2,13 @@ from datetime import date
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from accounting.postings import PostingError
 from employee_management.security import local_only
 
 from . import checks, registers
@@ -18,13 +22,17 @@ def _range(request):
         from reporting import periods as report_periods
         period = report_periods.resolve(request.GET)
         return period.start, period.end
-    today = date.today()
+    today = timezone.localdate()
     fy = today.year if today.month >= 4 else today.year - 1
-    try:
-        start = date.fromisoformat(request.GET.get('start') or f'{fy}-04-01')
-        end = date.fromisoformat(request.GET.get('end') or f'{fy + 1}-03-31')
-    except ValueError:
-        start, end = date(fy, 4, 1), date(fy + 1, 3, 31)
+
+    def parse(value, fallback):
+        try:
+            return date.fromisoformat(value) if value else fallback
+        except ValueError:
+            return fallback
+
+    start = parse(request.GET.get('start'), date(fy, 4, 1))
+    end = parse(request.GET.get('end'), date(fy + 1, 3, 31))
     if end < start:
         start, end = end, start
     return start, end
@@ -41,7 +49,7 @@ def _err(request, ex):
 
 @local_only
 def home(request):
-    today = date.today()
+    today = timezone.localdate()
     return _render(request, 'home.html', rules=StatutoryRule.objects.all(),
                    active_count=StatutoryRule.objects.filter(active=True).count(),
                    example_count=StatutoryRule.objects.filter(is_example=True).count(),
@@ -79,7 +87,7 @@ def rule_edit(request, pk=None):
 @local_only
 def check(request):
     start, end = _range(request)
-    which = request.GET.getlist('which') or ['invoices', 'payslips']
+    which = request.GET.getlist('which') if request.GET.get('filters') else ['invoices', 'payslips']
     status = request.GET.get('status', '')
     rows, summary = checks.run(start, end, which)
     if status:
@@ -109,6 +117,8 @@ def gst_input(request):
 @require_POST
 def gst_input_toggle(request, pk, action):
     from expense_management.models import CompanyExpense
+    if action not in ('mark', 'unmark'):
+        raise Http404
     e = get_object_or_404(CompanyExpense, pk=pk)
     form = ReasonForm(request.POST)
     if not form.is_valid():
@@ -121,9 +131,12 @@ def gst_input_toggle(request, pk, action):
             else:
                 S.unmark(e, form.cleaned_data['reason'])
                 messages.success(request, f'{e.expense_id}: input GST unmarked; reclass reversed.')
-        except Exception as ex:  # ValidationError / PostingError
+        except (ValidationError, PostingError) as ex:
             _err(request, ex)
-    return redirect(request.POST.get('next') or 'compliance:gst_input')
+    target = request.POST.get('next')
+    if target and url_has_allowed_host_and_scheme(target, {request.get_host()}, require_https=request.is_secure()):
+        return redirect(target)
+    return redirect('compliance:gst_input')
 
 
 @local_only
@@ -142,7 +155,8 @@ def payroll_stat(request):
 # --------------------------------------------------------------------------- statutory payments
 @local_only
 def payments(request):
-    form = PaymentForm(request.POST or None, initial={'date': date.today(), 'period_year': date.today().year})
+    today = timezone.localdate()
+    form = PaymentForm(request.POST or None, initial={'date': today, 'period_year': today.year})
     if request.method == 'POST' and form.is_valid():
         try:
             S.record_payment(form.save(commit=False))
@@ -179,6 +193,6 @@ def due_dates(request, pk=None):
         e.save()
         messages.success(request, 'Due date saved.')
         return redirect('compliance:due_dates')
-    today = date.today()
+    today = timezone.localdate()
     return _render(request, 'due_dates.html', form=form, obj=obj, entries=DueDateEntry.objects.all(),
                    cal=S.due_calendar(date(today.year, today.month, 1), 3))

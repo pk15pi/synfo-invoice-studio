@@ -6,6 +6,7 @@ there is never a fallback to a hardcoded number. Existing payroll / invoice calc
 yet - they are only compared against them on the read-only compliance check page.
 """
 import json
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.core.exceptions import ValidationError
@@ -45,7 +46,7 @@ class StatutoryRule(models.Model):
                  PT: 'State (as on the employee record, e.g. Maharashtra)'}
     PARAM_HELP = {
         GST: '{"rate": "18"}  - total GST %; split into CGST+SGST halves or IGST by the invoice tax type',
-        TDS: '{"rate": "10", "threshold_single": "30000", "threshold_annual": "100000"}  - thresholds optional',
+        TDS: '{"rate": "10", "threshold_single": "30000"}  - single-payment threshold optional (annual aggregation is not tracked)',
         PF: '{"employee_pct": "12", "employer_pct": "12", "wage_ceiling": "15000"}  - wage_ceiling optional (no cap)',
         ESI: '{"employee_pct": "0.75", "employer_pct": "3.25", "wage_ceiling": "21000"}  - applies when gross <= ceiling',
         PT: '{"slabs": [{"from": "0", "to": "7500", "amount": "0"}, {"from": "7500.01", "to": null, "amount": "200"}]}',
@@ -96,9 +97,7 @@ class StatutoryRule(models.Model):
         elif k == self.TDS:
             r = _dec(p.get('rate'), 'rate', e, maximum=HUNDRED)
             ts = _dec(p.get('threshold_single'), 'threshold_single', e, required=False)
-            ta = _dec(p.get('threshold_annual'), 'threshold_annual', e, required=False)
-            out = {'rate': str(r), 'threshold_single': None if ts is None else str(ts),
-                   'threshold_annual': None if ta is None else str(ta)}
+            out = {'rate': str(r), 'threshold_single': None if ts is None else str(ts)}
         elif k in (self.PF, self.ESI):
             ee = _dec(p.get('employee_pct'), 'employee_pct', e, maximum=HUNDRED)
             er = _dec(p.get('employer_pct'), 'employer_pct', e, maximum=HUNDRED)
@@ -218,6 +217,9 @@ class StatutoryPayment(models.Model):
 
     class Meta:
         ordering = ['-date', '-id']
+        constraints = [models.UniqueConstraint(fields=['kind', 'period_year', 'period_month', 'challan_ref'],
+                                               condition=models.Q(cancelled=False),
+                                               name='uniq_live_statutory_payment')]
 
     def __str__(self):
         return f'{self.get_kind_display()} {self.period_month:02d}/{self.period_year} {self.amount}'
@@ -226,8 +228,18 @@ class StatutoryPayment(models.Model):
         e = {}
         if self.amount is not None and self.amount <= 0:
             e['amount'] = 'Amount must be greater than zero.'
-        if self.period_month and not 1 <= self.period_month <= 12:
+        if not self.period_month or not 1 <= self.period_month <= 12:
             e['period_month'] = 'Month must be 1-12.'
+        if not self.period_year or not 2000 <= self.period_year <= 2100:
+            e['period_year'] = 'Year must be between 2000 and 2100.'
+        if self.date and self.period_year and self.period_month:
+            try:
+                period_start = date(self.period_year, self.period_month, 1)
+            except ValueError:
+                pass
+            else:
+                if self.date < period_start:
+                    e['date'] = 'Payment date is before the period it relates to.'
         if not (self.challan_ref or '').strip():
             e['challan_ref'] = 'Challan reference is required.'
         if e:

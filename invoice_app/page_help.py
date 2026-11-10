@@ -736,6 +736,17 @@ _add("reporting:dashboard", "Executive dashboard", "Review period-based financia
             "Payroll trends include finalized current payroll only; salary payments are cash movement and are not added again as expense.",
             "The selected-period PDF is the management P&L report; use the workbook and linked reports for detailed analytics."],
      related=["Revenue, employee, payroll, expense, financial, cash flow, ledger and profitability reports."])
+_add("reporting:customer_projects", "Customer & project analysis", "Review customer movement, customer-wise earnings, projects and manpower for the selected period.",
+     "Customer added uses the first recorded activity date. Customer left uses the date the customer was marked inactive. Revenue is invoice-date taxable value excluding GST; receipts use receipt dates; manpower counts deployments active on the reporting date.",
+     ["Choose the period type and year, month, financial-year part or custom dates, then Apply.",
+      "Review customers added and left, and the active-customer balance at each month end.",
+      "Compare revenue by customer and split new-customer from existing-customer revenue.",
+      "Review active projects, live manpower and outstanding receivables by customer.",
+      "Open a customer in the scorecard to continue in its customer-wise revenue report."],
+     rules=["Revenue, receipts and outstanding use different bases and are not additive.",
+            "Inactive customers recorded before leave dates were tracked have no leave date and do not appear in the left trend.",
+            "Active projects and live manpower are snapshots on the reporting date, not period totals."],
+     related=["Customer-wise revenue, receivables ageing, manpower deployments and customer master records."])
 _add("reporting:section", "Report section", "Browse reports for the selected business area.",
      "Sections organize related analytics and drill-downs.",
      ["Review the available reports.", "Open a report and set its period/filter controls.", "Use the source links to investigate differences."],
@@ -925,7 +936,7 @@ _period_filter_help = (
 )
 _period_filter_routes = (
     "exp:dashboard exp:all exp:reports exp:report acc:journal acc:ledger bank:transactions bank:reconciliation "
-    "bank:book reporting:dashboard reporting:section reporting:report reporting:custom "
+    "bank:book reporting:dashboard reporting:customer_projects reporting:section reporting:report reporting:custom "
     "financial_reporting:dashboard financial_reporting:catalogue compliance:check compliance:gst_input "
     "compliance:gst_output compliance:payroll compliance:tds audit:log invoice_list invoice_email receipts manpower_deployments "
     "performance_review:dashboard performance_review:records performance_review:reports "

@@ -13,6 +13,7 @@ from expense_management.models import CompanyExpense, EmployeeExpenseClaim, Expe
 from invoice_app.models import Client, ProjectTemplate
 
 from . import builder as B
+from . import customer_analysis as CA
 from . import exports
 from . import periods as P
 from . import prior as PR
@@ -149,6 +150,13 @@ def section(request, slug):
         raise Http404
     items = dict(R.SECTIONS)[name]
     return render(request, 'reporting/section.html', _ctx(request, name=name, items=items))
+
+
+@local_only
+def customer_projects(request):
+    period = P.resolve(request.GET)
+    data = CA.build(period)
+    return render(request, 'reporting/customer_projects.html', _ctx(request, period=period, **data))
 
 
 @local_only

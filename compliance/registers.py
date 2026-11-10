@@ -5,11 +5,11 @@ from datetime import date
 from django.db.models import Q, Sum
 
 from accounting import services as acc
-from accounting.models import JournalLine
+from accounting.models import JournalEntry, JournalLine
 from accounting.money import ZERO, q2
 
 from .models import PAYMENT_KINDS, GstInputClaim, StatutoryPayment
-from .services import gst_input_key, current
+from .services import gst_input_key
 
 
 def months_between(start, end):
@@ -88,6 +88,13 @@ def input_gst(start, end, status=''):
           .filter(Q(gst_amount__gt=0) | Q(cgst_amount__gt=0) | Q(sgst_amount__gt=0) | Q(igst_amount__gt=0))
           .select_related('vendor', 'category').order_by('expense_date', 'id'))
     claims = {c.expense_id: c for c in GstInputClaim.objects.filter(expense__in=qs)}
+    keys = {gst_input_key(e) for e in qs}
+    live = {}
+    for entry in (JournalEntry.objects.filter(source_key__startswith='gst_input:', status=JournalEntry.POSTED)
+                  .order_by('id')):
+        base = entry.source_key.split(':v')[0]
+        if base in keys:
+            live[base] = entry
     rows = []
     for e in qs:
         c = claims.get(e.pk)
@@ -99,7 +106,7 @@ def input_gst(start, end, status=''):
              'status_label': dict(GstInputClaim.STATUSES)[st], 'reason': c.reason if c else '',
              'taxable': q2(e.amount_before_tax * rate), 'cgst': q2(e.cgst_amount * rate),
              'sgst': q2(e.sgst_amount * rate), 'igst': q2(e.igst_amount * rate), 'gst': q2(e.gst_amount * rate),
-             'posted': current(gst_input_key(e)), 'cancelled': e.is_cancelled}
+             'posted': live.get(gst_input_key(e)), 'cancelled': e.is_cancelled}
         r['no_split'] = not (e.cgst_amount or e.sgst_amount or e.igst_amount)
         rows.append(r)
     tot = {k: q2(sum((r[k] for r in rows), ZERO)) for k in ('taxable', 'cgst', 'sgst', 'igst', 'gst')}
@@ -140,19 +147,22 @@ def tds_register(start, end):
         salary.append({'date': per.end, 'party': d.payroll.snap_name or d.payroll.employee.full_name,
                        'doc': f'{d.payroll.snap_employee_code} {per.label}', 'gross': d.payroll.gross_earnings,
                        'tds': d.amount, 'ref': f'rev {d.payroll.revision}', 'period': (per.year, per.month)})
-    paid = list(StatutoryPayment.objects.filter(kind__in=['tds_vendor', 'tds_salary'], cancelled=False,
-                                                date__gte=start, date__lte=end).order_by('date', 'id'))
+    vendor_periods = {r['period'] for r in vendor}
+    salary_periods = {r['period'] for r in salary}
+    deposits = list(StatutoryPayment.objects.filter(kind__in=['tds_vendor', 'tds_salary'], cancelled=False)
+                    .order_by('date', 'id'))
+    paid = [p for p in deposits
+            if (p.kind == 'tds_vendor' and (p.period_year, p.period_month) in vendor_periods)
+            or (p.kind == 'tds_salary' and (p.period_year, p.period_month) in salary_periods)]
 
     def tot(rows):
         return q2(sum((r['tds'] for r in rows), ZERO))
     t = {'receivable': tot(receivable), 'vendor': tot(vendor), 'salary': tot(salary),
          'paid_vendor': q2(sum((p.amount for p in paid if p.kind == 'tds_vendor'), ZERO)),
          'paid_salary': q2(sum((p.amount for p in paid if p.kind == 'tds_salary'), ZERO))}
+    t['ledger_receivable'] = acc.balance(acc.mapped_account('invoice.tds_receivable'), None, end)
     t['due_vendor'] = q2(t['vendor'] - t['paid_vendor'])
     t['due_salary'] = q2(t['salary'] - t['paid_salary'])
-    t['ledger_receivable'] = acc.balance(acc.mapped_account('invoice.tds_receivable'), None, end)
-    t['ledger_payable'] = acc.balance(acc.mapped_account('payroll.tds_payable'), None, end)
-    t['ledger_payable_vendor'] = acc.balance(acc.mapped_account('expense.tds_payable'), None, end)
     return {'receivable': receivable, 'vendor': vendor, 'salary': salary, 'paid': paid, 'totals': t}
 
 
@@ -168,11 +178,13 @@ def payroll_statutory(start, end):
     pers = [p for p in PayrollPeriod.objects.order_by('year', 'month') if start <= p.end and p.start <= end]
     paid = paid_by_period(['pf', 'esi', 'pt'])
     rows = []
+    keys = [(c, s) for c, s, _ in PAYROLL_STAT]
     for per in pers:
         qs = PayrollDeduction.objects.filter(payroll__period=per, payroll__status=EmployeePayroll.FINALIZED,
                                              payroll__is_current=True)
-        amt = {(c, s): q2(qs.filter(code=c, side=s).aggregate(t=Sum('amount'))['t'] or ZERO)
-               for c, s, _ in PAYROLL_STAT}
+        totals = {(row['code'], row['side']): q2(row['t'] or ZERO)
+                  for row in qs.values('code', 'side').annotate(t=Sum('amount'))}
+        amt = {key: totals.get(key, ZERO) for key in keys}
         r = {'period': per, 'label': per.label, 'amounts': [amt[(c, s)] for c, s, _ in PAYROLL_STAT]}
         due = {'pf': amt[('pf', 'employee')] + amt[('pf', 'employer')],
                'esi': amt[('esi', 'employee')] + amt[('esi', 'employer')],

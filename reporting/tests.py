@@ -8,13 +8,15 @@ from unittest import mock
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from employee_management.models import Department, Employee, EmployeePayroll, PayrollPeriod
 from expense_management.models import (CompanyExpense, CompanyExpensePayment, EmployeeExpenseClaim as C,
                                        EmployeeReimbursement, ExpenseCategory, ExpenseSubcategory, Vendor)
-from invoice_app.models import BusinessProfile, Client, Invoice, InvoiceLine
+from invoice_app.models import (BusinessProfile, Client, Invoice, InvoiceLine, InvoicePayment,
+                                ManpowerDeployment, ProjectTemplate)
 
-from . import builder, exports, periods as P, reports as R, services as S
+from . import builder, customer_analysis as CA, exports, periods as P, reports as R, services as S
 from .core import NT, inr
 
 TODAY = date(2026, 11, 3)
@@ -289,6 +291,97 @@ class ReportTests(Base):
 
 
 @override_settings(ALLOWED_HOSTS=['testserver', '127.0.0.1', 'localhost'])
+class CustomerAnalysisTests(Base):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        Client.objects.filter(pk=cls.client_a.pk).update(created_on=date(2025, 4, 15))
+        Client.objects.filter(pk=cls.client_b.pk).update(
+            created_on=date(2025, 10, 5), inactive_since=date(2026, 1, 20), active=False)
+        cls.project = ProjectTemplate.objects.create(client=cls.client_a, name='Alpha Support',
+                                                     monthly_amount=D('1000'))
+        cls.live_deployment = ManpowerDeployment.objects.create(
+            client=cls.client_a, project=cls.project, designation='Developer', start_date=date(2025, 10, 1),
+            billing_rate=D('1000'), rate_effective_from=date(2025, 10, 1), status='active')
+        cls.ended_deployment = ManpowerDeployment.objects.create(
+            client=cls.client_b, designation='Analyst', start_date=date(2025, 11, 1),
+            end_date=date(2026, 2, 28), billing_rate=D('500'), rate_effective_from=date(2025, 11, 1),
+            status='completed')
+        InvoicePayment.objects.create(invoice=cls.inv3, receipt_date=date(2025, 11, 15), amount=D('1000'))
+
+    def build(self):
+        return CA.build(P.resolve({'period_mode': 'financial', 'fy': '2025'}))
+
+    def test_customer_movement(self):
+        data = self.build()
+        cards = {c['label']: c['value'] for c in data['cards']}
+        self.assertEqual(cards['Active customers'], '1')
+        self.assertEqual(cards['Customers added'], '2')
+        self.assertEqual(cards['Customers left'], '1')
+        self.assertEqual(cards['Customers billed'], '2')
+        self.assertEqual(cards['Active projects'], '1')
+        self.assertEqual(cards['Live manpower'], '1')
+        self.assertEqual(cards['Revenue'], '5,000.50')
+        self.assertEqual(cards['Amount received'], '1,000.00')
+        self.assertEqual(cards['Outstanding receivables'], '5,000.50')
+        added = data['charts'][0]['svg']
+        self.assertIn('Apr 25: 1', added)
+        self.assertIn('Oct 25: 1', added)
+        self.assertIn('Jan 26: 1', added)
+
+    def test_customer_scorecard(self):
+        rows = {r['name']: r for r in self.build()['rows']}
+        self.assertEqual(rows['Alpha Inc']['revenue'], '2,000.00')
+        self.assertEqual(rows['Beta LLC']['revenue'], '3,000.50')
+        self.assertEqual(rows['Alpha Inc']['billed_projects'], 1)
+        self.assertEqual(rows['Alpha Inc']['manpower'], 1)
+        self.assertEqual(rows['Beta LLC']['added'], date(2025, 10, 5))
+        self.assertTrue(rows['Beta LLC']['left'])
+        self.assertIn(f'client={self.client_b.pk}', rows['Beta LLC']['url'])
+
+    def test_new_and_existing_revenue_split(self):
+        svg = self.build()['charts'][3]['svg']
+        self.assertIn('New customers', svg)
+        self.assertIn('Existing customers', svg)
+        self.assertIn('Apr 25: 2,000.00', svg)
+        self.assertIn('Oct 25: 3,000.50', svg)
+
+    def test_manpower_movements(self):
+        svg = self.build()['charts'][7]['svg']
+        self.assertIn('Oct 25: 1', svg)
+        self.assertIn('Feb 26: 1', svg)
+
+    def test_client_lifecycle_dates(self):
+        c = Client.objects.create(name='Gamma Ltd')
+        self.assertEqual(c.created_on, timezone.localdate())
+        c.active = False
+        c.save(update_fields=['active'])
+        c.refresh_from_db()
+        self.assertEqual(c.inactive_since, timezone.localdate())
+        c.active = True
+        c.save(update_fields=['active'])
+        c.refresh_from_db()
+        self.assertIsNone(c.inactive_since)
+
+    def test_view_and_period_modes(self):
+        base = reverse('reporting:customer_projects')
+        for query in ('?period_mode=financial&fy=2025',
+                      '?period_mode=financial&fy=2025&period_type=quarterly&period_value=Q3',
+                      '?period_mode=calendar&calendar_year=2025',
+                      '?period_mode=custom&date_from=2025-04-01&date_to=2025-12-31'):
+            with self.subTest(query=query):
+                r = self.client.get(base + query)
+                self.assertEqual(r.status_code, 200)
+                self.assertContains(r, 'Customer &amp; Project Analysis')
+                self.assertContains(r, 'data-standard-period-filter')
+                self.assertContains(r, 'Alpha Inc')
+                self.assertContains(r, '<svg')
+
+    def test_view_is_local_only(self):
+        r = self.client.get(reverse('reporting:customer_projects'), REMOTE_ADDR='10.1.2.3')
+        self.assertEqual(r.status_code, 403)
+
+
 class ViewTests(Base):
     def test_dashboard(self):
         r = self.client.get(reverse('reporting:dashboard') + '?period=fy&fy=2025')
@@ -361,8 +454,6 @@ class ViewTests(Base):
 
 
 # ---------------------------------------------------------------- Task 5: presets, label, receipts, reconciliation
-from invoice_app.models import InvoicePayment  # noqa: E402
-
 
 class PresetTests(TestCase):
     def at(self, t, **k):
