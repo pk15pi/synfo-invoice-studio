@@ -1,0 +1,47 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}Users &amp; roles · QuantBud{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">ADMINISTRATION</p>
+    <h1>Users &amp; roles</h1>
+    <p class="muted">Create accounts, assign one role per person and control who can sign in.</p>
+  </div>
+  <a class="button primary" href="{% url 'access_control:user_create' %}">Add user</a>
+</section>
+<section class="panel">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>User</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last sign-in</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr>
+          <td><strong>{{ row.user.get_username }}</strong>{% if row.is_self %}<br><small>You</small>{% endif %}</td>
+          <td>{{ row.user.get_full_name|default:"—" }}</td>
+          <td>{{ row.user.email|default:"—" }}</td>
+          <td><span class="role-pill{% if not row.role %} role-pill-empty{% endif %}">{{ row.role_label }}</span></td>
+          <td>{% if row.user.is_active %}<span class="status-dot status-on">Active</span>{% else %}<span class="status-dot status-off">Inactive</span>{% endif %}</td>
+          <td>{{ row.user.last_login|date:"d M Y, H:i"|default:"Never" }}</td>
+          <td><a class="table-action" href="{% url 'access_control:user_edit' row.user.pk %}">Edit</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="muted">No users yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="panel role-guide">
+  <div class="panel-head"><h2>Role access</h2></div>
+  <p class="muted">Admin and Director see every module. Other roles are limited to the modules below; Auditor is read-only.</p>
+  <div class="role-grid">
+    <div><strong>CA</strong><span>Finance, payroll, compliance, reports, audit, documents</span></div>
+    <div><strong>Head Accountant</strong><span>Finance, payroll, compliance, reports, assets, documents</span></div>
+    <div><strong>Accountant</strong><span>Finance, expenses, compliance, reports, assets, documents</span></div>
+    <div><strong>Head HR / HR</strong><span>HR, payroll, attendance, performance, recruitment, expenses, assets, documents</span></div>
+    <div><strong>Senior Recruiter / Recruiter</strong><span>HR, attendance, recruitment, performance, documents</span></div>
+    <div><strong>Project Manager</strong><span>Invoicing, recruitment, expenses, reports, documents</span></div>
+    <div><strong>Auditor</strong><span>Read-only reports, financial reports, audit history, documents</span></div>
+  </div>
+</section>
+{% endblock %}

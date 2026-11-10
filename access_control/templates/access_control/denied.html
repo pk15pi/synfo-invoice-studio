@@ -1,0 +1,21 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}Access denied · QuantBud{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">ACCESS DENIED</p>
+    <h1>{% if read_only_block %}Your role is read-only{% else %}This area is not in your role{% endif %}</h1>
+    <p class="muted">
+      {% if read_only_block %}
+        Auditor accounts can review reports and audit history but cannot change business records.
+      {% else %}
+        {{ denied_module }} is not assigned to the {{ current_role }} role. Ask an Admin or Director to update your role if you need access.
+      {% endif %}
+    </p>
+  </div>
+  <a class="button primary" href="{% url 'home' %}">Back to home</a>
+</section>
+<section class="panel">
+  <p class="muted">Signed in as <strong>{{ request.user.get_full_name|default:request.user.username }}</strong>{% if current_role %} &middot; {{ current_role }}{% endif %}.</p>
+</section>
+{% endblock %}

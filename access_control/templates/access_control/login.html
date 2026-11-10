@@ -1,0 +1,43 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign in · QuantBud Business Management</title>
+  <link rel="icon" href="{% static 'invoice_app/favicon.ico' %}" sizes="any">
+  <link rel="stylesheet" href="{% static 'invoice_app/style.css' %}">
+</head>
+<body class="login-page">
+<header class="topbar login-topbar">
+  <a class="brand" href="{% url 'home' %}">
+    {% if business_logo_url %}<img class="brand-logo" src="{{ business_logo_url }}" alt="{{ business_brand|default:brand_name }} logo" height="40">{% endif %}
+    <span class="brand-text">{{ brand_name }} <span>Business Management</span></span>
+  </a>
+</header>
+<main class="login-wrap">
+  <section class="login-card">
+    <p class="eyebrow">QUANTBUD BUSINESS MANAGEMENT</p>
+    <h1>Sign in</h1>
+    <p class="muted">Use your company account to open the modules assigned to your role.</p>
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    <form method="post" class="login-form" novalidate>
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="login-field">
+        <label for="{{ form.username.id_for_label }}">Username</label>
+        {{ form.username }}
+        {% for error in form.username.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      </div>
+      <div class="login-field">
+        <label for="{{ form.password.id_for_label }}">Password</label>
+        {{ form.password }}
+        {% for error in form.password.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      </div>
+      <button class="button primary login-submit" type="submit">Sign in</button>
+    </form>
+    <p class="login-note">Local-only workstation. Keep the server bound to <code>127.0.0.1</code>.</p>
+  </section>
+</main>
+<footer>QuantBud Business Management &middot; local data only</footer>
+</body>
+</html>

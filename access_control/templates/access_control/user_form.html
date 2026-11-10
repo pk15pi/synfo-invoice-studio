@@ -1,0 +1,45 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}{% if mode == 'create' %}Add user{% else %}Edit user{% endif %} · QuantBud{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">ADMINISTRATION</p>
+    <h1>{% if mode == 'create' %}Add user{% else %}Edit {{ target.get_username }}{% endif %}</h1>
+    <p class="muted">{% if mode == 'create' %}Create an account and choose the role that matches this person’s work.{% else %}Update details, role, activation or password.{% endif %}</p>
+  </div>
+  <a class="button secondary" href="{% url 'access_control:users' %}">Back to users</a>
+</section>
+<section class="panel">
+  <form method="post" class="form-panel user-form" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">
+      {% for field in form %}
+        {% if field.field.widget.input_type == 'checkbox' %}
+          <div class="form-field check-field">
+            {{ field }}
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          </div>
+        {% else %}
+          <div class="form-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+            {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    <div class="form-actions">
+      <button class="button primary" type="submit">{% if mode == 'create' %}Create user{% else %}Save changes{% endif %}</button>
+      <a class="button secondary" href="{% url 'access_control:users' %}">Cancel</a>
+    </div>
+    {% if mode == 'edit' and target.is_superuser %}
+      <p class="muted user-note">This is a superuser account: it always keeps full Admin access to every module.</p>
+    {% endif %}
+    <p class="muted user-note">Passwords must be at least 8 characters. An Admin or Director can reset a password here at any time.</p>
+  </form>
+</section>
+{% endblock %}

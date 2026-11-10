@@ -637,7 +637,7 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  background:#f8fafc;
 }
 .page-heading.split:has(>div:first-child)~form.panel{max-width:none}
-.page-heading.split:has(>div:first-child)~form.panel input:not([type=hidden]){
+.page-heading.split:has(>div:first-child)~form.panel input:not([type=hidden]):not([type=checkbox]):not([type=radio]){
  width:min(100%,520px);
  min-height:40px;
  padding:9px 11px;
@@ -662,7 +662,7 @@ footer{margin-top:24px;border-color:#e0e7ed;background:rgba(255,255,255,.42)}
  .page-heading.split:has(>div:first-child) #otherfmt .button{flex:1 1 100%;width:100%}
  .page-heading.split:has(>div:first-child)~.panel>table.pdfcols{min-width:650px}
  .page-heading.split:has(>div:first-child)~.panel:has(>table.pdfcols){overflow-x:auto}
- .page-heading.split:has(>div:first-child)~form.panel input:not([type=hidden]){width:100%}
+ .page-heading.split:has(>div:first-child)~form.panel input:not([type=hidden]):not([type=checkbox]):not([type=radio]){width:100%}
 }
 
 /* Consistent button contrast and keyboard focus across modules. */
@@ -1960,4 +1960,441 @@ main:is(
   min-height:0!important;
   margin:0;
   accent-color:#0b5394;
+}
+
+/* 26. Document & Agreement Management: KPI cards, document forms and dense tables. */
+.cards>.card:has(>strong+span){
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  justify-content:flex-start;
+}
+.cards>.card:has(>strong+span)>strong{
+  color:#174b78;
+  font-size:25px;
+  line-height:1.15;
+  letter-spacing:-.02em;
+}
+.cards>.card:has(>strong+span)>span{
+  color:#607383;
+  font-size:12px;
+  font-weight:600;
+  line-height:1.35;
+}
+main>a.card:has(>strong+span){
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  margin:0 0 18px;
+  padding:18px 22px;
+}
+main>a.card:has(>strong+span)>strong{color:#174b78;font-size:15px}
+main>a.card:has(>strong+span)>span{color:#607383;font-size:12px}
+
+/* Document forms: keep labels at the top of tall fields and use the panel width. */
+main:is(
+  :has(a[href*="/documents/library/templates/"]),
+  :has(a[href="/documents/library/clauses/"]),
+  :has(.document-profile-form),
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.panel>p:has(>label){
+  align-items:start;
+}
+main:is(
+  :has(a[href*="/documents/library/templates/"]),
+  :has(a[href="/documents/library/clauses/"]),
+  :has(.document-profile-form),
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.panel>p:has(>label)>label{
+  padding-top:9px;
+}
+main:is(
+  :has(a[href*="/documents/library/templates/"]),
+  :has(a[href="/documents/library/clauses/"]),
+  :has(.document-profile-form),
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.panel>p:has(>label)>:is(input:not([type="checkbox"]):not([type="file"]),select,textarea){
+  max-width:760px;
+}
+main:is(
+  :has(a[href*="/documents/library/templates/"]),
+  :has(a[href="/documents/library/clauses/"]),
+  :has(.document-profile-form),
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.panel>p:has(>label)>input[type="checkbox"]{
+  justify-self:start;
+  align-self:start;
+  width:17px;
+  height:17px;
+  min-height:0;
+  margin-top:9px;
+  accent-color:#0b5394;
+}
+
+/* The clause form offers every document type: a scrollable multi-column checkbox picker. */
+main:has(a[href="/documents/library/clauses/"]) form.panel [id="id_applicable_document_types"]{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:0 16px;
+  max-width:760px;
+  max-height:270px;
+  overflow:auto;
+  padding:8px 12px;
+  border:1px solid #d9e2e9;
+  border-radius:8px;
+  background:#fbfdfe;
+}
+main:has(a[href="/documents/library/clauses/"]) form.panel [id="id_applicable_document_types"]>div{
+  min-width:0;
+  border-bottom:1px solid #eef3f7;
+}
+main:has(a[href="/documents/library/clauses/"]) form.panel [id="id_applicable_document_types"] label{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin:0;
+  padding:6px 0;
+  color:#40576a;
+  font-size:12px;
+  font-weight:500;
+  line-height:1.45;
+  letter-spacing:normal;
+  text-transform:none;
+}
+main:has(a[href="/documents/library/clauses/"]) form.panel [id="id_applicable_document_types"] input[type="checkbox"]{
+  flex:0 0 auto;
+  width:15px;
+  height:15px;
+  min-height:0;
+  margin:3px 0 0;
+  accent-color:#0b5394;
+}
+
+/* Add-category / add-type forms: stack label and control instead of inline baseline layout. */
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>p:has(>label){
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:6px;
+}
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>p:has(>label)>label{
+  color:#40576a;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:normal;
+  text-transform:none;
+}
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>p:has(>label)>:is(input:not([type="checkbox"]):not([type="file"]),select,textarea){
+  width:100%;
+  max-width:none;
+  min-height:39px;
+  padding:9px 10px;
+  border:1px solid #d9e2e9;
+  border-radius:6px;
+  background:#fff;
+  color:var(--ink);
+  font:13px inherit;
+  line-height:1.3;
+}
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>p:has(>label)>textarea{
+  min-height:96px;
+}
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>p:has(textarea){
+  grid-column:1/-1;
+}
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>p:has(>input[type="checkbox"]){
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+  min-height:39px;
+}
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>p:has(>input[type="checkbox"])>label{
+  padding:0;
+}
+main:is(
+  :has(a[href="/documents/library/types/"]),
+  :has(a[href="/documents/library/categories/"])
+) form.form-grid>.button{
+  grid-column:1/-1;
+  justify-self:start;
+  width:auto;
+  min-width:170px;
+}
+main:has(a[href="/documents/library/categories/"]) form.form-grid [id="id_categories"]{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  gap:0 16px;
+  padding:8px 12px;
+  border:1px solid #d9e2e9;
+  border-radius:8px;
+  background:#fbfdfe;
+}
+main:has(a[href="/documents/library/categories/"]) form.form-grid [id="id_categories"]>div{
+  min-width:0;
+  border-bottom:1px solid #eef3f7;
+}
+main:has(a[href="/documents/library/categories/"]) form.form-grid [id="id_categories"] label{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin:0;
+  padding:6px 0;
+  color:#40576a;
+  font-size:12px;
+  font-weight:500;
+  line-height:1.45;
+}
+main:has(a[href="/documents/library/categories/"]) form.form-grid [id="id_categories"] input[type="checkbox"]{
+  flex:0 0 auto;
+  width:15px;
+  height:15px;
+  margin:3px 0 0;
+  accent-color:#0b5394;
+}
+
+/* Template version formset: compact controls inside the clause rows. */
+main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table th{
+  white-space:nowrap;
+}
+main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table td{
+  vertical-align:top;
+}
+main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table td select,
+main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table td input:not([type="checkbox"]),
+main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table td textarea{
+  width:100%;
+  min-width:0;
+  min-height:36px;
+  padding:7px 9px;
+  border:1px solid #d9e2e9;
+  border-radius:6px;
+  background:#fff;
+  color:var(--ink);
+  font:12px inherit;
+  line-height:1.3;
+}
+main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table td textarea{
+  min-height:52px;
+  resize:vertical;
+}
+main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table td input[type="checkbox"]{
+  width:16px;
+  height:16px;
+  min-height:0;
+  margin:2px 0 0;
+  accent-color:#0b5394;
+}
+
+/* Clause register: give the clause text and actions usable columns. */
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table{
+  min-width:1040px;
+}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(1){width:24%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(2){width:11%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(3){width:10%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(4){width:7%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(5){width:9%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(6){width:10%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(7){width:21%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table th:nth-child(8){width:8%}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table td:last-child{
+  white-space:nowrap;
+}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table td:last-child form{
+  display:inline-flex;
+  margin:0 4px 4px 0;
+}
+main:has(a[href="/documents/library/clauses/new/"]) .table-wrap table td:last-child .button{
+  min-height:30px;
+  padding:5px 9px;
+  font-size:11px;
+}
+
+/* Generated-document download links use the shared button surface. */
+main .card a.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:38px;
+  padding:0 16px;
+  border-radius:7px;
+  background:#174b78;
+  color:#fff;
+  font-size:13px;
+  font-weight:700;
+  text-decoration:none;
+  box-shadow:0 3px 8px rgba(23,75,120,.18);
+}
+main .card a.btn:hover{
+  background:#103b62;
+  text-decoration:none;
+}
+
+@media(max-width:900px){
+  main form.qb-filter-form.filter-toolbar~.table-wrap table,
+  main form.qb-filter-form.filter-form~.table-wrap table{
+    min-width:900px;
+  }
+  main:has(a[href*="/documents/library/templates/"]) form.panel .table-wrap table{
+    min-width:860px;
+  }
+}
+
+@media(max-width:640px){
+  .cards:has(>.card>strong+span){
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:12px;
+  }
+  .cards:has(>.card>strong+span)>.card{
+    padding:16px;
+  }
+  .cards:has(>.card>strong+span)>.card>strong{
+    font-size:21px;
+  }
+  .cards:has(>.card>strong+span)>.card>span{
+    font-size:11px;
+  }
+  main>a.card:has(>strong+span){
+    flex-direction:column;
+    align-items:flex-start;
+    gap:4px;
+  }
+  main .document-preview{
+    padding:1.25rem;
+  }
+  main .signature-preview{
+    grid-template-columns:minmax(0,1fr);
+  }
+}
+
+/* 27. Sign-in, session strip and user-role administration. */
+.topbar-session{
+  flex:0 0 auto;
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:12px;
+  margin-top:4px;
+  padding-top:8px;
+  border-top:1px solid #eef3f7;
+  color:#607383;
+  font-size:12px;
+}
+.session-user{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.session-user strong{color:#174b78;font-weight:700}
+.session-role{
+  display:inline-flex;
+  align-items:center;
+  padding:2px 9px;
+  border:1px solid #d3e5f2;
+  border-radius:999px;
+  background:#eaf3f9;
+  color:#0b5394;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.topbar-session form{margin:0}
+.session-logout{min-height:30px;padding:5px 12px;font-size:12px}
+.user-form .check-field{grid-column:1/-1;flex-wrap:wrap;row-gap:4px}
+.user-form .check-field small{flex-basis:100%}
+
+.login-page{min-height:100vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#f4f8fb 0%,#eef4f8 100%)}
+.login-topbar{justify-content:flex-start;border-bottom:1px solid var(--line);background:#fff}
+.login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:48px 20px}
+.login-card{
+  width:min(420px,100%);
+  padding:36px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+  box-shadow:0 16px 44px rgba(23,53,74,.09);
+}
+.login-card h1{margin:6px 0 8px;font-size:28px;line-height:1.15;letter-spacing:-.03em}
+.login-card>.muted{margin:0 0 20px;font-size:13px}
+.login-form{display:flex;flex-direction:column;gap:14px}
+.login-field{display:flex;flex-direction:column;gap:6px}
+.login-field label{color:#40576a;font-size:12px;font-weight:700}
+.login-field input{
+  width:100%;
+  min-height:42px;
+  padding:10px 12px;
+  border:1px solid #d5e0e8;
+  border-radius:8px;
+  background:#fff;
+  color:var(--ink);
+  font:inherit;
+  font-size:14px;
+  box-sizing:border-box;
+}
+.login-field input:focus{border-color:#6e9fc2;outline:none;box-shadow:0 0 0 3px rgba(69,132,174,.14)}
+.login-submit{width:100%;min-height:42px;margin-top:4px}
+.field-error{margin:0;color:#a43c3c;font-size:12px}
+.login-card .message.error{margin:0 0 16px;border:1px solid #efc9c9;background:#fbeeee;color:#8a2f2f}
+.login-note{margin:18px 0 0;color:#7a8794;font-size:11px;line-height:1.5;text-align:center}
+.login-note code{font-size:11px;color:#40576a}
+.login-page footer{border-top:1px solid var(--line);background:#fff}
+
+.role-pill{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 9px;
+  border:1px solid #d3e5f2;
+  border-radius:999px;
+  background:#eaf3f9;
+  color:#0b5394;
+  font-size:11px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.role-pill-empty{border-color:#e1e6ea;background:#f4f5f6;color:#71808c}
+.status-dot{font-size:11px;font-weight:700}
+.status-on{color:#27623d}
+.status-off{color:#a43c3c}
+.table-action{color:var(--navy);font-size:12px;font-weight:700;text-decoration:none}
+.table-action:hover{text-decoration:underline}
+.role-guide .role-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 18px;margin-top:16px}
+.role-grid>div{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border:1px solid #e6edf3;border-radius:9px;background:#f8fafc}
+.role-grid strong{color:#174b78;font-size:12px}
+.role-grid span{color:#607383;font-size:12px;line-height:1.45}
+.user-form{max-width:760px}
+.user-form input[type="checkbox"]{width:16px;height:16px;min-height:0;accent-color:#0b5394}
+.user-note{margin:10px 0 0;font-size:11px}
+
+@media(max-width:640px){
+  .login-card{padding:24px}
+  .login-wrap{padding:28px 14px}
+  .topbar-session{justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .session-user{min-width:0}
+  .topbar-session form{margin-left:auto}
+  .role-grid{grid-template-columns:1fr}
 }

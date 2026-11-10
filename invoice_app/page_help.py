@@ -781,6 +781,41 @@ _add("assets:asset_new assets:assignments assets:leases assets:maintenance", "As
      ["Review the page status and current list.", "Use only displayed actions and verify changes against the source record."],
      rules=["Do not assume assignment, lease or maintenance workflows are active unless controls are present."],
      related=["Asset register, source invoices and accounting."])
+_add("assets:asset_detail", "Asset details", "Review one asset's identity, acquisition details, current custody and lifecycle status.",
+     "The detail page brings together the register record and its assignment, lease and maintenance entries.",
+     ["Confirm the asset code, description and acquisition details.", "Review current assignment and custodian before handing the asset over.", "Check maintenance and lease history for outstanding commitments."],
+     rules=["Asset values and depreciation rely on the company's approved accounting policy and source invoices."],
+     related=["Asset register, assignments, maintenance and accounting ledger."])
+_add("assets:assignment_new assets:assignment_return", "Asset assignment", "Issue an asset to a person or record its return to the register.",
+     "Assignments track who currently holds an asset and when it was issued or returned.",
+     ["Select the asset and the person receiving or returning it.", "Confirm the issue or return date and any condition note.", "Review the register afterwards to confirm the asset status changed as expected."],
+     rules=["An asset cannot be issued to two people at the same time; record the return before reassigning it."],
+     related=["Asset register, asset details and employee records."])
+_add("assets:lease_new assets:lease_update", "Asset lease", "Record or update a lease agreement for an asset.",
+     "Lease records capture the counterparty, term and commercial terms associated with a leased asset.",
+     ["Select the asset and enter the lease counterparty and term.", "Confirm commencement, expiry and payment details.", "Review the lease list for expiry and renewal follow-ups."],
+     rules=["Record the signed agreement as the source document and reconcile lease payments through expenses or accounting."],
+     related=["Asset register, asset details and expense records."])
+_add("assets:maintenance_new assets:maintenance_update", "Asset maintenance", "Log or update maintenance work carried out on an asset.",
+     "Maintenance entries preserve the service history, vendor and cost of keeping an asset usable.",
+     ["Select the asset and describe the maintenance work.", "Record the vendor, service date and cost.", "Update the entry when the work is completed and verify the cost against the invoice."],
+     rules=["Maintenance history does not replace the vendor invoice or warranty documents."],
+     related=["Asset details, vendors, expenses and accounting."])
+_add("access_control:users", "Users and roles", "Review local accounts and the business role assigned to each person.",
+     "Each account signs in with its own username and password, and its role decides which modules the person can open.",
+     ["Review the account list and confirm each person has the correct role.", "Use Edit to change a role, reset a password or deactivate an account.", "Use Add user to create a new local account and assign its starting role."],
+     rules=["Only Admin and Director roles can manage users. The last active administrator cannot be removed or deactivated."],
+     related=["Business profile, audit log and module access rules."])
+_add("access_control:user_create", "Add user", "Create a local account and assign its business role.",
+     "New accounts receive a username, password and role, which determines the modules the person can open.",
+     ["Enter the person's name, username and email address.", "Choose the role that matches their duties.", "Set and confirm a password of at least eight characters, then save."],
+     rules=["Give each person their own account; shared credentials remove meaningful audit attribution."],
+     related=["Users and roles list and module access rules."])
+_add("access_control:user_edit", "Edit user", "Update an existing account, its role, status or password.",
+     "Editing an account changes what that person can open and whether they can sign in.",
+     ["Review the current account details and role.", "Change the role or status only when duties have genuinely changed.", "Leave the password fields blank to keep the current password."],
+     rules=["You cannot deactivate your own account, and the last active administrator must remain available."],
+     related=["Users and roles list, audit log and module access rules."])
 _add("audit:log", "Audit log", "Review recorded application events and filter by time, user or object where available.",
      "The audit log provides traceability for supported application actions.",
      ["Set filters to find the event.", "Open object history for more context.", "Export only the required records and store the file securely."],
@@ -840,6 +875,7 @@ NON_PAGE_ROUTES = {
     "project_delete", "description_template_toggle", "description_template_delete", "format_template_preview",
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
     "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json", "invoice_email_template_delete", "email_template_delete", "email_template_set_salary_default",
+    "access_control:login", "access_control:logout",
 }
 
 # Shared guidance for pages that use the standardized calendar/FY period controls.

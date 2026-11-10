@@ -14,6 +14,14 @@ ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 if len(sys.argv) > 1 and sys.argv[1] == 'test':
     ALLOWED_HOSTS.append('testserver')  # Django test client host
 
+# Sign-in and role enforcement. The legacy suite runs without enforcement unless a
+# test opts in with override_settings(ACCESS_CONTROL_ENABLED=True).
+ACCESS_CONTROL_ENABLED = os.environ.get(
+    'QB_ACCESS_CONTROL', '0' if len(sys.argv) > 1 and sys.argv[1] == 'test' else '1') == '1'
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/login/'
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -21,6 +29,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.sessions',
     'django.contrib.staticfiles',
+    'access_control',
     'invoice_app',
     'employee_management',
     'attendance',
@@ -45,6 +54,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'access_control.middleware.AccessControlMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'audit.middleware.AuditContextMiddleware',
@@ -64,6 +74,7 @@ TEMPLATES = [{
         'django.contrib.auth.context_processors.auth',
         'django.template.context_processors.request',
         'django.contrib.messages.context_processors.messages',
+        'access_control.context_processors.access_control',
         'invoice_app.context_processors.brand_name',
         'invoice_app.context_processors.page_help',
         'invoice_app.context_processors.standard_period_filter',
