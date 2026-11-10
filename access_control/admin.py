@@ -2,7 +2,15 @@ from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from .models import UserProfile
+from .models import RoleDefinition, UserProfile
+from .permissions import role_label
+
+
+@admin.register(RoleDefinition)
+class RoleDefinitionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'read_only', 'created_at')
+    list_filter = ('read_only',)
+    search_fields = ('name', 'code')
 
 
 @admin.register(UserProfile)
@@ -32,6 +40,6 @@ class UserAdmin(BaseUserAdmin):
     @admin.display(description='Role')
     def role(self, obj):
         try:
-            return obj.access_profile.get_role_display() or 'No role'
+            return role_label(obj.access_profile.role)
         except UserProfile.DoesNotExist:
             return 'No role'

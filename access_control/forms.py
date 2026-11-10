@@ -1,10 +1,36 @@
+import re
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm
 
-from .models import UserProfile
+from .models import RoleDefinition, UserProfile
+from .permissions import MODULE_LABELS, SELF_SERVICE, SHARED, USERS
 
-ROLE_CHOICES = [('', 'No role assigned')] + list(UserProfile.Role.choices)
+CUSTOM_ROLE_EXCLUDED_MODULES = frozenset({SHARED, SELF_SERVICE, USERS})
+
+
+def role_choices(allowed_roles=None):
+    rows = [('', 'No role assigned')]
+    rows += [(value, label) for value, label in UserProfile.Role.choices
+             if allowed_roles is None or value in allowed_roles]
+    rows += [(role.code, role.name) for role in RoleDefinition.objects.order_by('name')
+             if allowed_roles is None or role.code in allowed_roles]
+    return rows
+
+
+def _role_code(name):
+    return re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')[:32] or 'role'
+
+
+def _unique_role_code(name):
+    base = _role_code(name)
+    code, counter = base, 1
+    while code in UserProfile.Role.values or RoleDefinition.objects.filter(code=code).exists():
+        counter += 1
+        suffix = f'_{counter}'
+        code = base[:32 - len(suffix)] + suffix
+    return code
 
 
 class AppAuthenticationForm(AuthenticationForm):
@@ -21,7 +47,7 @@ class AppAuthenticationForm(AuthenticationForm):
 
 
 class BaseUserForm(forms.ModelForm):
-    role = forms.ChoiceField(choices=ROLE_CHOICES, required=False,
+    role = forms.ChoiceField(choices=[], required=False,
                              help_text='Controls which modules this user can open.')
 
     class Meta:
@@ -29,8 +55,10 @@ class BaseUserForm(forms.ModelForm):
         fields = ['username', 'first_name', 'last_name', 'email', 'is_active']
         widgets = {'email': forms.EmailInput(attrs={'autocomplete': 'email'})}
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, allowed_roles=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.allowed_roles = set(allowed_roles) if allowed_roles is not None else None
+        self.fields['role'].choices = role_choices(self.allowed_roles)
         if self.instance and self.instance.pk:
             try:
                 self.fields['role'].initial = self.instance.access_profile.role
@@ -60,6 +88,54 @@ class UserCreateForm(BaseUserForm):
         if commit:
             user.save()
         return user
+
+
+class RoleForm(forms.ModelForm):
+    modules = forms.MultipleChoiceField(
+        label='Modules this role can open', widget=forms.CheckboxSelectMultiple(attrs={'class': 'module-checks'}),
+        help_text='The role always keeps access to Shared pages.')
+
+    class Meta:
+        model = RoleDefinition
+        fields = ['name', 'modules', 'read_only']
+        labels = {'read_only': 'Read-only role'}
+        help_texts = {'read_only': 'Block add, edit and delete actions for this role.'}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['modules'].choices = [
+            (code, label) for code, label in MODULE_LABELS.items()
+            if code not in CUSTOM_ROLE_EXCLUDED_MODULES]
+        if self.instance and self.instance.pk:
+            offered = {code for code, _ in self.fields['modules'].choices}
+            self.fields['modules'].initial = [
+                code for code in self.instance.modules if code in offered]
+        for name, field in self.fields.items():
+            if not isinstance(field.widget, forms.CheckboxInput) and not isinstance(
+                    field.widget, forms.CheckboxSelectMultiple):
+                css = field.widget.attrs.get('class', '')
+                field.widget.attrs['class'] = f'{css} field'.strip()
+
+    def clean_name(self):
+        name = self.cleaned_data['name'].strip()
+        if _role_code(name) in UserProfile.Role.values:
+            raise forms.ValidationError('That name is reserved for a built-in role.')
+        return name
+
+    def clean_modules(self):
+        modules = self.cleaned_data['modules']
+        if not modules:
+            raise forms.ValidationError('Choose at least one module.')
+        return modules
+
+    def save(self, commit=True):
+        role = super().save(commit=False)
+        role.modules = list(self.cleaned_data['modules'])
+        if not role.pk:
+            role.code = _unique_role_code(self.cleaned_data['name'])
+        if commit:
+            role.save()
+        return role
 
 
 class UserEditForm(BaseUserForm):

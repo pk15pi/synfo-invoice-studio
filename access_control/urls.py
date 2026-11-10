@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import views, views_self_service
 
 app_name = 'access_control'
 
@@ -10,4 +10,12 @@ urlpatterns = [
     path('users/', views.user_list, name='users'),
     path('users/new/', views.user_create, name='user_create'),
     path('users/<int:pk>/edit/', views.user_edit, name='user_edit'),
+    path('roles/', views.role_list, name='roles'),
+    path('roles/new/', views.role_create, name='role_create'),
+    path('roles/<int:pk>/edit/', views.role_edit, name='role_edit'),
+    path('me/', views_self_service.dashboard, name='me'),
+    path('me/attendance/', views_self_service.attendance, name='me_attendance'),
+    path('me/leave/', views_self_service.leave, name='me_leave'),
+    path('me/payslips/', views_self_service.payslips, name='me_payslips'),
+    path('me/payslips/<int:pk>/pdf', views_self_service.payslip_pdf, name='me_payslip'),
 ]

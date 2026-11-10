@@ -1,0 +1,44 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}{% if mode == 'create' %}Add role{% else %}Edit role{% endif %} · QuantBud{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">ADMINISTRATION</p>
+    <h1>{% if mode == 'create' %}Add role{% else %}Edit {{ role.name }}{% endif %}</h1>
+    <p class="muted">{% if mode == 'create' %}Name the role and tick the modules it may open. Shared pages are always included.{% else %}Update the role name, its modules or its read-only setting.{% endif %}</p>
+  </div>
+  <a class="button secondary" href="{% url 'access_control:roles' %}">Back to roles</a>
+</section>
+<section class="panel">
+  <form method="post" class="form-panel user-form role-form" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+        {{ form.name }}
+        {% for error in form.name.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+      </div>
+      <div class="form-field check-field">
+        {{ form.read_only }}
+        <label for="{{ form.read_only.id_for_label }}">{{ form.read_only.label }}</label>
+        {% for error in form.read_only.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        <small>{{ form.read_only.help_text }}</small>
+      </div>
+      <div class="form-field module-field">
+        <label>{{ form.modules.label }}</label>
+        {{ form.modules }}
+        {% for error in form.modules.errors %}<small class="field-error">{{ error }}</small>{% endfor %}
+        <small>{{ form.modules.help_text }}</small>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="button primary" type="submit">{% if mode == 'create' %}Create role{% else %}Save changes{% endif %}</button>
+      <a class="button secondary" href="{% url 'access_control:roles' %}">Cancel</a>
+    </div>
+    {% if mode == 'edit' %}
+      <p class="muted user-note">Role code: <strong>{{ role.code }}</strong> &middot; changes apply immediately to everyone with this role.</p>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}

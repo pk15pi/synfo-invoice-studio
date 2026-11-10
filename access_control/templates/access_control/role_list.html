@@ -1,0 +1,53 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}Roles · QuantBud{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">ADMINISTRATION</p>
+    <h1>Roles</h1>
+    <p class="muted">Create custom roles and choose the modules each role can open. Built-in roles are fixed.</p>
+  </div>
+  <a class="button primary" href="{% url 'access_control:role_create' %}">Add role</a>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Custom roles</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Modules</th><th>Access</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for row in custom_rows %}
+        <tr>
+          <td><strong>{{ row.name }}</strong><br><small class="muted">{{ row.code }}</small></td>
+          <td>{{ row.modules|join:", "|default:"Shared only" }}</td>
+          <td>{% if row.read_only %}<span class="badge">Read-only</span>{% else %}Full access{% endif %}</td>
+          <td><a class="table-action" href="{% url 'access_control:role_edit' row.pk %}">Edit</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="empty">No custom roles yet. Use Add role to create one.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Built-in roles</h2></div>
+  <p class="muted">Built-in roles are part of the application and cannot be changed. Create a custom role if none fits.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Role</th><th>Modules</th><th>Access</th></tr></thead>
+      <tbody>
+        {% for row in built_in_rows %}
+        <tr>
+          <td><strong>{{ row.name }}</strong></td>
+          <td>{{ row.modules|join:", "|default:"Shared only" }}</td>
+          <td>{% if row.read_only %}<span class="badge">Read-only</span>{% else %}Full access{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Assign a role to a person from <a href="{% url 'access_control:users' %}">Users &amp; roles</a>.</p>
+</section>
+{% endblock %}

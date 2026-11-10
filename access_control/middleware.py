@@ -3,7 +3,7 @@ from django.contrib.auth.views import redirect_to_login
 from django.http import HttpResponseForbidden
 from django.shortcuts import render
 
-from .permissions import (MODULE_LABELS, READ_ONLY_ROLES, allowed_modules, is_exempt_path,
+from .permissions import (MODULE_LABELS, allowed_modules, is_exempt_path, is_read_only_role,
                           module_for_path, role_for)
 
 SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS', 'TRACE'})
@@ -36,7 +36,7 @@ class AccessControlMiddleware:
                 'denied_module': MODULE_LABELS.get(module, 'this area'),
                 'denied_role': role_for(request.user),
             }, status=403)
-        if role_for(request.user) in READ_ONLY_ROLES and request.method not in SAFE_METHODS:
+        if is_read_only_role(role_for(request.user)) and request.method not in SAFE_METHODS:
             return render(request, 'access_control/denied.html', {
                 'denied_module': MODULE_LABELS.get(module, 'this area'),
                 'denied_role': role_for(request.user),

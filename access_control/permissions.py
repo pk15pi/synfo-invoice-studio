@@ -8,7 +8,7 @@ from functools import wraps
 
 from django.core.exceptions import ObjectDoesNotExist, PermissionDenied
 
-from .models import UserProfile
+from .models import RoleDefinition, UserProfile
 
 Role = UserProfile.Role
 
@@ -30,6 +30,7 @@ AUDIT = 'audit'
 BACKUPS = 'backups'
 USERS = 'users'
 SHARED = 'shared'
+SELF_SERVICE = 'self_service'
 
 MODULE_LABELS = {
     INVOICING: 'Invoice Management',
@@ -50,9 +51,12 @@ MODULE_LABELS = {
     BACKUPS: 'Backups',
     USERS: 'Users & roles',
     SHARED: 'Shared',
+    SELF_SERVICE: 'My Workspace',
 }
 
-ALL_MODULES = frozenset(MODULE_LABELS)
+# My Workspace is personal, so it is granted only to the Employee Self-Service role
+# (and to nobody else, including Admin/Director).
+ALL_MODULES = frozenset(MODULE_LABELS) - {SELF_SERVICE}
 
 # Longest prefixes first so nested URLs resolve to the intended module.
 PREFIX_MODULES = (
@@ -90,7 +94,9 @@ PREFIX_MODULES = (
     ('/geo/', SHARED),
     ('/storage/', HR),
     ('/users/', USERS),
+    ('/roles/', USERS),
     ('/hr/', HR),
+    ('/me/', SELF_SERVICE),
 )
 
 SHARED_ONLY = frozenset({SHARED})
@@ -112,9 +118,20 @@ ROLE_MODULES = {
     Role.RECRUITER: frozenset({HR, ATTENDANCE, RECRUITMENT, PERFORMANCE, DOCUMENTS, SHARED}),
     Role.PROJECT_MANAGER: frozenset({INVOICING, RECRUITMENT, EXPENSES, REPORTS, DOCUMENTS, SHARED}),
     Role.AUDITOR: frozenset({REPORTS, FINANCIAL_REPORTS, AUDIT, DOCUMENTS, SHARED}),
+    Role.IT_ADMIN: frozenset({USERS, BACKUPS, AUDIT, SHARED}),
+    Role.PAYROLL_EXECUTIVE: frozenset({PAYROLL, ATTENDANCE, DOCUMENTS, SHARED}),
+    Role.BILLING: frozenset({INVOICING, REPORTS, BANK, DOCUMENTS, SHARED}),
+    Role.COMPLIANCE_OFFICER: frozenset({COMPLIANCE, REPORTS, AUDIT, DOCUMENTS, SHARED}),
+    Role.DOCUMENT_CONTROLLER: frozenset({DOCUMENTS, SHARED}),
+    Role.ASSET_MANAGER: frozenset({ASSETS, EXPENSES, REPORTS, DOCUMENTS, SHARED}),
+    Role.MANAGEMENT: frozenset({REPORTS, FINANCIAL_REPORTS, DOCUMENTS, AUDIT, SHARED}),
+    Role.EMPLOYEE: frozenset({SELF_SERVICE, SHARED}),
 }
 
-READ_ONLY_ROLES = frozenset({Role.AUDITOR})
+READ_ONLY_ROLES = frozenset({Role.AUDITOR, Role.MANAGEMENT, Role.EMPLOYEE})
+
+# Roles allowed into the Users & roles screens.
+USER_MANAGEMENT_ROLES = (Role.ADMIN, Role.DIRECTOR, Role.IT_ADMIN)
 
 # Login itself, asset serving and Django admin have their own handling.
 EXEMPT_PREFIXES = ('/login/', '/logout/', '/admin/', '/static/', '/media/', '/favicon.ico', '/business/logo/')
@@ -133,11 +150,40 @@ def role_for(user):
         profile = user.access_profile
     except ObjectDoesNotExist:
         return ''
-    return profile.role if profile.role in Role.values else ''
+    return profile.role or ''
+
+
+def custom_role(role):
+    """Return the RoleDefinition for a custom role code, or None for built-in roles."""
+    if not role or role in Role.values:
+        return None
+    return RoleDefinition.objects.filter(code=role).first()
+
+
+def role_label(role):
+    if not role:
+        return 'No role'
+    if role in ROLE_MODULES:
+        return dict(Role.choices).get(role, role)
+    definition = custom_role(role)
+    return definition.name if definition else 'No role'
+
+
+def is_read_only_role(role):
+    if role in READ_ONLY_ROLES:
+        return True
+    definition = custom_role(role)
+    return bool(definition and definition.read_only)
 
 
 def allowed_modules(user):
-    return ROLE_MODULES.get(role_for(user), SHARED_ONLY)
+    role = role_for(user)
+    if role in ROLE_MODULES:
+        return ROLE_MODULES[role]
+    definition = custom_role(role)
+    if definition:
+        return frozenset(m for m in definition.modules if m in MODULE_LABELS) | {SHARED}
+    return SHARED_ONLY
 
 
 def can_access(user, module):

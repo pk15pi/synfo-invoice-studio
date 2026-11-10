@@ -804,7 +804,7 @@ _add("assets:maintenance_new assets:maintenance_update", "Asset maintenance", "L
 _add("access_control:users", "Users and roles", "Review local accounts and the business role assigned to each person.",
      "Each account signs in with its own username and password, and its role decides which modules the person can open.",
      ["Review the account list and confirm each person has the correct role.", "Use Edit to change a role, reset a password or deactivate an account.", "Use Add user to create a new local account and assign its starting role."],
-     rules=["Only Admin and Director roles can manage users. The last active administrator cannot be removed or deactivated."],
+     rules=["Admin, Director and IT / System Administrator roles can manage users. IT administrators cannot give anyone Admin or Director access. The last active administrator cannot be removed or deactivated."],
      related=["Business profile, audit log and module access rules."])
 _add("access_control:user_create", "Add user", "Create a local account and assign its business role.",
      "New accounts receive a username, password and role, which determines the modules the person can open.",
@@ -816,6 +816,41 @@ _add("access_control:user_edit", "Edit user", "Update an existing account, its r
      ["Review the current account details and role.", "Change the role or status only when duties have genuinely changed.", "Leave the password fields blank to keep the current password."],
      rules=["You cannot deactivate your own account, and the last active administrator must remain available."],
      related=["Users and roles list, audit log and module access rules."])
+_add("access_control:roles", "Roles", "Review built-in roles and create custom roles with their own module access.",
+     "A role decides which business modules a person can open. Built-in roles are fixed; custom roles are managed here.",
+     ["Review the custom and built-in role lists.", "Use Add role to name a role and tick the modules it may open.", "Assign the role to a person from Users & roles."],
+     rules=["Custom roles always include Shared pages and start empty until at least one module is chosen.", "Only Admin and Director can create or change roles."],
+     related=["Users and roles, module access rules and My Workspace."])
+_add("access_control:role_create", "Add role", "Create a custom role and choose the modules it may open.",
+     "The new role appears in the role list on every user form as soon as it is saved.",
+     ["Enter a name that describes the job.", "Tick every module the role needs.", "Mark it read-only when the role should only review records, then create it."],
+     rules=["Names that match a built-in role are reserved.", "A role needs at least one module besides Shared."],
+     related=["Roles list, Users and roles and module access rules."])
+_add("access_control:role_edit", "Edit role", "Change a custom role's name, modules or read-only setting.",
+     "Changes apply immediately to everyone who has this role. Built-in roles cannot be edited.",
+     ["Review the current modules.", "Add or remove modules as duties change.", "Save to apply the new access at the next request."],
+     rules=["The role code never changes, so existing user profiles keep working."],
+     related=["Roles list, Users and roles and module access rules."])
+_add("access_control:me", "My workspace", "See your own profile, attendance summary, leave balances and latest payslips.",
+     "Self-service shows only the signed-in person's employee record, matched by work or personal email.",
+     ["Check this month's attendance counts and your leave balances.", "Open My attendance, My leave or My payslips for the full lists.", "Ask HR to correct any record that does not match your records."],
+     rules=["Self-service is read-only. Leave applications and attendance corrections are made through HR."],
+     related=["My attendance, My leave and My payslips."])
+_add("access_control:me_attendance", "My attendance", "Review your own marked attendance for a selected month.",
+     "The page lists the days HR marked for you and totals each attendance status for the month.",
+     ["Use Previous and Next to change month.", "Review status, in/out times and notes for each marked day.", "Ask HR to correct a missing or wrong entry."],
+     rules=["Only marked days appear; unmarked working days are handled in payroll as present by exception."],
+     related=["My workspace, My leave and payroll records."])
+_add("access_control:me_leave", "My leave", "Review your leave balances and the status of your leave applications.",
+     "Balances show opening, accrued, used and available days for the current year.",
+     ["Check the balance for each leave type.", "Review each application's dates, days and status.", "Contact HR to apply for leave or correct an application."],
+     rules=["Self-service is read-only; only HR can approve, reject or cancel leave."],
+     related=["My workspace, My attendance and HR leave records."])
+_add("access_control:me_payslips", "My payslips", "Open or download your finalized payslips.",
+     "Only finalized payslips for the current payroll revision are shown to the employee.",
+     ["Review the month, gross, deductions and net pay.", "Use View to open the PDF in the browser.", "Use Download to save a copy for your records."],
+     rules=["Draft payroll and superseded revisions are never shown here."],
+     related=["My workspace, My leave and payroll management."])
 _add("audit:log", "Audit log", "Review recorded application events and filter by time, user or object where available.",
      "The audit log provides traceability for supported application actions.",
      ["Set filters to find the event.", "Open object history for more context.", "Export only the required records and store the file securely."],
@@ -875,7 +910,7 @@ NON_PAGE_ROUTES = {
     "project_delete", "description_template_toggle", "description_template_delete", "format_template_preview",
     "format_template_toggle", "format_template_delete", "line_description", "invoice_pdf", "invoice_finalize",
     "invoice_post_ledger", "invoice_cancel", "credit_note_cancel", "invoice_pdf_manual", "invoice_email_send", "invoice_email_send_json", "invoice_email_template_delete", "email_template_delete", "email_template_set_salary_default",
-    "access_control:login", "access_control:logout",
+    "access_control:login", "access_control:logout", "access_control:me_payslip",
 }
 
 # Shared guidance for pages that use the standardized calendar/FY period controls.

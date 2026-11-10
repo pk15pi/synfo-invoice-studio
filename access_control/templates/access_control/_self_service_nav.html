@@ -1,0 +1,13 @@
+<section class="hero">
+  <div>
+    <p class="eyebrow">MY WORKSPACE</p>
+    <h1>{{ employee.full_name }}</h1>
+    <p class="muted">{{ employee.employee_id }} &middot; {{ employee.designation }}{% if employee.department %} &middot; {{ employee.department }}{% endif %} &middot; {{ employee.get_status_display }}</p>
+  </div>
+</section>
+<nav class="segmented">
+  <a class="{% if request.resolver_match.url_name == 'me' %}on{% endif %}" href="{% url 'access_control:me' %}">Overview</a>
+  <a class="{% if request.resolver_match.url_name == 'me_attendance' %}on{% endif %}" href="{% url 'access_control:me_attendance' %}">My attendance</a>
+  <a class="{% if request.resolver_match.url_name == 'me_leave' %}on{% endif %}" href="{% url 'access_control:me_leave' %}">My leave</a>
+  <a class="{% if request.resolver_match.url_name == 'me_payslips' %}on{% endif %}" href="{% url 'access_control:me_payslips' %}">My payslips</a>
+</nav>

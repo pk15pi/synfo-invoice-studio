@@ -1,0 +1,46 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}My leave · QuantBud{% endblock %}
+{% block content %}
+{% include 'access_control/_self_service_nav.html' %}
+
+<div class="panel">
+  <div class="panel-head"><h2>Leave balances &middot; {{ year }}</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Leave type</th><th class="num">Opening</th><th class="num">Accrued</th><th class="num">Used</th><th class="num">Balance</th></tr></thead>
+      <tbody>
+        {% for b in balances %}
+        <tr><td>{{ b.leave_type.name }} <span class="muted">({{ b.leave_type.code }})</span></td><td class="num">{{ b.opening }}</td><td class="num">{{ b.accrued }}</td><td class="num">{{ b.used }}</td><td class="num"><strong>{{ b.balance }}</strong></td></tr>
+        {% empty %}
+        <tr><td colspan="5" class="empty">No leave balance recorded for {{ year }}.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>My applications</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Leave type</th><th>From</th><th>To</th><th class="num">Days</th><th>Status</th><th>Reason</th><th>Applied</th></tr></thead>
+      <tbody>
+        {% for a in applications %}
+        <tr>
+          <td>{{ a.leave_type.name }}</td>
+          <td>{{ a.start_date|date:"d-m-Y" }}</td>
+          <td>{{ a.end_date|date:"d-m-Y" }}</td>
+          <td class="num">{{ a.days }}</td>
+          <td>{{ a.get_status_display }}</td>
+          <td>{{ a.reason|default:"—" }}</td>
+          <td>{{ a.created_at|date:"d-m-Y" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="empty">No leave applications.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Leave applications are reviewed by HR. Contact HR to apply for new leave or correct a record.</p>
+</div>
+{% endblock %}

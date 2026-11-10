@@ -1,0 +1,29 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}My payslips · QuantBud{% endblock %}
+{% block content %}
+{% include 'access_control/_self_service_nav.html' %}
+
+<div class="panel">
+  <div class="panel-head"><h2>Finalized payslips</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Month</th><th>Finalized</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Net pay</th><th></th></tr></thead>
+      <tbody>
+        {% for p in payslips %}
+        <tr>
+          <td>{{ p.period.label }}</td>
+          <td>{{ p.finalized_at|date:"d-m-Y"|default:"—" }}</td>
+          <td class="num">{{ p.gross_earnings }}</td>
+          <td class="num">{{ p.total_deductions }}</td>
+          <td class="num"><strong>{{ p.net_salary }}</strong></td>
+          <td><a href="{% url 'access_control:me_payslip' p.pk %}" target="_blank" rel="noopener">View</a> &middot; <a href="{% url 'access_control:me_payslip' p.pk %}?download=1">Download</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="empty">No finalized payslips yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Only finalized payslips for the current revision are shown. Drafts appear after payroll is finalized.</p>
+</div>
+{% endblock %}

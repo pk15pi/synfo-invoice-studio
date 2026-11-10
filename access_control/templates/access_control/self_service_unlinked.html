@@ -1,0 +1,17 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}My workspace · QuantBud{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">MY WORKSPACE</p>
+    <h1>Employee record not linked</h1>
+    <p class="muted">Your sign-in email does not match any employee record.</p>
+  </div>
+</section>
+<section class="panel">
+  <div class="panel-head"><h2>What to do</h2></div>
+  <p>Ask HR to set this email address on your employee profile as the <strong>work email</strong> or <strong>personal email</strong>. Self-service then opens automatically at your next sign-in.</p>
+  <p class="muted">Signed-in account: {{ request.user.get_username }}{% if account_email %} &middot; {{ account_email }}{% else %} &middot; no email on the account{% endif %}</p>
+  <p><a class="button secondary" href="{% url 'home' %}">Back to home</a></p>
+</section>
+{% endblock %}
