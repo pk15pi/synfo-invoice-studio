@@ -5,8 +5,8 @@
   {# Row 1 — primary (unchanged controls) #}
   <div class="ae-filter-row ae-filter-primary">
     <label class="compact-filter-label"><span>Search</span><input class="field" name="q" value="{{ q }}" placeholder="Search ID, invoice no, vendor, employee, description, txn ref"></label>
-    <label class="compact-filter-label"><span>Type</span><select class="field" name="type" data-combo="ae-type"><option value="">Company + claims</option><option value="company" {% if kind == 'company' %}selected{% endif %}>Company expenses</option><option value="claim" {% if kind == 'claim' %}selected{% endif %}>Employee claims</option></select></label>
-    <label class="compact-filter-label"><span>Payment status</span><select class="field" name="payment_status" data-combo="ae-payment-status"><option value="">Any expense status</option>{% for k, l in pay_statuses %}<option value="{{ k }}" {% if params.payment_status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
+    <label class="compact-filter-label"><span>Type</span><select class="field" name="type"><option value="">Company + claims</option><option value="company" {% if kind == 'company' %}selected{% endif %}>Company expenses</option><option value="claim" {% if kind == 'claim' %}selected{% endif %}>Employee claims</option></select></label>
+    <label class="compact-filter-label"><span>Payment status</span><select class="field" name="payment_status"><option value="">Any expense status</option>{% for k, l in pay_statuses %}<option value="{{ k }}" {% if params.payment_status == k %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>
   </div>
 
   {# Row 2 — date period, clearly labelled (standard picker kept; wrapped so it no longer jumps ahead of Search) #}

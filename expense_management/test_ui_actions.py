@@ -276,11 +276,20 @@ class AllExpensesFilterLayoutTests(Base):
         self.assertIn(">Claim workflow<", body)
         self.assertIn(">Vendor / Paid by<", body)
         self.assertIn(">Organisation<", body)
-        self.assertIn("data-combo=\"ae-type\"", body)
-        self.assertIn("data-combo=\"ae-payment-status\"", body)
+        # Type + Payment status are plain native selects (no typing); other filters keep comboboxes.
+        self.assertNotIn("data-combo=\"ae-type\"", body)
+        self.assertNotIn("data-combo=\"ae-payment-status\"", body)
+        self.assertRegex(body, r'<select class="field" name="type"(?! data-combo)')
+        self.assertRegex(body, r'<select class="field" name="payment_status"(?! data-combo)')
         self.assertIn("data-combo=\"ae-category\"", body)
         self.assertIn("data-combo=\"ae-vendor\"", body)
         self.assertIn("invoice_app/combobox.js", body)
+        from pathlib import Path as P
+        from django.conf import settings
+        css = (P(settings.BASE_DIR) / "expense_management" / "static" / "expense_management" / "expense.css").read_text(encoding="utf-8")
+        self.assertIn("ae-period-wrap .standard-period-filter", css)
+        self.assertIn("flex:0 1 auto!important", css)
+        self.assertIn("gap:8px!important", css)
         # More filters stays closed by default
         self.assertIn('<details class="more-filters"', body)
         self.assertNotRegex(body, r'<details class="more-filters"\s+open')
