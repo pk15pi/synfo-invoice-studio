@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -46,7 +46,13 @@ def dashboard(request):
 
 @local_only
 def register(request):
-    assets = Asset.objects.select_related('category', 'current_employee', 'current_location')
+    assets = Asset.objects.select_related(
+        'category', 'current_employee', 'current_location',
+    ).annotate(
+        active_unit_count=Count(
+            'assignments', filter=Q(assignments__status=AssetAssignment.ACTIVE),
+        ),
+    )
     search = request.GET.get('q', '').strip()[:100]
     if search:
         assets = assets.filter(
@@ -123,19 +129,29 @@ def asset_new(request):
 @local_only
 def asset_detail(request, pk):
     asset = get_object_or_404(
-        Asset.objects.select_related('category', 'current_employee', 'current_location'), pk=pk,
+        Asset.objects.select_related('category', 'current_employee', 'current_location').annotate(
+            active_unit_count=Count(
+                'assignments', filter=Q(assignments__status=AssetAssignment.ACTIVE),
+            ),
+        ),
+        pk=pk,
     )
-    active_assignment = asset.assignments.select_related(
-        'employee', 'parent_assignment__asset',
-    ).filter(status=AssetAssignment.ACTIVE).first()
+    active_assignments = list(
+        asset.assignments.select_related('employee', 'parent_assignment__asset').filter(
+            status=AssetAssignment.ACTIVE,
+        )
+    )
+    active_assignment = active_assignments[0] if active_assignments else None
     latest_assignment = active_assignment or asset.assignments.select_related('employee').first()
     return render(request, 'asset_management/detail.html', {
         'asset': asset,
         'active_assignment': active_assignment,
+        'active_assignments': active_assignments,
         'latest_assignment': latest_assignment,
         'accessory_assignments': (
-            active_assignment.accessory_assignments.select_related('asset')
-            if active_assignment else []
+            AssetAssignment.objects.filter(parent_assignment__in=active_assignments)
+            .select_related('asset')
+            if active_assignments else []
         ),
         'receipts': services.receipts_for(latest_assignment) if latest_assignment else [],
         'assignments': asset.assignments.select_related('employee')[:20],

@@ -8,12 +8,13 @@
 <label class="compact-filter-label"><span>Search</span><input id="asset-filter" class="field" type="search" name="q" value="{{ search }}" placeholder="Asset ID, name, brand, or serial number"></label>
 <label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="">All statuses</option>{% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 {% filter_actions %}</form>
-<div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Name</th><th>Category</th><th>Ownership</th><th>Usage</th><th>Status</th><th>Employee</th><th>Location</th></tr></thead>
+<div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Name</th><th>Category</th><th>Ownership</th><th>Usage</th><th>Status</th><th>Number of items</th><th>Items available</th><th>Employee</th><th>Location</th></tr></thead>
 {% paginate assets as qb_pg1 %}<tbody>{% for asset in qb_pg1 %}<tr>
 <td><a href="{% url 'assets:asset_detail' asset.pk %}"><strong>{{ asset.asset_code }}</strong></a></td><td>{{ asset.name }}</td><td>{{ asset.category.name }}</td>
 <td>{{ asset.get_ownership_type_display }}</td><td>{{ asset.get_usage_type_display }}</td>
-<td>{{ asset.get_current_status_display }}</td><td>{{ asset.current_employee|default:"—" }}</td>
+<td>{{ asset.get_current_status_display }}</td><td>{{ asset.quantity }}</td><td>{{ asset.available_quantity }}</td>
+<td>{{ asset.current_employee|default:"—" }}</td>
 <td>{{ asset.current_location|default:"—" }}</td>
-</tr>{% empty %}<tr><td colspan="8" class="empty">No assets have been registered.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
+</tr>{% empty %}<tr><td colspan="10" class="empty">No assets have been registered.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
 </section>
 {% endblock %}

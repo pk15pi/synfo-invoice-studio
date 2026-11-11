@@ -132,22 +132,47 @@ def _locked_asset(asset):
     return Asset.objects.select_for_update().get(pk=asset.pk)
 
 
+def _sync_custody(asset):
+    """Refresh status and custodian from the units currently issued."""
+    active = list(
+        AssetAssignment.objects.filter(
+            asset=asset, status=AssetAssignment.ACTIVE,
+        ).select_related('employee')
+    )
+    available = max(asset.quantity - len(active), 0)
+    fields = []
+    if asset.current_status not in (Asset.UNDER_MAINTENANCE, Asset.LOST, Asset.DISPOSED):
+        target = Asset.ASSIGNED if active and available == 0 else Asset.AVAILABLE
+        if asset.current_status != target:
+            asset.current_status = target
+            fields.append('current_status')
+    employees = {link.employee_id: link.employee for link in active}
+    custodian = next(iter(employees.values())) if len(employees) == 1 else None
+    if asset.current_employee_id != (custodian.pk if custodian else None):
+        asset.current_employee = custodian
+        fields.append('current_employee')
+    if fields:
+        fields.append('updated_at')
+        asset.save(update_fields=fields)
+    return asset
+
+
 def _issue_assignment(assignment, *, reference_id, acknowledgement_type, acknowledgement_name,
                       confirmation_text, remarks):
     asset = _locked_asset(assignment.asset)
     if asset.current_status != Asset.AVAILABLE:
         raise ValidationError('Only an available asset can be assigned.')
-    if AssetAssignment.objects.filter(asset=asset, status=AssetAssignment.ACTIVE).exists():
-        raise ValidationError('This asset already has an active assignment.')
+    if asset.available_quantity < 1:
+        if asset.is_serialized:
+            raise ValidationError('This asset already has an active assignment.')
+        raise ValidationError('All items of this asset are already assigned.')
     if acknowledgement_type == AssetAcknowledgement.DIGITAL and not (confirmation_text or '').strip():
         raise ValidationError('A digital acknowledgement needs the employee confirmation text.')
 
     previous_status = asset.current_status
     assignment.handover_number = reference_id or ''
     assignment.save()
-    asset.current_status = Asset.ASSIGNED
-    asset.current_employee = assignment.employee
-    asset.save(update_fields=['current_status', 'current_employee', 'updated_at'])
+    _sync_custody(asset)
     record_event(
         asset, 'assigned', to_employee=assignment.employee, from_location=asset.current_location,
         previous_status=previous_status, new_status=asset.current_status, reference_type='handover',
@@ -211,12 +236,7 @@ def return_assignment(assignment, *, actual_return_date, return_condition='', ac
     assignment.accessories_returned = accessories_returned or []
     assignment.return_notes = return_notes
     assignment.save()
-    asset.current_employee = None
-    if asset.current_status not in (Asset.LOST, Asset.DISPOSED):
-        asset.current_status = Asset.AVAILABLE
-        asset.save(update_fields=['current_status', 'current_employee', 'updated_at'])
-    else:
-        asset.save(update_fields=['current_employee', 'updated_at'])
+    _sync_custody(asset)
     record_event(
         asset, 'returned', from_employee=assignment.employee, previous_status=previous_status,
         new_status=asset.current_status, reference_type='assignment', reference_id=str(assignment.pk),
@@ -288,11 +308,10 @@ def update_maintenance(maintenance):
         if other_open:
             target = Asset.UNDER_MAINTENANCE
         elif asset.current_status not in (Asset.LOST, Asset.DISPOSED):
-            target = (
-                Asset.ASSIGNED
-                if AssetAssignment.objects.filter(asset=asset, status=AssetAssignment.ACTIVE).exists()
-                else Asset.AVAILABLE
-            )
+            active = AssetAssignment.objects.filter(
+                asset=asset, status=AssetAssignment.ACTIVE,
+            ).count()
+            target = Asset.ASSIGNED if active >= asset.quantity else Asset.AVAILABLE
     elif asset.current_status not in (Asset.LOST, Asset.DISPOSED, Asset.UNDER_MAINTENANCE):
         target = Asset.UNDER_MAINTENANCE
     if target and asset.current_status != target:

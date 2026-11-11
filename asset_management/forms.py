@@ -1,4 +1,7 @@
+import json
+
 from django import forms
+from django.db.models import Count, F, Q
 from django.utils import timezone
 
 from employee_management.models import Employee
@@ -25,15 +28,29 @@ def _comma_list(value):
     return [part.strip() for part in (value or '').split(',') if part.strip()]
 
 
+def _assignable_assets():
+    """Assets with at least one unit left to issue."""
+    return (
+        Asset.objects.filter(current_status=Asset.AVAILABLE)
+        .annotate(
+            active_unit_count=Count(
+                'assignments', filter=Q(assignments__status=AssetAssignment.ACTIVE),
+            ),
+        )
+        .filter(quantity__gt=F('active_unit_count'))
+    )
+
+
 class AssetForm(StyledForm, forms.ModelForm):
     class Meta:
         model = Asset
         fields = [
-            'name', 'category', 'brand', 'model_number', 'serial_number', 'ownership_type', 'usage_type',
-            'condition', 'current_location', 'purchase_date', 'purchase_price', 'vendor_name', 'invoice_number',
-            'warranty_expiry', 'description',
+            'name', 'category', 'brand', 'model_number', 'serial_number', 'quantity', 'ownership_type',
+            'usage_type', 'condition', 'current_location', 'purchase_date', 'purchase_price', 'vendor_name',
+            'invoice_number', 'warranty_expiry', 'description',
         ]
         widgets = {
+            'quantity': forms.NumberInput(attrs={'min': 1}),
             'purchase_date': DATE,
             'warranty_expiry': DATE,
             'description': forms.Textarea(attrs={'rows': 3}),
@@ -53,6 +70,22 @@ class AssetForm(StyledForm, forms.ModelForm):
         self.fields['category'].help_text = (
             'Select the category. The asset ID is generated from its code when the asset is saved.'
         )
+        self.fields['quantity'].required = False
+        self.fields['quantity'].label = 'Number of items'
+        self.fields['quantity'].help_text = (
+            'For items without a serial number, enter how many units this record covers. '
+            'Items with a serial number are always tracked as one item.'
+        )
+        if not self.is_bound and not self.instance.pk:
+            self.fields['quantity'].initial = 1
+
+    def clean(self):
+        cleaned = super().clean()
+        if (cleaned.get('serial_number') or '').strip():
+            cleaned['quantity'] = 1
+        elif not cleaned.get('quantity'):
+            cleaned['quantity'] = 1
+        return cleaned
 
 
 class AssetLocationForm(StyledForm, forms.ModelForm):
@@ -83,16 +116,16 @@ class AssetReceiptForm(StyledForm, forms.Form):
 class AssignmentForm(StyledForm, forms.ModelForm):
     accessories = forms.CharField(
         label='Accessories issued', required=False,
-        help_text='Type items that are not in the asset register, for example charger, bag, mouse.',
+        widget=forms.TextInput(attrs={'autocomplete': 'off'}),
+        help_text=(
+            'Type to filter registered assets and select one, or type free-text accessories separated by commas. '
+            'Selected assets are also assigned to this employee with the same dates, condition and notes.'
+        ),
     )
     accessory_assets = forms.ModelMultipleChoiceField(
-        label='Accessories from asset register', required=False,
+        required=False,
         queryset=Asset.objects.none(),
-        widget=forms.CheckboxSelectMultiple(attrs={'class': 'asset-accessory-picker'}),
-        help_text=(
-            'Optional. Each selected asset is also assigned to this employee with the same issue date, '
-            'expected return date, condition and notes.'
-        ),
+        widget=forms.MultipleHiddenInput(),
     )
     receipt = forms.FileField(
         label='Signed receipt (optional)', required=False,
@@ -124,12 +157,22 @@ class AssignmentForm(StyledForm, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        available = Asset.objects.filter(current_status=Asset.AVAILABLE).select_related('category')
-        if self.instance.pk:
-            available = available | Asset.objects.filter(pk=self.instance.asset_id)
-        self.fields['asset'].queryset = available.select_related('category')
-        self.fields['asset'].help_text = 'Only assets that are currently available can be assigned.'
-        self.fields['accessory_assets'].queryset = available.select_related('category')
+        available = _assignable_assets().select_related('category')
+        self.fields['asset'].queryset = available
+        self.fields['asset'].help_text = 'Only assets with items available can be assigned.'
+        self.fields['accessory_assets'].queryset = available
+        options = [
+            {
+                'id': str(asset.pk), 'code': asset.asset_code, 'name': asset.name,
+                'available': asset.available_quantity,
+            }
+            for asset in available.order_by('asset_code')
+        ]
+        self.fields['accessories'].widget.attrs.update({
+            'data-accessory-picker': '1',
+            'data-accessory-options': json.dumps(options, separators=(',', ':')),
+        })
+        self.has_accessory_picker = True
         self.fields['employee'].queryset = Employee.objects.filter(status__in=Employee.EMPLOYED)
         if not self.is_bound and not self.initial.get('issue_date'):
             self.initial['issue_date'] = timezone.localdate()
@@ -144,8 +187,12 @@ class AssignmentForm(StyledForm, forms.ModelForm):
         if asset:
             if asset.current_status != Asset.AVAILABLE:
                 self.add_error('asset', 'Only an available asset can be assigned.')
-            if asset.assignments.filter(status=AssetAssignment.ACTIVE).exists():
-                self.add_error('asset', 'This asset already has an active assignment.')
+            elif asset.available_quantity < 1:
+                self.add_error(
+                    'asset',
+                    'This asset already has an active assignment.'
+                    if asset.is_serialized else 'All items of this asset are already assigned.',
+                )
         accessory_assets = cleaned.get('accessory_assets')
         if accessory_assets:
             if asset and asset in accessory_assets:
@@ -159,10 +206,10 @@ class AssignmentForm(StyledForm, forms.ModelForm):
                         f'{accessory.asset_code} is not available to assign as an accessory.',
                     )
                     break
-                if accessory.assignments.filter(status=AssetAssignment.ACTIVE).exists():
+                if accessory.available_quantity < 1:
                     self.add_error(
                         'accessory_assets',
-                        f'{accessory.asset_code} already has an active assignment.',
+                        f'{accessory.asset_code} has no items available to assign as an accessory.',
                     )
                     break
         if cleaned.get('acknowledgement_type') == AssetAcknowledgement.DIGITAL:

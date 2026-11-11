@@ -81,6 +81,7 @@ class Asset(models.Model):
     brand = models.CharField(max_length=100, blank=True)
     model_number = models.CharField(max_length=100, blank=True)
     serial_number = models.CharField(max_length=120, blank=True, db_index=True)
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
     ownership_type = models.CharField(max_length=10, choices=OWNERSHIP_TYPES, default=OWNED, db_index=True)
     usage_type = models.CharField(max_length=10, choices=USAGE_TYPES, default=COMPANY_USE, db_index=True)
     current_status = models.CharField(max_length=24, choices=STATUSES, default=AVAILABLE, db_index=True)
@@ -116,10 +117,29 @@ class Asset(models.Model):
                 condition=Q(purchase_price__isnull=True) | Q(purchase_price__gte=0),
                 name='asset_purchase_price_nonnegative',
             ),
+            models.CheckConstraint(condition=Q(quantity__gte=1), name='asset_quantity_positive'),
         ]
 
     def __str__(self):
         return f'{self.asset_code} - {self.name}'
+
+    @property
+    def is_serialized(self):
+        return bool((self.serial_number or '').strip())
+
+    @property
+    def available_quantity(self):
+        """Units that can still be issued; serialized assets are one item."""
+        if self.current_status in (self.UNDER_MAINTENANCE, self.LOST, self.DISPOSED):
+            return 0
+        active = getattr(self, 'active_unit_count', None)
+        if active is None:
+            active = self.assignments.filter(status=AssetAssignment.ACTIVE).count()
+        return max(self.quantity - active, 0)
+
+    def clean(self):
+        if self.is_serialized and self.quantity != 1:
+            raise ValidationError({'quantity': 'An asset with a serial number is tracked as one item.'})
 
     def is_editable(self):
         """Details may be corrected only while the asset is with the company and not issued."""
@@ -199,8 +219,6 @@ class AssetAssignment(models.Model):
         ordering = ['-issue_date', '-id']
         indexes = [models.Index(fields=['employee', 'status'], name='asset_assign_emp_status_idx')]
         constraints = [
-            models.UniqueConstraint(fields=['asset'], condition=Q(status='active'),
-                                    name='asset_one_active_assignment'),
             models.CheckConstraint(
                 condition=Q(expected_return_date__isnull=True) | Q(expected_return_date__gte=models.F('issue_date')),
                 name='asset_expected_return_after_issue',

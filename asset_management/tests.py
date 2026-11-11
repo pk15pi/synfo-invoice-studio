@@ -108,16 +108,68 @@ class AssetManagementTests(TestCase):
         acknowledgement.save()
         self.assertIsNotNone(acknowledgement.acknowledged_at)
 
-    def test_only_one_active_assignment_per_asset(self):
-        AssetAssignment.objects.create(asset=self.asset, employee=self.employee)
+    def test_serialized_assets_allow_only_one_active_assignment(self):
+        serialized = Asset.objects.create(
+            asset_code='QB-LAP-SER', name='Serialized laptop', category=self.category,
+            serial_number='SN-001',
+        )
+        services.assign_asset(AssetAssignment(
+            asset=serialized, employee=self.employee, issue_date=date(2026, 5, 1),
+        ))
         other = self.make_employee('AST002', 'Ravi')
-        with self.assertRaises(IntegrityError), transaction.atomic():
-            AssetAssignment.objects.create(asset=self.asset, employee=other)
-        returned = AssetAssignment.objects.get(asset=self.asset)
-        returned.status = AssetAssignment.RETURNED
-        returned.save()
-        AssetAssignment.objects.create(asset=self.asset, employee=other)
-        self.assertEqual(self.asset.assignments.filter(status=AssetAssignment.ACTIVE).count(), 1)
+        with self.assertRaises(ValidationError):
+            services.assign_asset(AssetAssignment(
+                asset=serialized, employee=other, issue_date=date(2026, 5, 1),
+            ))
+        returned = AssetAssignment.objects.get(asset=serialized)
+        services.return_assignment(returned, actual_return_date=date(2026, 5, 10))
+        services.assign_asset(AssetAssignment(
+            asset=serialized, employee=other, issue_date=date(2026, 5, 11),
+        ))
+        self.assertEqual(serialized.assignments.filter(status=AssetAssignment.ACTIVE).count(), 1)
+
+    def test_non_serialized_asset_tracks_quantity_and_available_units(self):
+        bulk = Asset.objects.create(
+            asset_code='QB-CHAIR-001', name='Office chair', category=self.category, quantity=3,
+        )
+        other = self.make_employee('AST002', 'Ravi')
+        for employee in (self.employee, other, self.employee):
+            services.assign_asset(AssetAssignment(
+                asset=bulk, employee=employee, issue_date=date(2026, 5, 1),
+            ))
+            bulk.refresh_from_db()
+            self.assertEqual(bulk.available_quantity, bulk.quantity - bulk.assignments.filter(
+                status=AssetAssignment.ACTIVE,
+            ).count())
+        self.assertEqual(bulk.available_quantity, 0)
+        self.assertEqual(bulk.current_status, Asset.ASSIGNED)
+        self.assertIsNone(bulk.current_employee)
+        with self.assertRaises(ValidationError):
+            services.assign_asset(AssetAssignment(
+                asset=bulk, employee=self.employee, issue_date=date(2026, 5, 2),
+            ))
+
+        first = AssetAssignment.objects.filter(asset=bulk, employee=self.employee).first()
+        services.return_assignment(first, actual_return_date=date(2026, 6, 1))
+        bulk.refresh_from_db()
+        self.assertEqual(bulk.available_quantity, 1)
+        self.assertEqual(bulk.current_status, Asset.AVAILABLE)
+
+    def test_register_shows_quantity_columns(self):
+        bulk = Asset.objects.create(
+            asset_code='QB-CHAIR-002', name='Visitor chair', category=self.category, quantity=4,
+        )
+        services.assign_asset(AssetAssignment(
+            asset=bulk, employee=self.employee, issue_date=date(2026, 5, 1),
+        ))
+        response = self.client.get(reverse('assets:register'))
+        self.assertContains(response, 'Number of items')
+        self.assertContains(response, 'Items available')
+        rows = {asset.pk: asset for asset in response.context['assets']}
+        self.assertEqual(rows[bulk.pk].quantity, 4)
+        self.assertEqual(rows[bulk.pk].available_quantity, 3)
+        self.assertEqual(rows[self.asset.pk].quantity, 1)
+        self.assertEqual(rows[self.asset.pk].available_quantity, 1)
 
     def test_maintenance_cost_is_decimal(self):
         maintenance = AssetMaintenance.objects.create(
@@ -403,6 +455,45 @@ class AssetFeatureTests(TestCase):
         self.assertEqual(self.asset.current_status, Asset.AVAILABLE)
         self.assertTrue(self.asset.events.filter(event_type='updated').exists())
 
+    def test_asset_form_forces_one_item_for_serialized_assets(self):
+        response = self.client.post(reverse('assets:asset_new'), {
+            'name': 'Serialized monitor', 'category': self.category.pk, 'serial_number': 'SN-QTY-1',
+            'quantity': '5', 'ownership_type': 'owned', 'usage_type': 'company', 'condition': 'good',
+            'current_location': '',
+        })
+        asset = Asset.objects.get(name='Serialized monitor')
+        self.assertRedirects(response, reverse('assets:asset_detail', args=(asset.pk,)))
+        self.assertEqual(asset.quantity, 1)
+
+    def test_asset_form_saves_quantity_for_items_without_serial_number(self):
+        response = self.client.post(reverse('assets:asset_new'), {
+            'name': 'Stock chairs', 'category': self.category.pk, 'serial_number': '',
+            'quantity': '6', 'ownership_type': 'owned', 'usage_type': 'employee', 'condition': 'good',
+            'current_location': '',
+        })
+        asset = Asset.objects.get(name='Stock chairs')
+        self.assertRedirects(response, reverse('assets:asset_detail', args=(asset.pk,)))
+        self.assertEqual(asset.quantity, 6)
+        self.assertEqual(asset.available_quantity, 6)
+        detail = self.client.get(reverse('assets:asset_detail', args=(asset.pk,)))
+        self.assertContains(detail, 'Quantity of items')
+        self.assertContains(detail, 'Number of items')
+
+    def test_bulk_assignment_reduces_available_count(self):
+        bulk = Asset.objects.create(
+            asset_code='QB-CHAIR-200', name='Training chair', category=self.category, quantity=2,
+        )
+        response = self.client.post(reverse('assets:assignment_new'), {
+            'asset': bulk.pk, 'employee': self.employee.pk, 'issue_date': '2026-05-01',
+            'issue_condition': 'good',
+        })
+        self.assertEqual(response.status_code, 302)
+        bulk.refresh_from_db()
+        self.assertEqual(bulk.available_quantity, 1)
+        self.assertEqual(bulk.current_status, Asset.AVAILABLE)
+        detail = self.client.get(reverse('assets:asset_detail', args=(bulk.pk,)))
+        self.assertContains(detail, '1 of 2 items are currently issued')
+
     def test_asset_edit_locked_once_issued(self):
         assignment = self.assignment()
         response = self.client.get(reverse('assets:asset_edit', args=(self.asset.pk,)))
@@ -478,7 +569,7 @@ class AssetFeatureTests(TestCase):
         self.assertIn('QB-BAG-102 \u2013 Laptop bag', labels)
         self.assertIn('QB-BAG-102', receipt_email.compose_message(primary)[1])
         detail = self.client.get(reverse('assets:asset_detail', args=(self.asset.pk,)))
-        self.assertContains(detail, 'Accessories from asset register')
+        self.assertContains(detail, 'Registered accessories')
         self.assertContains(detail, 'QB-MOUSE-101')
         accessory_detail = self.client.get(reverse('assets:asset_detail', args=(mouse.pk,)))
         self.assertContains(accessory_detail, 'Issued as an accessory with')
@@ -496,6 +587,16 @@ class AssetFeatureTests(TestCase):
         self.assertEqual(accessory_assignment.status, AssetAssignment.RETURNED)
         self.assertEqual(primary.status, AssetAssignment.ACTIVE)
 
+    def test_assignment_form_uses_one_searchable_accessory_field(self):
+        Asset.objects.create(asset_code='QB-MOUSE-104', name='Spare mouse', category=self.category)
+        response = self.client.get(reverse('assets:assignment_new'))
+        self.assertContains(response, 'Accessories issued')
+        self.assertNotContains(response, 'Accessories from asset register')
+        self.assertContains(response, 'data-accessory-picker="1"')
+        self.assertContains(response, 'asset_management/accessory_picker.js')
+        self.assertContains(response, 'QB-MOUSE-104')
+        self.assertContains(response, 'input type="hidden" name="accessory_assets"', count=0)
+
     def test_accessory_selection_rejects_main_and_unavailable_assets(self):
         response = self.client.post(reverse('assets:assignment_new'), {
             'asset': self.asset.pk, 'employee': self.employee.pk, 'issue_date': '2026-05-01',
@@ -503,6 +604,10 @@ class AssetFeatureTests(TestCase):
         })
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'main asset cannot also be listed as an accessory')
+        self.assertRegex(
+            response.content.decode(),
+            rf'name="accessory_assets"[^>]*value="{self.asset.pk}"',
+        )
         self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
 
         busy = Asset.objects.create(asset_code='QB-MOUSE-103', name='Busy mouse', category=self.category)

@@ -783,14 +783,16 @@ _add("financial_reporting:catalogue", "Financial report catalogue", "Browse avai
 
 # Assets, audit and backups.
 _add("assets:home assets:register", "Asset dashboard and register", "Review recorded assets and their available lifecycle details.",
-     "The asset area provides a register for property and equipment records.",
-     ["Search the register and verify asset identity and acquisition details.", "Use the supported record actions for updates.", "Compare asset values with invoices and accounting records."],
-     rules=["Asset capitalization and depreciation require the company’s approved accounting policy and source invoices."],
+     "The asset area provides a register for property and equipment records, including how many units each record covers and how many are still available.",
+     ["Search the register and verify asset identity, quantity and acquisition details.", "Use the supported record actions for updates.", "Compare asset values with invoices and accounting records."],
+     rules=["Asset capitalization and depreciation require the company’s approved accounting policy and source invoices.",
+            "Items with a serial number are tracked as one item; items without a serial number can record a quantity, and the available count falls as units are issued."],
      related=["Purchase expenses, accounting ledger and financial reports."])
 _add("assets:asset_new assets:assignments assets:leases assets:maintenance", "Asset management section", "Review the asset-management section currently available on this page.",
      "Some asset pages may be placeholders or limited views; the visible controls define what is currently implemented.",
      ["Review the page status and current list.", "Use only displayed actions and verify changes against the source record."],
-     rules=["Do not assume assignment, lease or maintenance workflows are active unless controls are present."],
+     rules=["Do not assume assignment, lease or maintenance workflows are active unless controls are present.",
+            "Leave the serial number blank for stock items and enter the number of items; a serialized item is always one item."],
      related=["Asset register, source invoices and accounting."])
 _add("assets:asset_detail", "Asset details", "Review one asset's identity, acquisition details, current custody and lifecycle status.",
      "The detail page brings together the register record and its assignment, lease and maintenance entries.",
@@ -798,10 +800,10 @@ _add("assets:asset_detail", "Asset details", "Review one asset's identity, acqui
      rules=["Asset values and depreciation rely on the company's approved accounting policy and source invoices."],
      related=["Asset register, assignments, maintenance and accounting ledger."])
 _add("assets:asset_edit", "Edit asset", "Correct the recorded details of an asset while it is still with the company.",
-     "Details can be edited only while the asset is available or in company use and is not issued to an employee. Once issued, record the return before correcting the register.",
+     "Details can be edited only while the asset is available or in company use and none of its items are issued to an employee. Once any unit is issued, record its return before correcting the register.",
      ["Review the current values and change only the fields that need correction.", "Keep the usage type consistent with how the company actually uses the asset.", "Save and confirm the change is listed in the asset's lifecycle history."],
-     rules=["The asset is locked for editing while it is assigned, under maintenance, lost or disposed.",
-            "Use the return workflow to bring an issued asset back before editing it."],
+     rules=["The asset is locked for editing while it is assigned, has issued items, is under maintenance, lost or disposed.",
+            "Use the return workflow to bring every issued item back before editing it."],
      related=["Asset details, asset register, assignments and lifecycle history."])
 _add("assets:locations assets:location_new assets:location_edit", "Asset locations", "Maintain the physical places where company assets are kept.",
      "A location is a place such as an office, room, store or warehouse. Assets select from these active locations when they are registered or edited.",
@@ -811,8 +813,9 @@ _add("assets:locations assets:location_new assets:location_edit", "Asset locatio
      related=["Asset register, asset details and asset edit."])
 _add("assets:assignment_new assets:assignment_return", "Asset assignment", "Issue an asset to a person or record its return to the register.",
      "Assignments track who currently holds an asset and when it was issued or returned.",
-     ["Select the asset and the person receiving or returning it.", "Add accessories either as free text or by selecting registered assets; selected assets are issued to the same person with the same dates, condition and notes.", "Confirm the issue or return date and any condition note.", "Review the register afterwards to confirm each asset status changed as expected."],
-     rules=["An asset cannot be issued to two people at the same time; record the return before reassigning it.",
+     ["Select the asset and the person receiving or returning it.", "Add accessories in the Accessories issued field: type to filter and pick a registered asset, or type free-text items separated by commas. Picked assets are issued to the same person with the same dates, condition and notes.", "Confirm the issue or return date and any condition note.", "Review the register afterwards to confirm each asset status changed as expected."],
+     rules=["A serialized asset cannot be issued to two people at the same time; record the return before reassigning it.",
+            "An item without a serial number can be issued to more than one person, one unit per assignment, until its available count reaches zero.",
             "Registered accessories are separate assignment records and are returned individually; the main asset cannot also be selected as its own accessory."],
      related=["Asset register, asset details and employee records."])
 _add("assets:assignment_receipt", "Asset handover receipt", "Upload the signed handover receipt and email the receipt PDF to the employee.",
