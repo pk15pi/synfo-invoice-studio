@@ -1,0 +1,88 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}Handover receipt &middot; {{ assignment.asset.asset_code }} &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split">
+<div><p class="eyebrow">Asset Management</p><h1>Handover receipt</h1>
+<p class="muted">{{ assignment.asset.asset_code }} &middot; {{ assignment.asset.name }} &middot; issued to {{ assignment.employee }} on {{ assignment.issue_date|date:"d-m-Y" }} &middot; {{ receipt_number }}</p></div>
+<div><a class="button secondary" href="{% url 'assets:assignments' %}">Assignments</a> <a class="button secondary" href="{% url 'assets:asset_detail' assignment.asset.pk %}">Asset</a></div>
+</div>
+
+{% if confirm %}
+<dialog class="asset-receipt-dialog" id="asset-receipt-dialog" aria-labelledby="asset-receipt-dialog-title">
+<div class="dialog-body">
+<h2 id="asset-receipt-dialog-title">Assignment complete</h2>
+{% if recipient %}
+<p>Send the handover receipt PDF to <strong>{{ recipient }}</strong>?</p>
+<p class="muted">{{ receipt_number }} &middot; {{ assignment.asset.asset_code }} &ndash; {{ assignment.asset.name }}</p>
+<p class="muted">The PDF is saved in Documents and attached to the email.</p>
+<form method="post" class="dialog-actions">{% csrf_token %}
+<button class="button primary" type="submit" name="action" value="send">Send receipt email</button>
+<button class="button secondary" type="submit" name="action" value="skip">Not now</button>
+</form>
+{% else %}
+<p>This employee has no work or personal email address on file, so the receipt cannot be emailed.</p>
+<p class="muted">Add the email on the employee record, then use the Receipt link on this assignment.</p>
+<form method="post" class="dialog-actions">{% csrf_token %}
+<button class="button secondary" type="submit" name="action" value="skip">Close</button>
+</form>
+{% endif %}
+</div>
+</dialog>
+<script>(() => { const d = document.getElementById('asset-receipt-dialog'); if (d && typeof d.showModal === 'function') { if (d.open) d.close(); d.showModal(); } })();</script>
+{% endif %}
+
+<div class="panel">
+<div class="panel-head"><h2>Email the receipt</h2></div>
+<p class="muted">The receipt PDF is generated from this handover and saved in Documents. An uploaded signed receipt is used instead when one exists.</p>
+{% if assignment.receipt_emailed_at %}<p class="receipt-note">Last emailed to <b>{{ assignment.receipt_email_to }}</b> on {{ assignment.receipt_emailed_at|date:"d-m-Y H:i" }}.</p>{% endif %}
+{% if assignment.receipt_email_error %}<p class="receipt-note error">Last attempt failed: {{ assignment.receipt_email_error }}</p>{% endif %}
+<form method="post" class="form-actions">{% csrf_token %}
+{% if recipient %}
+<button class="button primary" type="submit" name="action" value="send">Email receipt to {{ recipient }}</button>
+{% else %}
+<span class="muted">No work or personal email address is saved for {{ assignment.employee }}.</span>
+{% endif %}
+</form>
+</div>
+
+<div class="panel">
+<div class="panel-head"><h2>Upload signed receipt</h2></div>
+<p class="muted">Upload the copy signed by the employee. It is stored privately, indexed in Documents and recorded as an acknowledgement.</p>
+<form method="post" enctype="multipart/form-data" class="form-grid" action="{% url 'assets:assignment_receipt' assignment.pk %}">
+{% csrf_token %}
+<div class="form-field"><label for="{{ upload_form.file.id_for_label }}">{{ upload_form.file.label }}</label>{{ upload_form.file }}
+{% if upload_form.file.help_text %}<small>{{ upload_form.file.help_text }}</small>{% endif %}
+{% for error in upload_form.file.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>
+<div class="form-field"><label for="{{ upload_form.note.id_for_label }}">{{ upload_form.note.label }}</label>{{ upload_form.note }}
+{% if upload_form.note.help_text %}<small>{{ upload_form.note.help_text }}</small>{% endif %}
+{% for error in upload_form.note.errors %}<small class="error">{{ error }}</small>{% endfor %}</div>
+<div class="form-actions" style="grid-column:1/-1"><button class="button primary" type="submit" name="action" value="upload">Upload receipt</button></div>
+</form>
+</div>
+
+<div class="panel">
+<div class="panel-head"><h2>Receipts in Documents</h2></div>
+{% if receipts %}<div class="table-wrap"><table><thead><tr><th>Uploaded</th><th>File</th><th>Source</th><th>Size</th><th></th></tr></thead><tbody>
+{% for doc in receipts %}<tr>
+<td>{{ doc.uploaded_at|date:"d-m-Y H:i"|default:"—" }}</td>
+<td>{{ doc.title }}{% if doc.missing %} <strong class="danger">MISSING</strong>{% endif %}</td>
+<td>{% if doc.source_type == 'asset_receipt' %}Signed upload{% else %}Generated PDF{% endif %}</td>
+<td>{{ doc.size|filesizeformat }}</td>
+<td>{% if not doc.missing %}<a href="{% url 'docs:serve' doc.pk %}">Download</a>{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}<p class="muted">No receipt file yet. Emailing the receipt creates the PDF in Documents.</p>{% endif %}
+</div>
+
+<div class="panel">
+<div class="panel-head"><h2>Acknowledgements</h2></div>
+{% if acknowledgements %}<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Name</th><th>Confirmation</th><th>Document</th></tr></thead><tbody>
+{% for ack in acknowledgements %}<tr>
+<td>{{ ack.acknowledged_at|date:"d-m-Y H:i" }}</td>
+<td>{{ ack.get_acknowledgement_type_display }}</td>
+<td>{{ ack.acknowledgement_name }}</td>
+<td>{{ ack.confirmation_text|default:"—"|truncatechars:100 }}</td>
+<td>{% if ack.document %}<a href="{% url 'docs:serve' ack.document.pk %}">{{ ack.document.title }}</a>{% else %}—{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}<p class="muted">No acknowledgement recorded for this handover.</p>{% endif %}
+</div>
+{% endblock %}

@@ -9,13 +9,13 @@
 {% filter_actions %}</form>
 <div class="panel"><div class="table-wrap"><table><thead><tr><th>Asset</th><th>Employee</th><th>Issued</th><th>Expected return</th><th>Returned</th><th>Condition</th><th>Status</th><th></th></tr></thead>
 {% paginate assignments as qb_pg1 %}<tbody>{% for assignment in qb_pg1 %}<tr>
-<td><a href="{% url 'assets:asset_detail' assignment.asset.pk %}">{{ assignment.asset.asset_code }}</a><br><small class="muted">{{ assignment.asset.name }}</small></td>
+<td><a href="{% url 'assets:asset_detail' assignment.asset.pk %}">{{ assignment.asset.asset_code }}</a><br><small class="muted">{{ assignment.asset.name }}</small>{% if assignment.parent_assignment %}<br><small class="muted">Accessory of {{ assignment.parent_assignment.asset.asset_code }}</small>{% endif %}</td>
 <td>{{ assignment.employee }}</td>
 <td>{{ assignment.issue_date|date:"d-m-Y" }}</td>
 <td>{{ assignment.expected_return_date|date:"d-m-Y"|default:"—" }}</td>
 <td>{{ assignment.actual_return_date|date:"d-m-Y"|default:"—" }}</td>
 <td>{{ assignment.get_issue_condition_display }}{% if assignment.return_condition %} &rarr; {{ assignment.get_return_condition_display }}{% endif %}</td>
-<td>{{ assignment.get_status_display }}</td>
-<td>{% if assignment.status == 'active' %}<a href="{% url 'assets:assignment_return' assignment.pk %}">Return</a>{% endif %}</td>
+<td>{{ assignment.get_status_display }}{% if assignment.receipt_emailed_at %}<br><small class="muted">Receipt emailed</small>{% endif %}</td>
+<td><a href="{% url 'assets:assignment_receipt' assignment.pk %}">Receipt</a>{% if assignment.status == 'active' %} &middot; <a href="{% url 'assets:assignment_return' assignment.pk %}">Return</a>{% endif %}</td>
 </tr>{% empty %}<tr><td colspan="8" class="empty">No asset assignments yet.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
 {% endblock %}

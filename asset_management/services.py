@@ -1,10 +1,22 @@
+import os
+import uuid
+
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F
+from django.utils import timezone
+
+from document_management.models import Document, full_path, safe_rel_path, sha256_of
+from document_management.services import MIME, MAX_BYTES
+from employee_management.storage import private_storage
+from employee_management.validators import sniff_upload
 
 from .models import (
     Asset, AssetAcknowledgement, AssetAssignment, AssetEvent, AssetLease, AssetMaintenance, AssetSettings,
 )
+
+RECEIPT_SOURCE_TYPES = ('asset_receipt', 'asset_handover_receipt')
 
 
 def _allocate_sequence(field_name, prefix_field, category_code=''):
@@ -43,13 +55,85 @@ def record_event(asset, event_type, **fields):
     return AssetEvent.objects.create(asset=asset, event_type=event_type, **fields)
 
 
+@transaction.atomic
+def update_asset(form):
+    """Save corrections only while the asset is with the company and not issued."""
+    locked = _locked_asset(form.instance)
+    if not locked.is_editable():
+        raise ValidationError(
+            'This asset can only be edited while it is with the company and not issued to an employee.'
+        )
+    previous_status = locked.current_status
+    changed = list(form.changed_data)
+    labels = [str(form.fields[name].label) for name in changed if name in form.fields]
+    asset = form.save()
+    if 'usage_type' in changed:
+        target = Asset.COMPANY_STATUS if asset.usage_type == Asset.COMPANY_USE else Asset.AVAILABLE
+        if asset.current_status != target:
+            asset.current_status = target
+            asset.save(update_fields=['current_status', 'updated_at'])
+    note = 'Details updated: ' + ', '.join(labels) + '.' if labels else 'Asset details saved.'
+    record_event(
+        asset, 'updated', previous_status=previous_status, new_status=asset.current_status,
+        remarks=note,
+    )
+    return asset
+
+
+def receipts_for(assignment):
+    return Document.objects.filter(
+        source_type__in=RECEIPT_SOURCE_TYPES,
+        content_type=ContentType.objects.get_for_model(AssetAssignment),
+        object_id=str(assignment.pk),
+    ).order_by('-uploaded_at', '-id')
+
+
+@transaction.atomic
+def upload_assignment_receipt(assignment, upload, *, note='', acknowledged_by=''):
+    """Store the employee-signed receipt privately, index it and record the acknowledgement."""
+    ext = sniff_upload(upload, MAX_BYTES, allowed=('pdf', 'jpg', 'png'))
+    rel = f'asset_receipts/{uuid.uuid4().hex}.{ext}'
+    upload.seek(0)
+    rel = safe_rel_path(private_storage.save(rel, upload))
+    now = timezone.now()
+    doc = Document.objects.create(
+        category='asset',
+        title=f'Signed receipt \u2013 {assignment.asset.asset_code} \u2013 {assignment.employee.full_name}'[:200],
+        content_type=ContentType.objects.get_for_model(AssetAssignment),
+        object_id=str(assignment.pk),
+        source_type='asset_receipt',
+        source_id=uuid.uuid4().hex,
+        file_path=rel,
+        original_filename=os.path.basename(upload.name or '')[:255],
+        mime_type=MIME[ext],
+        sensitivity=Document.NORMAL,
+        tags=f'asset,receipt,{assignment.asset.asset_code}'[:240],
+        uploaded_at=now,
+        size=os.path.getsize(full_path(rel)),
+        sha256=sha256_of(rel),
+        last_checked=now,
+    )
+    acknowledgement = assignment.acknowledgements.filter(document__isnull=True).order_by(
+        '-acknowledged_at', '-id',
+    ).first()
+    if acknowledgement:
+        acknowledgement.document = doc
+        acknowledgement.save(update_fields=['document'])
+    else:
+        AssetAcknowledgement.objects.create(
+            assignment=assignment, acknowledgement_type=AssetAcknowledgement.PHYSICAL,
+            acknowledgement_name=(acknowledged_by or '').strip() or assignment.employee.full_name,
+            acknowledged_at=now, document=doc, confirmation_text=(note or '').strip(),
+        )
+    return doc
+
+
 def _locked_asset(asset):
     return Asset.objects.select_for_update().get(pk=asset.pk)
 
 
-@transaction.atomic
-def assign_asset(assignment, *, acknowledgement_type='', acknowledgement_name='', confirmation_text='',
-                 reference_id=''):
+def _issue_assignment(assignment, *, reference_id, acknowledgement_type, acknowledgement_name,
+                      confirmation_text, remarks):
     asset = _locked_asset(assignment.asset)
     if asset.current_status != Asset.AVAILABLE:
         raise ValidationError('Only an available asset can be assigned.')
@@ -59,6 +143,7 @@ def assign_asset(assignment, *, acknowledgement_type='', acknowledgement_name=''
         raise ValidationError('A digital acknowledgement needs the employee confirmation text.')
 
     previous_status = asset.current_status
+    assignment.handover_number = reference_id or ''
     assignment.save()
     asset.current_status = Asset.ASSIGNED
     asset.current_employee = assignment.employee
@@ -66,13 +151,48 @@ def assign_asset(assignment, *, acknowledgement_type='', acknowledgement_name=''
     record_event(
         asset, 'assigned', to_employee=assignment.employee, from_location=asset.current_location,
         previous_status=previous_status, new_status=asset.current_status, reference_type='handover',
-        reference_id=reference_id, remarks=f'Issued to {assignment.employee}.',
+        reference_id=reference_id, remarks=remarks,
     )
     if acknowledgement_type:
         AssetAcknowledgement.objects.create(
             assignment=assignment, acknowledgement_type=acknowledgement_type,
             acknowledgement_name=(acknowledgement_name or '').strip() or assignment.employee.full_name,
             confirmation_text=(confirmation_text or '').strip(),
+        )
+    return assignment
+
+
+@transaction.atomic
+def assign_asset(assignment, *, acknowledgement_type='', acknowledgement_name='', confirmation_text='',
+                 reference_id='', accessory_assets=None):
+    """Issue the main asset and any selected register assets to the same employee."""
+    _issue_assignment(
+        assignment, reference_id=reference_id, acknowledgement_type=acknowledgement_type,
+        acknowledgement_name=acknowledgement_name, confirmation_text=confirmation_text,
+        remarks=f'Issued to {assignment.employee}.',
+    )
+    seen = {assignment.asset_id}
+    for accessory in accessory_assets or ():
+        if accessory.pk in seen:
+            raise ValidationError('An asset cannot be both the main asset and an accessory.')
+        seen.add(accessory.pk)
+        accessory_assignment = AssetAssignment(
+            asset=accessory, employee=assignment.employee,
+            issue_date=assignment.issue_date,
+            expected_return_date=assignment.expected_return_date,
+            issue_condition=assignment.issue_condition,
+            issue_notes=assignment.issue_notes,
+            parent_assignment=assignment,
+        )
+        _issue_assignment(
+            accessory_assignment, reference_id=next_handover_code(),
+            acknowledgement_type=acknowledgement_type,
+            acknowledgement_name=acknowledgement_name,
+            confirmation_text=confirmation_text,
+            remarks=(
+                f'Issued as an accessory with {assignment.asset.asset_code} '
+                f'({assignment.handover_number}).'
+            ),
         )
     return assignment
 

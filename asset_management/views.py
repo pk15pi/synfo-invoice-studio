@@ -7,13 +7,15 @@ from django.urls import reverse
 
 from employee_management.security import local_only
 
-from . import services
+from . import receipt_email, services
 from .forms import (
-    AssetForm, AssignmentForm, LeaseForm, LeaseStatusForm, MaintenanceForm, MaintenanceUpdateForm, ReturnForm,
+    AssetForm, AssetLocationForm, AssetReceiptForm, AssignmentForm, LeaseForm, LeaseStatusForm,
+    MaintenanceForm, MaintenanceUpdateForm, ReturnForm,
 )
 from .models import (
-    Asset, AssetAssignment, AssetCategory, AssetEvent, AssetLease, AssetMaintenance,
+    Asset, AssetAssignment, AssetCategory, AssetEvent, AssetLease, AssetLocation, AssetMaintenance,
 )
+from .receipt_pdf import receipt_number
 
 FORM_PAGE = 'invoice_app/form_page.html'
 
@@ -60,6 +62,46 @@ def register(request):
 
 
 @local_only
+def locations(request):
+    rows = AssetLocation.objects.select_related('parent')
+    search = request.GET.get('q', '').strip()[:100]
+    if search:
+        rows = rows.filter(
+            Q(name__icontains=search) | Q(address__icontains=search) | Q(parent__name__icontains=search)
+        )
+    location_type = request.GET.get('type', '')
+    if location_type in dict(AssetLocation.LOCATION_TYPES):
+        rows = rows.filter(location_type=location_type)
+    return render(request, 'asset_management/locations.html', {
+        'locations': rows, 'search': search, 'location_type': location_type,
+        'location_types': AssetLocation.LOCATION_TYPES,
+    })
+
+
+@local_only
+def location_new(request):
+    form = AssetLocationForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        location = form.save()
+        messages.success(request, f'Location {location.name} added.')
+        return redirect('assets:locations')
+    return _form_page(request, form, 'Add a location', reverse('assets:locations'))
+
+
+@local_only
+def location_edit(request, pk):
+    location = get_object_or_404(AssetLocation, pk=pk)
+    form = AssetLocationForm(request.POST or None, instance=location)
+    if request.method == 'POST' and form.is_valid():
+        location = form.save()
+        messages.success(request, f'Location {location.name} updated.')
+        return redirect('assets:locations')
+    return _form_page(
+        request, form, f'Edit {location.name}', reverse('assets:locations'),
+    )
+
+
+@local_only
 def asset_new(request):
     form = AssetForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
@@ -83,11 +125,19 @@ def asset_detail(request, pk):
     asset = get_object_or_404(
         Asset.objects.select_related('category', 'current_employee', 'current_location'), pk=pk,
     )
+    active_assignment = asset.assignments.select_related(
+        'employee', 'parent_assignment__asset',
+    ).filter(status=AssetAssignment.ACTIVE).first()
+    latest_assignment = active_assignment or asset.assignments.select_related('employee').first()
     return render(request, 'asset_management/detail.html', {
         'asset': asset,
-        'active_assignment': asset.assignments.select_related('employee').filter(
-            status=AssetAssignment.ACTIVE,
-        ).first(),
+        'active_assignment': active_assignment,
+        'latest_assignment': latest_assignment,
+        'accessory_assignments': (
+            active_assignment.accessory_assignments.select_related('asset')
+            if active_assignment else []
+        ),
+        'receipts': services.receipts_for(latest_assignment) if latest_assignment else [],
         'assignments': asset.assignments.select_related('employee')[:20],
         'leases': asset.leases.all()[:20],
         'maintenance_records': asset.maintenance_records.all()[:20],
@@ -95,9 +145,44 @@ def asset_detail(request, pk):
     })
 
 
+def _edit_locked_message(asset):
+    active = asset.assignments.filter(status=AssetAssignment.ACTIVE).select_related('employee').first()
+    if active:
+        return (
+            f'{asset.asset_code} is issued to {active.employee}. '
+            'Return it to the company before editing.'
+        )
+    return (
+        f'{asset.asset_code} is {asset.get_current_status_display().lower()}; '
+        'it can be edited only while it is with the company.'
+    )
+
+
+@local_only
+def asset_edit(request, pk):
+    asset = get_object_or_404(
+        Asset.objects.select_related('category', 'current_employee', 'current_location'), pk=pk,
+    )
+    if not asset.is_editable():
+        messages.error(request, _edit_locked_message(asset))
+        return redirect('assets:asset_detail', pk=asset.pk)
+    form = AssetForm(request.POST or None, instance=asset)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            services.update_asset(form)
+        except ValidationError as exc:
+            form.add_error(None, ' '.join(exc.messages))
+        else:
+            messages.success(request, f'{asset.asset_code} updated.')
+            return redirect('assets:asset_detail', pk=asset.pk)
+    return _form_page(
+        request, form, f'Edit {asset.asset_code}', reverse('assets:asset_detail', args=(asset.pk,)),
+    )
+
+
 @local_only
 def assignments(request):
-    rows = AssetAssignment.objects.select_related('asset', 'employee')
+    rows = AssetAssignment.objects.select_related('asset', 'employee', 'parent_assignment__asset')
     search = request.GET.get('q', '').strip()[:100]
     if search:
         rows = rows.filter(
@@ -119,7 +204,7 @@ def assignment_new(request):
     asset_id = request.GET.get('asset', '')
     if asset_id.isdigit():
         initial['asset'] = Asset.objects.filter(pk=asset_id).first()
-    form = AssignmentForm(request.POST or None, initial=initial)
+    form = AssignmentForm(request.POST or None, request.FILES or None, initial=initial)
     if request.method == 'POST' and form.is_valid():
         assignment = form.save(commit=False)
         try:
@@ -130,15 +215,72 @@ def assignment_new(request):
                     acknowledgement_name=form.cleaned_data.get('acknowledgement_name') or '',
                     confirmation_text=form.cleaned_data.get('confirmation_text') or '',
                     reference_id=services.next_handover_code(),
+                    accessory_assets=form.cleaned_data.get('accessory_assets') or (),
                 )
         except ValidationError as exc:
             form.add_error(None, ' '.join(exc.messages))
         else:
+            accessory_count = len(form.cleaned_data.get('accessory_assets') or ())
+            extra = f' with {accessory_count} accessory asset(s).' if accessory_count else '.'
             messages.success(
-                request, f'{assignment.asset.asset_code} assigned to {assignment.employee}.',
+                request, f'{assignment.asset.asset_code} assigned to {assignment.employee}{extra}',
+            )
+            receipt = form.cleaned_data.get('receipt')
+            if receipt:
+                try:
+                    services.upload_assignment_receipt(assignment, receipt)
+                except ValidationError as exc:
+                    messages.warning(
+                        request,
+                        f'Assignment saved, but the receipt was not uploaded: {" ".join(exc.messages)}',
+                    )
+            return redirect(f"{reverse('assets:assignment_receipt', args=(assignment.pk,))}?confirm=1")
+    return _form_page(request, form, 'Assign an asset', reverse('assets:assignments'))
+
+
+@local_only
+def assignment_receipt(request, pk):
+    assignment = get_object_or_404(
+        AssetAssignment.objects.select_related('asset', 'employee'), pk=pk,
+    )
+    upload_form = AssetReceiptForm(request.POST or None, request.FILES or None)
+    confirm = request.GET.get('confirm') == '1'
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'send':
+            sent, error = receipt_email.send_handover_receipt(assignment)
+            if sent:
+                messages.success(
+                    request, f'Handover receipt emailed to {assignment.receipt_email_to}.',
+                )
+                return redirect('assets:assignments')
+            messages.error(request, f'The receipt could not be emailed: {error}')
+            confirm = True
+        elif action == 'skip':
+            messages.info(
+                request, 'Receipt email skipped. Use the Receipt link on the assignment to send it later.',
             )
             return redirect('assets:assignments')
-    return _form_page(request, form, 'Assign an asset', reverse('assets:assignments'))
+        elif upload_form.is_valid():
+            try:
+                services.upload_assignment_receipt(
+                    assignment, upload_form.cleaned_data['file'],
+                    note=upload_form.cleaned_data.get('note') or '',
+                )
+            except ValidationError as exc:
+                upload_form.add_error('file', exc.messages)
+            else:
+                messages.success(request, 'Receipt uploaded, stored privately and indexed in Documents.')
+                return redirect('assets:assignment_receipt', pk=assignment.pk)
+    return render(request, 'asset_management/assignment_receipt.html', {
+        'assignment': assignment,
+        'upload_form': upload_form,
+        'receipts': services.receipts_for(assignment),
+        'acknowledgements': assignment.acknowledgements.select_related('document'),
+        'recipient': receipt_email.employee_email(assignment.employee),
+        'confirm': confirm,
+        'receipt_number': receipt_number(assignment),
+    })
 
 
 @local_only

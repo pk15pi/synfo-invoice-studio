@@ -1,0 +1,22 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
+{% block title %}Asset locations &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Locations</h1><p class="muted">Physical places where assets are kept: offices, floors, rooms and stores. Pick one on the asset form.</p></div>
+<div><a class="button secondary" href="{% url 'assets:register' %}">Asset register</a> <a class="button primary" href="{% url 'assets:location_new' %}">+ Add location</a></div></div>
+<form method="get" class="qb-filter-form panel filters" data-filter-form>
+<label class="compact-filter-label"><span>Search</span><input class="field" type="search" name="q" value="{{ search }}" placeholder="Name, parent or address"></label>
+<label class="compact-filter-label"><span>Type</span><select class="field" name="type"><option value="">All types</option>{% for value, label in location_types %}<option value="{{ value }}" {% if value == location_type %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+{% filter_actions %}</form>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Location</th><th>Type</th><th>Inside</th><th>Address</th><th>Assets</th><th>State</th><th></th></tr></thead>
+{% paginate locations as qb_pg1 %}<tbody>{% for location in qb_pg1 %}<tr>
+<td><strong>{{ location.name }}</strong></td>
+<td>{{ location.get_location_type_display }}</td>
+<td>{{ location.parent|default:"—" }}</td>
+<td>{{ location.address|default:"—"|linebreaksbr }}</td>
+<td>{{ location.assets.count }}</td>
+<td>{% if location.is_active %}<span class="badge ok">Active</span>{% else %}<span class="badge off">Inactive</span>{% endif %}</td>
+<td><a href="{% url 'assets:location_edit' location.pk %}">Edit</a></td>
+</tr>{% empty %}<tr><td colspan="7" class="empty">No locations found. Add an office, floor or room to make it selectable on the asset form.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
+<p class="muted" style="margin-top:12px">Inactive locations stay on existing assets but are no longer offered when registering or editing an asset.</p>
+</div>
+{% endblock %}

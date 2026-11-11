@@ -41,18 +41,62 @@ class AssetForm(StyledForm, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['category'].queryset = AssetCategory.objects.filter(is_active=True)
+        categories = AssetCategory.objects.filter(is_active=True)
+        if self.instance.pk and self.instance.category_id:
+            categories = categories | AssetCategory.objects.filter(pk=self.instance.category_id)
+        self.fields['category'].queryset = categories
         self.fields['current_location'].queryset = AssetLocation.objects.filter(is_active=True)
         self.fields['current_location'].empty_label = 'No specific location'
+        self.fields['current_location'].help_text = (
+            'Physical place where the asset is kept. Add or rename places in Asset Management \u2192 Locations.'
+        )
         self.fields['category'].help_text = (
             'Select the category. The asset ID is generated from its code when the asset is saved.'
         )
 
 
+class AssetLocationForm(StyledForm, forms.ModelForm):
+    class Meta:
+        model = AssetLocation
+        fields = ['name', 'location_type', 'parent', 'address', 'is_active']
+        widgets = {'address': forms.Textarea(attrs={'rows': 2})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        parents = AssetLocation.objects.filter(is_active=True)
+        if self.instance.pk:
+            parents = parents.exclude(pk=self.instance.pk)
+        self.fields['parent'].queryset = parents
+        self.fields['parent'].help_text = 'Optional. Nest a floor or room under its office or building.'
+
+
+class AssetReceiptForm(StyledForm, forms.Form):
+    file = forms.FileField(
+        label='Signed receipt', help_text='PDF, JPG or PNG up to 10 MB, signed by the employee.',
+    )
+    note = forms.CharField(
+        label='Note', required=False, max_length=240,
+        help_text='Optional, for example "Signed copy received from Asha on 12-11-2026".',
+    )
+
+
 class AssignmentForm(StyledForm, forms.ModelForm):
     accessories = forms.CharField(
         label='Accessories issued', required=False,
-        help_text='Separate items with commas, for example charger, bag, mouse.',
+        help_text='Type items that are not in the asset register, for example charger, bag, mouse.',
+    )
+    accessory_assets = forms.ModelMultipleChoiceField(
+        label='Accessories from asset register', required=False,
+        queryset=Asset.objects.none(),
+        widget=forms.CheckboxSelectMultiple(attrs={'class': 'asset-accessory-picker'}),
+        help_text=(
+            'Optional. Each selected asset is also assigned to this employee with the same issue date, '
+            'expected return date, condition and notes.'
+        ),
+    )
+    receipt = forms.FileField(
+        label='Signed receipt (optional)', required=False,
+        help_text='PDF, JPG or PNG up to 10 MB. Stored privately and indexed in Documents.',
     )
     acknowledgement_type = forms.ChoiceField(
         label='Handover acknowledgement', required=False,
@@ -85,6 +129,7 @@ class AssignmentForm(StyledForm, forms.ModelForm):
             available = available | Asset.objects.filter(pk=self.instance.asset_id)
         self.fields['asset'].queryset = available.select_related('category')
         self.fields['asset'].help_text = 'Only assets that are currently available can be assigned.'
+        self.fields['accessory_assets'].queryset = available.select_related('category')
         self.fields['employee'].queryset = Employee.objects.filter(status__in=Employee.EMPLOYED)
         if not self.is_bound and not self.initial.get('issue_date'):
             self.initial['issue_date'] = timezone.localdate()
@@ -101,6 +146,25 @@ class AssignmentForm(StyledForm, forms.ModelForm):
                 self.add_error('asset', 'Only an available asset can be assigned.')
             if asset.assignments.filter(status=AssetAssignment.ACTIVE).exists():
                 self.add_error('asset', 'This asset already has an active assignment.')
+        accessory_assets = cleaned.get('accessory_assets')
+        if accessory_assets:
+            if asset and asset in accessory_assets:
+                self.add_error(
+                    'accessory_assets', 'The main asset cannot also be listed as an accessory.',
+                )
+            for accessory in accessory_assets:
+                if accessory.current_status != Asset.AVAILABLE:
+                    self.add_error(
+                        'accessory_assets',
+                        f'{accessory.asset_code} is not available to assign as an accessory.',
+                    )
+                    break
+                if accessory.assignments.filter(status=AssetAssignment.ACTIVE).exists():
+                    self.add_error(
+                        'accessory_assets',
+                        f'{accessory.asset_code} already has an active assignment.',
+                    )
+                    break
         if cleaned.get('acknowledgement_type') == AssetAcknowledgement.DIGITAL:
             if not (cleaned.get('acknowledgement_name') or '').strip():
                 self.add_error('acknowledgement_name', 'Enter the name of the person confirming receipt.')

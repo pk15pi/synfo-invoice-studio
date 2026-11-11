@@ -81,7 +81,7 @@ def sync_index(hash_files=True):
             stats['updated'] += 1
         stats['missing'] += missing
         seen.add((d['source_type'], d['source_id']))
-    for doc in Document.objects.exclude(source_type='company_doc'):
+    for doc in Document.objects.exclude(source_type__in=Document.SELF_MANAGED_SOURCE_TYPES):
         if (doc.source_type, doc.source_id) not in seen and not doc.missing:
             doc.missing, doc.check_note, doc.last_checked = True, 'Source record no longer exists', now
             doc.save()

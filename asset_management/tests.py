@@ -1,23 +1,33 @@
+import os
+import shutil
+import tempfile
 from datetime import date
 from decimal import Decimal
+from unittest import mock
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from document_management.models import Document
+from document_management.models import Document, full_path
+from document_management import services as document_services
 from employee_management.models import Department, Employee
 
+from . import receipt_email, services
 from .forms import AssetForm
 from .models import (
     Asset, AssetAcknowledgement, AssetAssignment, AssetCategory, AssetEvent, AssetLease, AssetLocation,
     AssetMaintenance, AssetSettings,
 )
 from .services import next_asset_code, next_handover_code
+
+PDF = b'%PDF-1.4\n%asset receipt test\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
+RECEIPT_TMP = tempfile.mkdtemp(prefix='qb-asset-test-')
 
 
 class AssetManagementTests(TestCase):
@@ -148,9 +158,12 @@ class AssetManagementTests(TestCase):
         detail = self.client.get(reverse('assets:asset_detail', args=(self.asset.pk,)))
         self.assertContains(detail, self.asset.asset_code)
         for name in ('asset_new', 'assignments', 'assignment_new', 'leases', 'lease_new',
-                     'maintenance', 'maintenance_new'):
+                     'maintenance', 'maintenance_new', 'locations', 'location_new'):
             with self.subTest(page=name):
                 self.assertEqual(self.client.get(reverse(f'assets:{name}')).status_code, 200)
+        self.assertEqual(
+            self.client.get(reverse('assets:asset_edit', args=(self.asset.pk,))).status_code, 200,
+        )
         for name in ('assets:home', 'assets:assignments', 'assets:asset_new'):
             with self.subTest(page=name):
                 self.assertEqual(
@@ -206,10 +219,14 @@ class AssetManagementTests(TestCase):
             'acknowledgement_type': 'digital', 'acknowledgement_name': 'Asha Rao',
             'confirmation_text': 'I confirm receipt of this asset.',
         })
-        self.assertRedirects(response, reverse('assets:assignments'))
         assignment = AssetAssignment.objects.get(asset=asset)
+        self.assertRedirects(
+            response, reverse('assets:assignment_receipt', args=(assignment.pk,)) + '?confirm=1',
+            fetch_redirect_response=False,
+        )
         asset.refresh_from_db()
         self.assertEqual(assignment.status, AssetAssignment.ACTIVE)
+        self.assertTrue(assignment.handover_number.startswith('QB-AH-'))
         self.assertEqual(assignment.accessories_issued, ['charger', 'bag'])
         self.assertEqual(asset.current_status, Asset.ASSIGNED)
         self.assertEqual(asset.current_employee, self.employee)
@@ -312,3 +329,306 @@ class AssetManagementTests(TestCase):
         ))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.client.get('/admin/', REMOTE_ADDR='10.1.1.1').status_code, 403)
+
+
+@override_settings(EMPLOYEE_PRIVATE_ROOT=RECEIPT_TMP)
+class AssetFeatureTests(TestCase):
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(RECEIPT_TMP, ignore_errors=True)
+
+    def setUp(self):
+        self.department = Department.objects.create(name='Asset Feature Dept', code='AFD')
+        self.employee = Employee.objects.create(
+            employee_id='AFD001', first_name='Asha', last_name='Rao', department=self.department,
+            designation='Engineer', date_of_joining=date(2025, 1, 1), work_email='asha@example.com',
+        )
+        self.category = AssetCategory.objects.create(name='Laptop', code='LAPX')
+        self.location = AssetLocation.objects.create(name='Gurugram HQ', location_type='office')
+        self.asset = Asset.objects.create(
+            asset_code='QB-LAP-100', name='Feature laptop', category=self.category,
+            current_location=self.location,
+        )
+
+    def assignment(self, **kwargs):
+        assignment = AssetAssignment.objects.create(asset=self.asset, employee=self.employee, **kwargs)
+        self.asset.current_status = Asset.ASSIGNED
+        self.asset.current_employee = self.employee
+        self.asset.save()
+        return assignment
+
+    def asset_payload(self, **overrides):
+        data = {
+            'name': 'Renamed laptop', 'category': self.category.pk, 'brand': 'Dell', 'model_number': 'P2422H',
+            'serial_number': 'SN-100', 'ownership_type': 'owned', 'usage_type': 'company',
+            'condition': 'good', 'current_location': self.location.pk, 'purchase_date': '2026-04-01',
+            'purchase_price': '45000.00', 'vendor_name': 'Dell', 'invoice_number': 'INV-9',
+            'warranty_expiry': '2027-04-01', 'description': '',
+        }
+        data.update(overrides)
+        return data
+
+    def test_locations_are_seeded_offered_and_manageable(self):
+        self.assertTrue(AssetLocation.objects.filter(name='Head Office', is_active=True).exists())
+        form = AssetForm()
+        self.assertIn(
+            AssetLocation.objects.get(name='Head Office'), form.fields['current_location'].queryset,
+        )
+        response = self.client.get(reverse('assets:locations'))
+        self.assertContains(response, 'Head Office')
+        response = self.client.post(reverse('assets:location_new'), {
+            'name': 'Manesar Store', 'location_type': 'department', 'parent': '',
+            'address': 'Plant 2', 'is_active': 'on',
+        })
+        self.assertRedirects(response, reverse('assets:locations'))
+        location = AssetLocation.objects.get(name='Manesar Store')
+        response = self.client.post(reverse('assets:location_edit', args=(location.pk,)), {
+            'name': 'Manesar Warehouse', 'location_type': 'building', 'parent': '',
+            'address': 'Plant 2',
+        })
+        self.assertRedirects(response, reverse('assets:locations'))
+        location.refresh_from_db()
+        self.assertEqual(location.name, 'Manesar Warehouse')
+        self.assertFalse(location.is_active)
+
+    def test_asset_edit_saves_while_with_company(self):
+        response = self.client.post(
+            reverse('assets:asset_edit', args=(self.asset.pk,)), self.asset_payload(),
+        )
+        self.assertRedirects(response, reverse('assets:asset_detail', args=(self.asset.pk,)))
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.name, 'Renamed laptop')
+        self.assertEqual(self.asset.current_location, self.location)
+        self.assertEqual(self.asset.current_status, Asset.AVAILABLE)
+        self.assertTrue(self.asset.events.filter(event_type='updated').exists())
+
+    def test_asset_edit_locked_once_issued(self):
+        assignment = self.assignment()
+        response = self.client.get(reverse('assets:asset_edit', args=(self.asset.pk,)))
+        self.assertRedirects(response, reverse('assets:asset_detail', args=(self.asset.pk,)))
+        response = self.client.post(
+            reverse('assets:asset_edit', args=(self.asset.pk,)), self.asset_payload(),
+        )
+        self.assertRedirects(response, reverse('assets:asset_detail', args=(self.asset.pk,)))
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.name, 'Feature laptop')
+        form = AssetForm(self.asset_payload(), instance=self.asset)
+        self.assertTrue(form.is_valid(), form.errors)
+        with self.assertRaises(ValidationError):
+            services.update_asset(form)
+        self.assertFalse(self.asset.events.filter(event_type='updated').exists())
+        self.assertEqual(assignment.status, AssetAssignment.ACTIVE)
+
+    def test_assignment_redirects_to_receipt_confirmation(self):
+        response = self.client.post(reverse('assets:assignment_new'), {
+            'asset': self.asset.pk, 'employee': self.employee.pk, 'issue_date': '2026-05-01',
+            'issue_condition': 'good', 'accessories': 'charger',
+        })
+        assignment = AssetAssignment.objects.get(asset=self.asset)
+        url = reverse('assets:assignment_receipt', args=(assignment.pk,))
+        self.assertRedirects(response, url + '?confirm=1', fetch_redirect_response=False)
+        page = self.client.get(url + '?confirm=1')
+        self.assertContains(page, 'Assignment complete')
+        self.assertContains(page, 'asha@example.com')
+        self.assertContains(page, 'Send receipt email')
+        self.assertContains(page, '<dialog')
+
+    def test_register_accessories_are_assigned_with_the_same_details(self):
+        mouse = Asset.objects.create(asset_code='QB-MOUSE-101', name='Wireless mouse', category=self.category)
+        bag = Asset.objects.create(asset_code='QB-BAG-102', name='Laptop bag', category=self.category)
+        response = self.client.post(reverse('assets:assignment_new'), {
+            'asset': self.asset.pk, 'employee': self.employee.pk, 'issue_date': '2026-05-01',
+            'expected_return_date': '2026-06-01', 'issue_condition': 'fair',
+            'issue_notes': 'New joiner kit', 'accessories': 'sleeve',
+            'accessory_assets': [mouse.pk, bag.pk],
+            'acknowledgement_type': 'digital', 'acknowledgement_name': 'Asha Rao',
+            'confirmation_text': 'I confirm receipt of these items.',
+        })
+        primary = AssetAssignment.objects.get(asset=self.asset, parent_assignment__isnull=True)
+        self.assertRedirects(
+            response, reverse('assets:assignment_receipt', args=(primary.pk,)) + '?confirm=1',
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(primary.accessories_issued, ['sleeve'])
+        accessory_assignments = list(
+            AssetAssignment.objects.filter(parent_assignment=primary).select_related('asset'),
+        )
+        self.assertEqual(
+            {assignment.asset_id for assignment in accessory_assignments}, {mouse.pk, bag.pk},
+        )
+        for assignment in accessory_assignments:
+            with self.subTest(asset=assignment.asset.asset_code):
+                self.assertEqual(assignment.employee, self.employee)
+                self.assertEqual(assignment.issue_date, date(2026, 5, 1))
+                self.assertEqual(assignment.expected_return_date, date(2026, 6, 1))
+                self.assertEqual(assignment.issue_condition, 'fair')
+                self.assertEqual(assignment.issue_notes, 'New joiner kit')
+                self.assertEqual(assignment.status, AssetAssignment.ACTIVE)
+                self.assertTrue(assignment.handover_number.startswith('QB-AH-'))
+                assignment.asset.refresh_from_db()
+                self.assertEqual(assignment.asset.current_status, Asset.ASSIGNED)
+                self.assertEqual(assignment.asset.current_employee, self.employee)
+                self.assertTrue(assignment.asset.events.filter(event_type='assigned').exists())
+                self.assertEqual(assignment.acknowledgements.get().acknowledgement_type, 'digital')
+
+        labels = primary.accessories_handed_over()
+        self.assertIn('sleeve', labels)
+        self.assertIn('QB-MOUSE-101 \u2013 Wireless mouse', labels)
+        self.assertIn('QB-BAG-102 \u2013 Laptop bag', labels)
+        self.assertIn('QB-BAG-102', receipt_email.compose_message(primary)[1])
+        detail = self.client.get(reverse('assets:asset_detail', args=(self.asset.pk,)))
+        self.assertContains(detail, 'Accessories from asset register')
+        self.assertContains(detail, 'QB-MOUSE-101')
+        accessory_detail = self.client.get(reverse('assets:asset_detail', args=(mouse.pk,)))
+        self.assertContains(accessory_detail, 'Issued as an accessory with')
+        assignments_page = self.client.get(reverse('assets:assignments'))
+        self.assertContains(assignments_page, 'Accessory of QB-LAP-100')
+
+        accessory_assignment = accessory_assignments[0]
+        response = self.client.post(
+            reverse('assets:assignment_return', args=(accessory_assignment.pk,)),
+            {'actual_return_date': '2026-06-05', 'return_condition': 'good'},
+        )
+        self.assertRedirects(response, reverse('assets:assignments'))
+        accessory_assignment.refresh_from_db()
+        primary.refresh_from_db()
+        self.assertEqual(accessory_assignment.status, AssetAssignment.RETURNED)
+        self.assertEqual(primary.status, AssetAssignment.ACTIVE)
+
+    def test_accessory_selection_rejects_main_and_unavailable_assets(self):
+        response = self.client.post(reverse('assets:assignment_new'), {
+            'asset': self.asset.pk, 'employee': self.employee.pk, 'issue_date': '2026-05-01',
+            'issue_condition': 'good', 'accessory_assets': [self.asset.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'main asset cannot also be listed as an accessory')
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+
+        busy = Asset.objects.create(asset_code='QB-MOUSE-103', name='Busy mouse', category=self.category)
+        AssetAssignment.objects.create(asset=busy, employee=self.employee)
+        response = self.client.post(reverse('assets:assignment_new'), {
+            'asset': self.asset.pk, 'employee': self.employee.pk, 'issue_date': '2026-05-01',
+            'issue_condition': 'good', 'accessory_assets': [busy.pk],
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.assertEqual(AssetAssignment.objects.filter(asset=busy).count(), 1)
+
+        with self.assertRaises(ValidationError):
+            services.assign_asset(
+                AssetAssignment(asset=self.asset, employee=self.employee, issue_date=date(2026, 5, 1)),
+                accessory_assets=[busy],
+            )
+        self.assertFalse(AssetAssignment.objects.filter(asset=self.asset).exists())
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.current_status, Asset.AVAILABLE)
+
+    def test_receipt_upload_indexes_document_and_acknowledgement(self):
+        assignment = self.assignment()
+        url = reverse('assets:assignment_receipt', args=(assignment.pk,))
+        response = self.client.post(url, {
+            'action': 'upload', 'note': 'Signed copy received',
+            'file': SimpleUploadedFile('signed.pdf', PDF),
+        })
+        self.assertRedirects(response, url)
+        doc = Document.objects.get(source_type='asset_receipt')
+        self.assertEqual(doc.category, 'asset')
+        self.assertEqual((doc.content_type.model, doc.object_id), ('assetassignment', str(assignment.pk)))
+        self.assertTrue(doc.file_path.startswith('asset_receipts/'))
+        self.assertFalse(doc.missing)
+        with open(full_path(doc.file_path), 'rb') as fh:
+            self.assertTrue(fh.read().startswith(b'%PDF-'))
+        acknowledgement = assignment.acknowledgements.get()
+        self.assertEqual(acknowledgement.acknowledgement_type, AssetAcknowledgement.PHYSICAL)
+        self.assertEqual(acknowledgement.document, doc)
+        self.assertEqual(acknowledgement.confirmation_text, 'Signed copy received')
+        self.assertEqual(self.client.get(reverse('docs:serve', args=[doc.pk])).status_code, 200)
+        document_services.sync_index()
+        doc.refresh_from_db()
+        self.assertFalse(doc.missing)
+        detail = self.client.get(reverse('assets:asset_detail', args=(self.asset.pk,)))
+        self.assertContains(detail, 'Signed receipt')
+
+    def test_generated_handover_receipt_pdf(self):
+        assignment = self.assignment()
+        doc = receipt_email.ensure_receipt_document(assignment)
+        self.assertEqual(doc.source_type, 'asset_handover_receipt')
+        self.assertEqual(doc.category, 'asset')
+        self.assertEqual(doc.object_id, str(assignment.pk))
+        with open(full_path(doc.file_path), 'rb') as fh:
+            self.assertTrue(fh.read().startswith(b'%PDF-'))
+        self.assertIn(doc, services.receipts_for(assignment))
+
+    def test_email_receipt_sends_pdf_and_records_success(self):
+        assignment = self.assignment()
+        mapped = {
+            'HOST': 'smtp.test', 'PORT': 587, 'HOST_USER': 'user', 'HOST_PASSWORD': 'secret',
+            'USE_TLS': True, 'USE_SSL': False, 'FROM': 'from@test',
+        }
+        with mock.patch.object(receipt_email.EC, 'load_config', return_value={}), \
+                mock.patch.object(receipt_email.EC, 'require_ready', return_value=mapped), \
+                mock.patch.object(receipt_email, 'get_connection', return_value=object()), \
+                mock.patch.object(receipt_email.EmailMessage, 'send') as send:
+            response = self.client.post(
+                reverse('assets:assignment_receipt', args=(assignment.pk,)), {'action': 'send'},
+            )
+        self.assertRedirects(response, reverse('assets:assignments'))
+        send.assert_called_once()
+        assignment.refresh_from_db()
+        self.assertEqual(assignment.receipt_email_to, 'asha@example.com')
+        self.assertIsNotNone(assignment.receipt_emailed_at)
+        self.assertEqual(assignment.receipt_email_error, '')
+        doc = Document.objects.get(source_type='asset_handover_receipt')
+        with open(full_path(doc.file_path), 'rb') as fh:
+            self.assertTrue(fh.read().startswith(b'%PDF-'))
+
+    def test_email_without_address_and_skip(self):
+        self.employee.work_email = ''
+        self.employee.personal_email = ''
+        self.employee.save()
+        assignment = self.assignment()
+        url = reverse('assets:assignment_receipt', args=(assignment.pk,))
+        response = self.client.post(url, {'action': 'send'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'no work or personal email address on file')
+        assignment.refresh_from_db()
+        self.assertEqual(assignment.receipt_email_to, '')
+        self.assertIn('no work or personal email', assignment.receipt_email_error)
+        self.assertFalse(Document.objects.filter(source_type='asset_handover_receipt').exists())
+
+        response = self.client.post(url, {'action': 'skip'})
+        self.assertRedirects(response, reverse('assets:assignments'))
+        assignment.refresh_from_db()
+        self.assertIsNone(assignment.receipt_emailed_at)
+
+    def test_email_failure_is_recorded(self):
+        assignment = self.assignment()
+        mapped = {
+            'HOST': 'smtp.test', 'PORT': 587, 'HOST_USER': 'user', 'HOST_PASSWORD': 'secret',
+            'USE_TLS': True, 'USE_SSL': False, 'FROM': 'from@test',
+        }
+        with mock.patch.object(receipt_email.EC, 'load_config', return_value={}), \
+                mock.patch.object(receipt_email.EC, 'require_ready', return_value=mapped), \
+                mock.patch.object(receipt_email, 'get_connection', return_value=object()), \
+                mock.patch.object(receipt_email.EmailMessage, 'send', side_effect=RuntimeError('smtp down')):
+            response = self.client.post(
+                reverse('assets:assignment_receipt', args=(assignment.pk,)), {'action': 'send'},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'smtp down')
+        assignment.refresh_from_db()
+        self.assertIsNone(assignment.receipt_emailed_at)
+        self.assertIn('smtp down', assignment.receipt_email_error)
+
+    def test_receipt_workflow_is_local_only(self):
+        assignment = self.assignment()
+        url = reverse('assets:assignment_receipt', args=(assignment.pk,))
+        self.assertEqual(self.client.get(url, REMOTE_ADDR='10.1.1.1').status_code, 403)
+        self.assertEqual(
+            self.client.get(reverse('assets:locations'), REMOTE_ADDR='10.1.1.1').status_code, 403,
+        )
+        self.assertEqual(
+            self.client.get(reverse('assets:asset_edit', args=(self.asset.pk,)),
+                            REMOTE_ADDR='10.1.1.1').status_code, 403,
+        )

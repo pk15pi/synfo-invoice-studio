@@ -72,6 +72,7 @@ class Asset(models.Model):
         (AVAILABLE, 'Available'), (ASSIGNED, 'Assigned'), (COMPANY_STATUS, 'Company use'),
         (UNDER_MAINTENANCE, 'Under maintenance'), (LOST, 'Lost'), (DISPOSED, 'Disposed'),
     ]
+    EDITABLE_STATUSES = (AVAILABLE, COMPANY_STATUS)
     CONDITIONS = [('new', 'New'), ('good', 'Good'), ('fair', 'Fair'), ('poor', 'Poor'), ('damaged', 'Damaged')]
 
     asset_code = models.CharField(max_length=60, unique=True)
@@ -119,6 +120,12 @@ class Asset(models.Model):
 
     def __str__(self):
         return f'{self.asset_code} - {self.name}'
+
+    def is_editable(self):
+        """Details may be corrected only while the asset is with the company and not issued."""
+        if self.current_status not in self.EDITABLE_STATUSES:
+            return False
+        return not self.assignments.filter(status='active').exists()
 
 
 class AssetLease(models.Model):
@@ -178,6 +185,13 @@ class AssetAssignment(models.Model):
     issue_notes = models.TextField(blank=True)
     return_notes = models.TextField(blank=True)
     status = models.CharField(max_length=10, choices=STATUSES, default=ACTIVE, db_index=True)
+    parent_assignment = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='accessory_assignments',
+    )
+    handover_number = models.CharField(max_length=40, blank=True)
+    receipt_emailed_at = models.DateTimeField(null=True, blank=True)
+    receipt_email_to = models.EmailField(blank=True)
+    receipt_email_error = models.CharField(max_length=500, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -199,6 +213,13 @@ class AssetAssignment(models.Model):
 
     def __str__(self):
         return f'{self.asset.asset_code} assigned to {self.employee}'
+
+    def accessories_handed_over(self):
+        """Manual accessory text plus assets issued from the register with this handover."""
+        items = [str(item) for item in self.accessories_issued or []]
+        for link in self.accessory_assignments.select_related('asset'):
+            items.append(f'{link.asset.asset_code} \u2013 {link.asset.name}')
+        return items
 
 
 class AssetAcknowledgement(models.Model):
@@ -245,7 +266,8 @@ class AssetEventQuerySet(models.QuerySet):
 
 class AssetEvent(models.Model):
     EVENT_TYPES = [
-        ('created', 'Created'), ('assigned', 'Assigned'), ('returned', 'Returned'),
+        ('created', 'Created'), ('updated', 'Details updated'),
+        ('assigned', 'Assigned'), ('returned', 'Returned'),
         ('transferred', 'Transferred'), ('status_change', 'Status change'),
         ('maintenance', 'Maintenance'), ('lease', 'Lease'), ('lost', 'Lost'),
         ('disposed', 'Disposed'), ('other', 'Other'),

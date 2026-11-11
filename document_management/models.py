@@ -45,8 +45,11 @@ class Document(models.Model):
     CATEGORIES = [('employee', 'Employee document'), ('expense', 'Expense attachment'),
                   ('claim', 'Expense claim attachment'), ('registration', 'Company registration'),
                   ('agreement', 'Agreement / contract'), ('gst_certificate', 'GST certificate'),
-                  ('bank_statement', 'Bank statement'), ('other', 'Other company document')]
+                  ('bank_statement', 'Bank statement'), ('asset', 'Asset / handover receipt'),
+                  ('other', 'Other company document')]
     COMPANY_CATEGORIES = ['registration', 'agreement', 'gst_certificate', 'bank_statement', 'other']
+    # Rows written by other modules; sync_index must not flag them as orphaned sources.
+    SELF_MANAGED_SOURCE_TYPES = ('company_doc', 'asset_receipt', 'asset_handover_receipt')
     NORMAL, CONFIDENTIAL = 'normal', 'confidential'
     SENSITIVITY = [(NORMAL, 'Normal'), (CONFIDENTIAL, 'Confidential')]
 

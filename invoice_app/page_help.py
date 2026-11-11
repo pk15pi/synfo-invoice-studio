@@ -797,11 +797,31 @@ _add("assets:asset_detail", "Asset details", "Review one asset's identity, acqui
      ["Confirm the asset code, description and acquisition details.", "Review current assignment and custodian before handing the asset over.", "Check maintenance and lease history for outstanding commitments."],
      rules=["Asset values and depreciation rely on the company's approved accounting policy and source invoices."],
      related=["Asset register, assignments, maintenance and accounting ledger."])
+_add("assets:asset_edit", "Edit asset", "Correct the recorded details of an asset while it is still with the company.",
+     "Details can be edited only while the asset is available or in company use and is not issued to an employee. Once issued, record the return before correcting the register.",
+     ["Review the current values and change only the fields that need correction.", "Keep the usage type consistent with how the company actually uses the asset.", "Save and confirm the change is listed in the asset's lifecycle history."],
+     rules=["The asset is locked for editing while it is assigned, under maintenance, lost or disposed.",
+            "Use the return workflow to bring an issued asset back before editing it."],
+     related=["Asset details, asset register, assignments and lifecycle history."])
+_add("assets:locations assets:location_new assets:location_edit", "Asset locations", "Maintain the physical places where company assets are kept.",
+     "A location is a place such as an office, room, store or warehouse. Assets select from these active locations when they are registered or edited.",
+     ["Search or filter the list to find an existing location.", "Use Add location to create a new place, or Edit to rename it, change its type, parent or address, or mark it inactive.", "Inactive locations stay attached to existing assets but are no longer offered for new selections."],
+     rules=["Keep one location per physical place to avoid splitting the register across duplicate entries.",
+            "Deleting is not offered; mark a place inactive instead so historical asset records stay intact."],
+     related=["Asset register, asset details and asset edit."])
 _add("assets:assignment_new assets:assignment_return", "Asset assignment", "Issue an asset to a person or record its return to the register.",
      "Assignments track who currently holds an asset and when it was issued or returned.",
-     ["Select the asset and the person receiving or returning it.", "Confirm the issue or return date and any condition note.", "Review the register afterwards to confirm the asset status changed as expected."],
-     rules=["An asset cannot be issued to two people at the same time; record the return before reassigning it."],
+     ["Select the asset and the person receiving or returning it.", "Add accessories either as free text or by selecting registered assets; selected assets are issued to the same person with the same dates, condition and notes.", "Confirm the issue or return date and any condition note.", "Review the register afterwards to confirm each asset status changed as expected."],
+     rules=["An asset cannot be issued to two people at the same time; record the return before reassigning it.",
+            "Registered accessories are separate assignment records and are returned individually; the main asset cannot also be selected as its own accessory."],
      related=["Asset register, asset details and employee records."])
+_add("assets:assignment_receipt", "Asset handover receipt", "Upload the signed handover receipt and email the receipt PDF to the employee.",
+     "After an asset is issued the page confirms the assignment, offers to email the receipt, and keeps the signed and generated PDFs with the assignment.",
+     ["Confirm the employee email address shown in the confirmation popup.", "Choose Send receipt email to email the handover PDF, or Skip to continue without emailing.", "Upload the signed acknowledgement received from the employee, and check the receipt list and acknowledgement details."],
+     rules=["The receipt PDF is generated from the assignment record; an uploaded signed receipt replaces it as the document that is emailed.",
+            "Email is sent only when the employee has an email address and outgoing email is configured. A failure is recorded on the assignment.",
+            "Receipts are stored privately; download them from this page rather than forwarding the file outside the company."],
+     related=["Assignments, asset details, document management and employee email settings."])
 _add("assets:lease_new assets:lease_update", "Asset lease", "Record or update a lease agreement for an asset.",
      "Lease records capture the counterparty, term and commercial terms associated with a leased asset.",
      ["Select the asset and enter the lease counterparty and term.", "Confirm commencement, expiry and payment details.", "Review the lease list for expiry and renewal follow-ups."],

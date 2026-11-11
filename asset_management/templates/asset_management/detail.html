@@ -2,7 +2,7 @@
 {% block title %}{{ asset.asset_code }} &middot; QuantBud{% endblock %}
 {% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>{{ asset.name }}</h1><p class="muted">{{ asset.asset_code }} &middot; {{ asset.category.name }} &middot; {{ asset.get_current_status_display }}</p></div>
-<div>{% if asset.current_status == 'available' %}<a class="button primary" href="{% url 'assets:assignment_new' %}?asset={{ asset.pk }}">Assign asset</a> {% endif %}<a class="button secondary" href="{% url 'assets:maintenance_new' %}?asset={{ asset.pk }}">Report maintenance</a> <a class="button secondary" href="{% url 'assets:register' %}">Register</a></div></div>
+<div>{% if asset.is_editable %}<a class="button secondary" href="{% url 'assets:asset_edit' asset.pk %}">Edit asset</a> {% endif %}{% if asset.current_status == 'available' %}<a class="button primary" href="{% url 'assets:assignment_new' %}?asset={{ asset.pk }}">Assign asset</a> {% endif %}<a class="button secondary" href="{% url 'assets:maintenance_new' %}?asset={{ asset.pk }}">Report maintenance</a> <a class="button secondary" href="{% url 'assets:register' %}">Register</a></div></div>
 
 <div class="panel"><div class="panel-head"><h2>Asset details</h2></div>
 <div class="form-grid">
@@ -25,15 +25,36 @@
 {% if asset.description %}<p class="muted">{{ asset.description|linebreaksbr }}</p>{% endif %}
 </div>
 
-<div class="panel"><div class="panel-head"><h2>Current custody</h2>{% if active_assignment %}<a href="{% url 'assets:assignment_return' active_assignment.pk %}">Return asset</a>{% endif %}</div>
+<div class="panel"><div class="panel-head"><h2>Current custody</h2>{% if active_assignment %}<span><a href="{% url 'assets:assignment_receipt' active_assignment.pk %}">Receipt &amp; email</a> &middot; <a href="{% url 'assets:assignment_return' active_assignment.pk %}">Return asset</a></span>{% endif %}</div>
 {% if active_assignment %}<p><b>{{ active_assignment.employee }}</b> has held this asset since {{ active_assignment.issue_date|date:"d-m-Y" }}{% if active_assignment.expected_return_date %}; expected back by {{ active_assignment.expected_return_date|date:"d-m-Y" }}{% endif %}.</p>
-{% if active_assignment.accessories_issued %}<p class="muted">Accessories: {{ active_assignment.accessories_issued|join:", " }}</p>{% endif %}
+{% if active_assignment.handover_number %}<p class="muted">Handover {{ active_assignment.handover_number }}{% if active_assignment.receipt_emailed_at %} &middot; receipt emailed to {{ active_assignment.receipt_email_to }} on {{ active_assignment.receipt_emailed_at|date:"d-m-Y" }}{% endif %}</p>{% endif %}
+{% if active_assignment.parent_assignment %}<p class="muted">Issued as an accessory with <a href="{% url 'assets:asset_detail' active_assignment.parent_assignment.asset.pk %}">{{ active_assignment.parent_assignment.asset.asset_code }}</a>{% if active_assignment.parent_assignment.handover_number %} (handover {{ active_assignment.parent_assignment.handover_number }}){% endif %}.</p>{% endif %}
+{% if active_assignment.accessories_issued %}<p class="muted">Accessories (manual): {{ active_assignment.accessories_issued|join:", " }}</p>{% endif %}
 {% else %}<p class="muted">This asset is not assigned to an employee.</p>{% endif %}
 </div>
 
+{% if accessory_assignments %}
+<div class="panel"><div class="panel-head"><h2>Accessories from asset register</h2><span class="muted">Issued with this handover</span></div>
+<div class="table-wrap"><table><thead><tr><th>Asset</th><th>Issued</th><th>Expected return</th><th>Status</th><th></th></tr></thead><tbody>
+{% for accessory in accessory_assignments %}<tr>
+<td><a href="{% url 'assets:asset_detail' accessory.asset.pk %}">{{ accessory.asset.asset_code }}</a><br><small class="muted">{{ accessory.asset.name }}</small></td>
+<td>{{ accessory.issue_date|date:"d-m-Y" }}</td>
+<td>{{ accessory.expected_return_date|date:"d-m-Y"|default:"—" }}</td>
+<td>{{ accessory.get_status_display }}{% if accessory.receipt_emailed_at %}<br><small class="muted">Receipt emailed</small>{% endif %}</td>
+<td><a href="{% url 'assets:assignment_receipt' accessory.pk %}">Receipt</a>{% if accessory.status == 'active' %} &middot; <a href="{% url 'assets:assignment_return' accessory.pk %}">Return</a>{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+<div class="panel"><div class="panel-head"><h2>Handover receipts</h2>{% if latest_assignment %}<a href="{% url 'assets:assignment_receipt' latest_assignment.pk %}">Upload or email receipt</a>{% endif %}</div>
+{% if receipts %}<div class="table-wrap"><table><thead><tr><th>Uploaded</th><th>File</th><th>Source</th><th>Size</th><th></th></tr></thead><tbody>
+{% for doc in receipts %}<tr><td>{{ doc.uploaded_at|date:"d-m-Y H:i"|default:"—" }}</td><td>{{ doc.title }}{% if doc.missing %} <strong class="danger">MISSING</strong>{% endif %}</td><td>{% if doc.source_type == 'asset_receipt' %}Signed upload{% else %}Generated PDF{% endif %}</td><td>{{ doc.size|filesizeformat }}</td><td>{% if not doc.missing %}<a href="{% url 'docs:serve' doc.pk %}">Download</a>{% endif %}</td></tr>
+{% endfor %}</tbody></table></div>{% else %}<p class="muted">No receipt recorded yet. Open the handover to upload the signed copy or email the generated receipt.</p>{% endif %}
+</div>
+
 <div class="panel"><div class="panel-head"><h2>Assignment history</h2><a href="{% url 'assets:assignments' %}">All assignments</a></div>
-{% if assignments %}<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Issued</th><th>Expected return</th><th>Returned</th><th>Condition</th><th>Status</th></tr></thead><tbody>
-{% for assignment in assignments %}<tr><td>{{ assignment.employee }}</td><td>{{ assignment.issue_date|date:"d-m-Y" }}</td><td>{{ assignment.expected_return_date|date:"d-m-Y"|default:"—" }}</td><td>{{ assignment.actual_return_date|date:"d-m-Y"|default:"—" }}</td><td>{{ assignment.get_issue_condition_display }}{% if assignment.return_condition %} &rarr; {{ assignment.get_return_condition_display }}{% endif %}</td><td>{{ assignment.get_status_display }}</td></tr>
+{% if assignments %}<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Issued</th><th>Expected return</th><th>Returned</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>
+{% for assignment in assignments %}<tr><td>{{ assignment.employee }}</td><td>{{ assignment.issue_date|date:"d-m-Y" }}</td><td>{{ assignment.expected_return_date|date:"d-m-Y"|default:"—" }}</td><td>{{ assignment.actual_return_date|date:"d-m-Y"|default:"—" }}</td><td>{{ assignment.get_issue_condition_display }}{% if assignment.return_condition %} &rarr; {{ assignment.get_return_condition_display }}{% endif %}</td><td>{{ assignment.get_status_display }}{% if assignment.receipt_emailed_at %}<br><small class="muted">Receipt emailed</small>{% endif %}</td><td><a href="{% url 'assets:assignment_receipt' assignment.pk %}">Receipt</a></td></tr>
 {% endfor %}</tbody></table></div>{% else %}<p class="muted">No assignments recorded for this asset.</p>{% endif %}
 </div>
 
