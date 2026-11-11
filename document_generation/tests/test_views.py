@@ -236,6 +236,127 @@ class DocumentGenerationViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('/admin/login/', response['Location'])
 
+    def test_template_detail_dialog_lists_clauses_blocking_approval(self):
+        user = get_user_model().objects.create_user(
+            username='template-dialog-reviewer', password='test-password', is_staff=True,
+        )
+        self.client.force_login(user)
+        document_type = DocumentType.objects.get(code='offer-letter')
+        template = DocumentTemplate.objects.create(
+            document_type=document_type, name='Dialog review offer', code='dialog-review-offer',
+        )
+        version = DocumentTemplateVersion.objects.create(
+            template=template, version_number=1, status=DocumentTemplateVersion.REVIEW,
+            body_template='{{ candidate_name }}',
+        )
+        draft_clause = DocumentClause.objects.create(
+            code='dialog-draft-clause', name='Dialog draft clause',
+            clause_text='Draft wording.', approval_status=DocumentClause.DRAFT,
+        )
+        inactive_clause = DocumentClause.objects.create(
+            code='dialog-inactive-clause', name='Dialog inactive clause',
+            clause_text='Inactive wording.', approval_status=DocumentClause.APPROVED,
+            approved_by=user, approved_at=timezone.now(), is_active=False,
+        )
+        ready_clause = DocumentClause.objects.create(
+            code='dialog-ready-clause', name='Dialog ready clause',
+            clause_text='Ready wording.', approval_status=DocumentClause.APPROVED,
+            approved_by=user, approved_at=timezone.now(), is_active=True,
+        )
+        for order, clause in enumerate((draft_clause, inactive_clause, ready_clause)):
+            DocumentTemplateClause.objects.create(
+                template_version=version, clause=clause, display_order=order,
+            )
+
+        response = self.client.get(
+            reverse('document_generation:template_detail', args=(template.pk,)),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Related documents (2 pending)')
+        self.assertContains(response, f'approval-documents-{version.pk}')
+        self.assertContains(response, 'Dialog draft clause')
+        self.assertContains(response, 'Draft')
+        self.assertContains(response, 'Dialog inactive clause')
+        self.assertContains(response, 'Inactive')
+        self.assertContains(response, 'clauses/?q=dialog-draft-clause')
+        self.assertNotContains(response, 'Dialog ready clause')
+
+    def test_template_detail_dialog_reports_when_no_clause_blocks_approval(self):
+        user = get_user_model().objects.create_user(
+            username='template-dialog-ready', password='test-password', is_staff=True,
+        )
+        self.client.force_login(user)
+        document_type = DocumentType.objects.get(code='offer-letter')
+        template = DocumentTemplate.objects.create(
+            document_type=document_type, name='Unblocked offer', code='unblocked-offer',
+        )
+        version = DocumentTemplateVersion.objects.create(
+            template=template, version_number=1, status=DocumentTemplateVersion.REVIEW,
+            body_template='{{ candidate_name }}',
+        )
+        clause = DocumentClause.objects.create(
+            code='dialog-approved-clause', name='Dialog approved clause',
+            clause_text='Approved wording.', approval_status=DocumentClause.APPROVED,
+            approved_by=user, approved_at=timezone.now(), is_active=True,
+        )
+        DocumentTemplateClause.objects.create(template_version=version, clause=clause)
+
+        response = self.client.get(
+            reverse('document_generation:template_detail', args=(template.pk,)),
+        )
+        self.assertContains(response, 'Related documents')
+        self.assertNotContains(response, 'pending)')
+        self.assertContains(response, 'No related clauses are waiting for approval.')
+        self.assertContains(response, 'Approve now')
+
+    def test_template_detail_dialog_is_staff_only(self):
+        document_type = DocumentType.objects.get(code='offer-letter')
+        template = DocumentTemplate.objects.create(
+            document_type=document_type, name='Private dialog offer', code='private-dialog-offer',
+        )
+        version = DocumentTemplateVersion.objects.create(
+            template=template, version_number=1, status=DocumentTemplateVersion.REVIEW,
+            body_template='{{ candidate_name }}',
+        )
+        response = self.client.get(
+            reverse('document_generation:template_detail', args=(template.pk,)),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'data-open-dialog')
+        self.assertNotContains(response, f'approval-documents-{version.pk}')
+
+    def test_template_versions_search_filters_by_template_name_or_code(self):
+        document_type = DocumentType.objects.get(code='offer-letter')
+        kept = DocumentTemplate.objects.create(
+            document_type=document_type, name='Zeta unique agreement', code='zeta-unique-agreement',
+        )
+        DocumentTemplateVersion.objects.create(
+            template=kept, version_number=1, body_template='Kept body.',
+        )
+        other = DocumentTemplate.objects.create(
+            document_type=document_type, name='Omega unique letter', code='omega-unique-letter',
+        )
+        DocumentTemplateVersion.objects.create(
+            template=other, version_number=1, body_template='Other body.',
+        )
+
+        response = self.client.get(reverse('document_generation:template_versions'), {'q': 'Zeta unique'})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'zeta-unique-agreement')
+        self.assertNotContains(response, 'omega-unique-letter')
+
+        response = self.client.get(reverse('document_generation:template_versions'), {'q': 'omega-unique'})
+        self.assertContains(response, 'omega-unique-letter')
+        self.assertNotContains(response, 'zeta-unique-agreement')
+
+    def test_document_search_pages_enable_live_keypress_filtering(self):
+        for name in ('catalogue', 'templates', 'clauses', 'template_versions'):
+            with self.subTest(name=name):
+                response = self.client.get(reverse(f'document_generation:{name}'))
+                self.assertContains(response, 'data-live-search')
+        catalogue = self.client.get(reverse('document_generation:catalogue'))
+        self.assertContains(catalogue, 'filter_live_search.js')
+
     def test_admin_cannot_approve_template_with_unapproved_mapped_clauses(self):
         user = get_user_model().objects.create_superuser(
             username='template-clause-reviewer', email='clause@example.invalid',

@@ -7,7 +7,7 @@
 </div>
 <p>Document types are configurable in <a href="{% url 'admin:document_generation_documenttype_changelist' %}">Django Admin</a>.
   Types with approved templates can be generated from the <a href="{% url 'document_generation:generate' %}">universal generation form</a>.</p>
-<form method="get" class="qb-filter-form filter-form" data-filter-form>
+<form method="get" class="qb-filter-form filter-form" data-filter-form data-live-search>
   <label>Search <input name="q" value="{{ query }}" maxlength="100"></label>
   <label>Category
     <select name="category">

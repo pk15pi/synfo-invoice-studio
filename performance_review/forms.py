@@ -182,7 +182,7 @@ class BaseDailyBriefJDDetailFormSet(BaseInlineFormSet):
 
 DailyBriefJDDetailFormSet = inlineformset_factory(
     DailyBrief, DailyBriefJDDetail, form=DailyBriefJDDetailForm, formset=BaseDailyBriefJDDetailFormSet,
-    fields=['jd_number', 'total_resumes_submitted', 'row_order'], extra=1, min_num=1,
+    fields=['jd_number', 'total_resumes_submitted', 'row_order'], extra=0, min_num=1,
     validate_min=True, can_delete=True, can_delete_extra=True)
 
 

@@ -1,4 +1,4 @@
-{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load static %}{% block title %}Daily Brief · Records{% endblock %}
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load static %}{% load ui_icons %}{% block title %}Daily Brief · Records{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'performance_review/performance.css' %}">{% endblock %}
 {% block content %}
 <div class="page-heading split"><div><p class="eyebrow">PERFORMANCE REVIEW · DAILY BRIEF</p><h1>Daily Brief Entry &amp; Records</h1><p class="muted">Manually enter recruiter-reported JD and resume activity. This module is separate from candidate and JD operations.</p></div><div class="heading-actions"><a class="button primary" href="{% url 'performance_review:daily_brief_analytics' %}">Daily Brief Analytics</a><a class="button secondary" href="{% url 'performance_review:dashboard' %}">Performance Review</a></div></div>
@@ -21,7 +21,14 @@
       <td>{{ brief.total_jds }}</td><td>{{ brief.total_resumes|default:0 }}</td><td>{{ brief.achieved }}</td>
       <td><details><summary>View {{ brief.jd_details.all|length }} row(s)</summary><div class="daily-brief-details-scroll"><table><thead><tr><th>JD Number</th><th>Total Resumes Submitted</th></tr></thead><tbody>{% for detail in brief.jd_details.all %}<tr><td>{{ detail.jd_number }}</td><td>{{ detail.total_resumes_submitted }}</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></details></td>
       <td>{{ brief.created_at|date:'d-m-Y H:i' }}</td>
-      <td class="daily-brief-row-actions"><a class="button secondary" href="{% url 'performance_review:daily_brief_detail' brief.pk %}">View</a> <a class="button secondary" href="{% url 'performance_review:daily_brief_edit' brief.pk %}">Edit</a></td>
+      <td class="daily-brief-table-actions">
+        <a class="icon-btn" href="{% url 'performance_review:daily_brief_detail' brief.pk %}" title="View Daily Brief" aria-label="View Daily Brief">{% icon 'view' %}</a>
+        <a class="icon-btn" href="{% url 'performance_review:daily_brief_edit' brief.pk %}" title="Edit Daily Brief" aria-label="Edit Daily Brief">{% icon 'edit' %}</a>
+        <form class="inline" method="post" action="{% url 'performance_review:daily_brief_delete' brief.pk %}" onsubmit="return confirm('Delete the Daily Brief for {{ brief.recruiter.full_name|escapejs }} on {{ brief.activity_date|date:'d-m-Y' }}? This also removes its JD rows and correction history.');">
+          {% csrf_token %}
+          <button class="icon-btn danger" type="submit" title="Delete Daily Brief" aria-label="Delete Daily Brief">{% icon 'trash' %}</button>
+        </form>
+      </td>
     </tr>{% empty %}<tr><td colspan="8" class="empty">No Daily Brief records match these filters.</td></tr>{% endfor %}</tbody>
   </table></div>
   

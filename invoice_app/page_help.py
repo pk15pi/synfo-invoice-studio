@@ -148,7 +148,7 @@ _add("performance_review:settings", "Recruiter performance settings", "Choose wh
      related=["Employee Management and Performance Reports."])
 _add("performance_review:daily_brief_records", "Daily Brief entry and records", "Enter a recruiter’s daily JD-wise resume activity and review saved reports.",
      "Daily Brief is a manual progress log that stays separate from operational JD, candidate and placement records.",
-     ["Choose any active employee (type to filter the Recruiter list) and select the activity date; earlier dates are allowed.", "Enter the non-negative whole-number Selections Achieved count, then one JD Number and non-negative whole resume count per row. Use + to add rows and − to remove them; at least one row stays visible.", "JD and resume totals update from complete valid rows. Save creates a new recruiter/date report; a duplicate prompts you to review the existing report.", "Use View for the saved details and correction history, or Edit to correct the report. Corrections are retained in the record history.", "Use the period toolbar to filter by calendar year, week, trailing 15 days, calendar month, financial quarter/half/year or inclusive custom dates. Weekly dates use Monday–Sunday; 15 days end on the selected reference date.", "Search recruiter names/employee IDs or JD Numbers; filters combine. Change rows per page or sort a table column as needed."],
+     ["Choose any active employee (type to filter the Recruiter list) and select the activity date; earlier dates are allowed.", "Enter the non-negative whole-number Selections Achieved count, then one JD Number and non-negative whole resume count per row. Use + to add rows and − to remove them; at least one row stays visible.", "JD and resume totals update from complete valid rows. Save creates a new recruiter/date report; a duplicate prompts you to review the existing report.", "Use the view, edit and delete icons in the Actions column: view opens the saved details and correction history, edit corrects the report, and delete removes the report with its JD rows and correction history after confirmation.", "Use the period toolbar to filter by calendar year, week, trailing 15 days, calendar month, financial quarter/half/year or inclusive custom dates. Weekly dates use Monday–Sunday; 15 days end on the selected reference date.", "Search recruiter names/employee IDs or JD Numbers; filters combine. Change rows per page or sort a table column as needed."],
      rules=["Each recruiter can have one Daily Brief per activity date.", "A JD Number is stored as reported text and does not link to JD management.", "This log does not create candidate records or update candidate-level performance metrics."],
      related=["Daily Brief Analytics and the Employee master (all employed staff appear in the Recruiter combobox)."])
 _add("performance_review:daily_brief_detail performance_review:daily_brief_edit", "View or edit Daily Brief", "Inspect the selection count and complete JD row details or correct an existing recruiter report.",
@@ -686,7 +686,7 @@ _add("document_generation:types", "Document type library", "Manage the standard 
      related=["Categories, template library and document generation."])
 _add("document_generation:templates", "Document templates", "Browse templates by document type and lifecycle state.",
      "Only active templates with approved active versions are available to normal generation.",
-     ["Filter by status or type.", "Open a template to review its version history.", "Draft changes as a new version, then submit and follow the approval workflow."],
+     ["Start typing in Search or change a filter to update results automatically.", "Open a template to review its version history.", "Draft changes as a new version, then submit and follow the approval workflow."],
      rules=["Do not use review/inactive legal content as approved production wording."],
      related=["Template versions, clause library and document generation."])
 _add("document_generation:template_new document_generation:template_edit document_generation:template_duplicate", "Create or edit document template", "Define a template’s purpose, type, format and draft content.",
@@ -696,17 +696,17 @@ _add("document_generation:template_new document_generation:template_edit documen
      related=["Document types, template versions, clauses and generation."])
 _add("document_generation:template_detail", "Document template details", "Review a template’s configuration, current status and versions.",
      "This page is the control point for reviewing template content and lifecycle actions.",
-     ["Check type, applicability and active version.", "Review draft/approved version history.", "Use duplicate or new version for changes rather than overwriting approved content."],
+     ["Check type, applicability and active version.", "Review draft/approved version history.", "Use Related documents on a version under review to see which clauses still need approval.", "Use duplicate or new version for changes rather than overwriting approved content."],
      rules=["Approval and activation require a staff account; approved versions remain protected."],
      related=["Template list, version library, clause library and generated documents."])
 _add("document_generation:template_versions document_generation:template_version_edit document_generation:template_new_version document_generation:template_version_action", "Template versions and review", "Review or revise a template version while preserving approved history.",
      "Versioning records what wording was approved and used for generated documents.",
-     ["Review version number, status, effective dates and change description.", "Edit only a draft version.", "Submit for review and ask an authorized staff member to preview, approve and activate."],
+     ["Start typing in Search to filter by template name or code.", "Review version number, status, effective dates and change description.", "Edit only a draft version.", "Submit for review and ask an authorized staff member to preview, approve and activate."],
      rules=["Approved content cannot be edited in place. Create a new version for revisions."],
      related=["Template details, approval queue and document generation."])
 _add("document_generation:clauses document_generation:clause_new document_generation:clause_edit document_generation:clause_new_version document_generation:clause_action", "Clause library", "Manage reusable clauses and their approved versions for document templates.",
      "Clauses provide controlled text blocks that can be included in generated documents.",
-     ["Review clause text, version and mandatory/default flags.", "Edit a draft or create a new version.", "Submit for review; attach only approved clauses to production templates."],
+     ["Type in Search to filter clauses as you type.", "Review clause text, version and mandatory/default flags.", "Edit a draft or create a new version.", "Submit for review; attach only approved clauses to production templates."],
      rules=["Mandatory clauses are included automatically. Optional clauses may be selected during generation."],
      related=["Template versions, document generation and generated document snapshots."])
 _add("document_generation:generate", "Generate document", "Create a document from an active approved template and the selected party’s existing record data.",

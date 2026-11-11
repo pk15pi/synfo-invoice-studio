@@ -3,9 +3,9 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from invoice_app.pagination import paginate as qb_paginate
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, ProtectedError, Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
+from django.views.decorators.http import require_POST
 
 from employee_management.models import Employee
 
@@ -141,6 +141,22 @@ def daily_brief_records(request):
             return redirect('performance_review:daily_brief_records')
     return render(request, 'performance_review/daily_brief_records.html', _records_context(
         request, entry_form=form, detail_formset=formset, duplicate_record=form.duplicate_record))
+
+
+@require_POST
+def daily_brief_delete(request, pk):
+    brief = get_object_or_404(DailyBrief.objects.select_related('recruiter'), pk=pk)
+    label = f'{brief.recruiter.full_name} · {brief.activity_date:%d-%m-%Y}'
+    try:
+        with transaction.atomic():
+            # History rows are PROTECTed so a deletion is always an explicit choice.
+            DailyBriefHistory.objects.filter(daily_brief=brief).delete()
+            brief.delete()
+    except ProtectedError:
+        messages.error(request, f'Daily Brief for {label} could not be deleted because it is still referenced.')
+    else:
+        messages.success(request, f'Daily Brief for {label} was deleted with its JD rows and correction history.')
+    return redirect('performance_review:daily_brief_records')
 
 
 def daily_brief_detail(request, pk):

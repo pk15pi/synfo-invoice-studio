@@ -441,3 +441,33 @@ class DailyBriefTests(TestCase):
         records = self.client.get(reverse('performance_review:daily_brief_records'))
         self.assertFalse(records.context['standard_period_include_weekly'])
         self.assertNotContains(records, 'value="weekly"')
+
+    def test_delete_removes_history_details_and_brief_and_is_post_only(self):
+        brief = self.make_brief(rows=[('07-01', 12), ('07-02', 8)])
+        other = self.make_brief(recruiter=self.other_recruiter, rows=[('08-01', 5)])
+        DailyBriefHistory.objects.create(daily_brief=brief, previous_values={'achieved': 0},
+                                         current_values={'achieved': 1})
+        url = reverse('performance_review:daily_brief_delete', args=[brief.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.assertTrue(DailyBrief.objects.filter(pk=brief.pk).exists())
+        response = self.client.post(url, follow=True)
+        self.assertRedirects(response, reverse('performance_review:daily_brief_records'))
+        self.assertContains(response, 'was deleted with its JD rows and correction history')
+        self.assertFalse(DailyBrief.objects.filter(pk=brief.pk).exists())
+        self.assertFalse(DailyBriefJDDetail.objects.filter(daily_brief_id=brief.pk).exists())
+        self.assertFalse(DailyBriefHistory.objects.filter(daily_brief_id=brief.pk).exists())
+        self.assertTrue(DailyBrief.objects.filter(pk=other.pk).exists())
+
+    def test_records_page_uses_icon_actions_and_entry_form_has_aligned_groups(self):
+        brief = self.make_brief()
+        response = self.client.get(reverse('performance_review:daily_brief_records'))
+        self.assertEqual(response.status_code, 200)
+        for label in ('View Daily Brief', 'Edit Daily Brief', 'Delete Daily Brief'):
+            self.assertContains(response, f'aria-label="{label}"')
+        self.assertContains(response, reverse('performance_review:daily_brief_delete', args=[brief.pk]))
+        self.assertContains(response, 'class="icon-btn danger"')
+        self.assertContains(response, 'daily-brief-details-head')
+        self.assertContains(response, 'aria-label="Add another JD row"')
+        self.assertContains(response, 'aria-label="Delete this JD row"')
+        self.assertContains(response, 'daily-brief-group-title')
+        self.assertEqual(response.context['detail_formset'].total_form_count(), 1)

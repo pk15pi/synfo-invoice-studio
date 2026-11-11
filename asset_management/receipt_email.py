@@ -13,7 +13,7 @@ from employee_management import email_config as EC
 from employee_management.storage import private_storage
 
 from .models import AssetAssignment
-from .receipt_pdf import receipt_number, render_handover_receipt
+from .receipt_pdf import issued_items, manual_accessories, receipt_number, render_handover_receipt
 
 
 def employee_email(employee):
@@ -53,19 +53,16 @@ def _document_defaults(assignment, rel, size, sha):
 
 
 def ensure_receipt_document(assignment):
-    """Return the signed receipt if uploaded, else a generated handover receipt PDF in Documents."""
+    """Return the signed receipt if uploaded, else a freshly generated handover receipt PDF."""
     signed = assignment.acknowledgements.select_related('document').filter(
         document__isnull=False,
     ).order_by('-acknowledged_at', '-id').first()
     if signed and signed.document.exists():
         return signed.document
 
-    existing = Document.objects.filter(
+    previous = Document.objects.filter(
         source_type='asset_handover_receipt', source_id=str(assignment.pk),
     ).first()
-    if existing and existing.exists():
-        return existing
-
     pdf_bytes = render_handover_receipt(assignment)
     rel = safe_rel_path(private_storage.save(
         f'asset_receipts/{uuid.uuid4().hex}.pdf', ContentFile(pdf_bytes),
@@ -76,27 +73,56 @@ def ensure_receipt_document(assignment):
             assignment, rel, len(pdf_bytes), hashlib.sha256(pdf_bytes).hexdigest(),
         ),
     )
+    if previous and previous.file_path and previous.file_path != rel:
+        try:
+            private_storage.delete(previous.file_path)
+        except Exception:
+            pass
     return doc
+
+
+def _item_lines(items):
+    lines = []
+    for number, (asset, quantity) in enumerate(items, 1):
+        serial = f' (Serial: {asset.serial_number.strip()})' if (asset.serial_number or '').strip() else ''
+        lines.append(f'{number}. {asset.asset_code} - {asset.name}{serial} | Qty: {quantity}')
+    return lines
 
 
 def compose_message(assignment):
     company = _company_name()
     asset = assignment.asset
     employee = assignment.employee
-    accessories = ', '.join(assignment.accessories_handed_over()) or 'None'
+    items = issued_items(assignment)
+    accessories = manual_accessories(assignment)
     subject = f'Asset handover receipt {receipt_number(assignment)} - {asset.asset_code}'
-    body = (
-        f'Dear {employee.full_name},\n\n'
-        'Please find attached the handover receipt for the asset issued to you.\n\n'
-        f'Handover no: {receipt_number(assignment)}\n'
-        f'Asset: {asset.asset_code} - {asset.name}\n'
-        f'Issued on: {assignment.issue_date:%d-%m-%Y}\n'
-        f'Condition: {assignment.get_issue_condition_display()}\n'
-        f'Accessories: {accessories}\n\n'
-        'If anything is incorrect, reply to this email or contact your IT administrator.\n\n'
-        f'Regards,\n{company}\n'
-    )
-    return subject, body
+    lines = [
+        f'Dear {employee.full_name},',
+        '',
+        'Please find attached the handover receipt for the items issued to you.',
+        '',
+        f'Handover no: {receipt_number(assignment)}',
+        f'Issued on: {assignment.issue_date:%d-%m-%Y}',
+        f'Condition: {assignment.get_issue_condition_display()}',
+        '',
+        'Items issued:',
+        *_item_lines(items),
+    ]
+    if accessories:
+        lines += ['', 'Other accessories: ' + ', '.join(accessories)]
+    if assignment.expected_return_date:
+        lines += ['', f'Expected return date: {assignment.expected_return_date:%d-%m-%Y}']
+    lines += [
+        '',
+        f'Total items received: {len(items) + len(accessories)}',
+        '',
+        'If anything is incorrect, reply to this email or contact your IT administrator.',
+        '',
+        'Regards,',
+        company,
+        '',
+    ]
+    return subject, '\n'.join(lines)
 
 
 def _record(assignment, recipient, *, error='', sent=False):

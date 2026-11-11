@@ -510,10 +510,15 @@ def template_library(request):
 
 @local_only
 def template_versions(request):
+    query = request.GET.get('q', '').strip()[:100]
     status = request.GET.get('status', '').strip()[:10]
     versions = DocumentTemplateVersion.objects.select_related(
         'template', 'template__document_type', 'template__category',
     )
+    if query:
+        versions = versions.filter(
+            Q(template__name__icontains=query) | Q(template__code__icontains=query),
+        )
     if status in dict(DocumentTemplateVersion.STATUSES):
         versions = versions.filter(status=status)
     versions, _, _ = apply_queryset_sort(versions, request, {
@@ -525,7 +530,7 @@ def template_versions(request):
     page_query.pop('page', None)
     return render(request, 'document_generation/template_versions.html', {
         'page': page, 'statuses': DocumentTemplateVersion.STATUSES,
-        'selected_status': status, 'page_query': page_query.urlencode(),
+        'selected_status': status, 'query': query, 'page_query': page_query.urlencode(),
     })
 
 
@@ -559,9 +564,22 @@ def template_detail(request, template_id):
     template = get_object_or_404(
         DocumentTemplate.objects.select_related('document_type', 'category', 'active_version'), pk=template_id,
     )
+    versions = list(template.versions.prefetch_related('template_clauses__clause'))
+    for version in versions:
+        version.blocking_clauses = []
+        if version.status == DocumentTemplateVersion.REVIEW:
+            version.blocking_clauses = [
+                assignment.clause
+                for assignment in version.template_clauses.all()
+                if not (
+                    assignment.clause.approval_status == DocumentClause.APPROVED
+                    and assignment.clause.is_active
+                )
+            ]
     return render(request, 'document_generation/template_detail.html', {
         'template': template,
-        'versions': template.versions.prefetch_related('template_clauses__clause'),
+        'versions': versions,
+        'latest_version': versions[0] if versions else None,
     })
 
 

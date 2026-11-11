@@ -3,7 +3,7 @@ import shutil
 import tempfile
 from datetime import date
 from decimal import Decimal
-from unittest import mock
+from unittest import mock, skipIf
 
 from django.contrib import admin
 from django.contrib.auth import get_user_model
@@ -18,7 +18,7 @@ from document_management.models import Document, full_path
 from document_management import services as document_services
 from employee_management.models import Department, Employee
 
-from . import receipt_email, services
+from . import receipt_email, receipt_pdf, services
 from .forms import AssetForm
 from .models import (
     Asset, AssetAcknowledgement, AssetAssignment, AssetCategory, AssetEvent, AssetLease, AssetLocation,
@@ -28,6 +28,17 @@ from .services import next_asset_code, next_handover_code
 
 PDF = b'%PDF-1.4\n%asset receipt test\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n'
 RECEIPT_TMP = tempfile.mkdtemp(prefix='qb-asset-test-')
+try:
+    import pymupdf as fitz
+except ImportError:  # pragma: no cover - optional dependency
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
+
+
+def receipt_text(pdf):
+    return '\n'.join(page.get_text() for page in fitz.open(stream=pdf, filetype='pdf'))
 
 
 class AssetManagementTests(TestCase):
@@ -664,6 +675,72 @@ class AssetFeatureTests(TestCase):
         with open(full_path(doc.file_path), 'rb') as fh:
             self.assertTrue(fh.read().startswith(b'%PDF-'))
         self.assertIn(doc, services.receipts_for(assignment))
+
+    @skipIf(fitz is None, 'PyMuPDF not installed')
+    def test_generated_receipt_lists_items_with_quantity_inside_margins(self):
+        mouse = Asset.objects.create(
+            asset_code='QB-MOUSE-777', name='Wireless mouse', category=self.category,
+            serial_number='MS-777',
+        )
+        assignment = services.assign_asset(
+            AssetAssignment(
+                asset=self.asset, employee=self.employee, issue_date=date(2026, 5, 1),
+                accessories_issued=['sleeve'],
+            ),
+            accessory_assets=[mouse],
+        )
+        pdf = receipt_pdf.render_handover_receipt(assignment)
+        text = receipt_text(pdf)
+        self.assertIn('Items issued', text)
+        self.assertIn('Qty', text)
+        self.assertIn('QB-LAP-100', text)
+        self.assertIn('QB-MOUSE-777', text)
+        self.assertIn('MS-777', text)
+        self.assertIn('Other accessories: sleeve', text)
+        self.assertIn('Total items received: 3', text)
+
+        page = fitz.open(stream=pdf, filetype='pdf')[0]
+        right_limit = page.rect.width - receipt_pdf.MARGIN
+        for block in page.get_text('dict')['blocks']:
+            for line in block.get('lines', []):
+                for span in line['spans']:
+                    self.assertLessEqual(span['bbox'][2], right_limit + 0.5, span['text'])
+
+    def test_generated_receipt_is_replaced_when_sent_again(self):
+        assignment = self.assignment()
+        first = receipt_email.ensure_receipt_document(assignment)
+        first_path = first.file_path
+        self.assertTrue(os.path.exists(full_path(first_path)))
+        second = receipt_email.ensure_receipt_document(assignment)
+        self.assertEqual(
+            Document.objects.filter(
+                source_type='asset_handover_receipt', source_id=str(assignment.pk),
+            ).count(),
+            1,
+        )
+        self.assertNotEqual(second.file_path, first_path)
+        self.assertFalse(os.path.exists(full_path(first_path)))
+        self.assertTrue(os.path.exists(full_path(second.file_path)))
+
+    def test_receipt_email_body_lists_items_and_quantities(self):
+        mouse = Asset.objects.create(
+            asset_code='QB-MOUSE-778', name='Wireless mouse', category=self.category,
+            serial_number='MS-778',
+        )
+        assignment = services.assign_asset(
+            AssetAssignment(
+                asset=self.asset, employee=self.employee, issue_date=date(2026, 5, 1),
+                accessories_issued=['sleeve'],
+            ),
+            accessory_assets=[mouse],
+        )
+        subject, body = receipt_email.compose_message(assignment)
+        self.assertIn('Asset handover receipt', subject)
+        self.assertIn('Items issued:', body)
+        self.assertIn('1. QB-LAP-100 - Feature laptop | Qty: 1', body)
+        self.assertIn('2. QB-MOUSE-778 - Wireless mouse (Serial: MS-778) | Qty: 1', body)
+        self.assertIn('Other accessories: sleeve', body)
+        self.assertIn('Total items received: 3', body)
 
     def test_email_receipt_sends_pdf_and_records_success(self):
         assignment = self.assignment()

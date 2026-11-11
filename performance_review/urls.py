@@ -18,4 +18,5 @@ urlpatterns = [
     path('daily-brief/analytics/', views_daily_brief.daily_brief_analytics_page, name='daily_brief_analytics'),
     path('daily-brief/<int:pk>/', views_daily_brief.daily_brief_detail, name='daily_brief_detail'),
     path('daily-brief/<int:pk>/edit/', views_daily_brief.daily_brief_edit, name='daily_brief_edit'),
+    path('daily-brief/<int:pk>/delete/', views_daily_brief.daily_brief_delete, name='daily_brief_delete'),
 ]

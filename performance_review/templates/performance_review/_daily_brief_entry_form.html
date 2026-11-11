@@ -1,14 +1,30 @@
-<section class="panel pr-section daily-brief-entry">
-  <div class="panel-head"><h2>{{ form_title|default:'Daily Brief Entry' }}</h2>{% if brief %}<a class="button secondary" href="{% url 'performance_review:daily_brief_detail' brief.pk %}">View record</a>{% endif %}</div>
+{% load ui_icons %}<section class="panel pr-section daily-brief-entry">
+  <div class="daily-brief-entry-head">
+    <div>
+      <h2>{{ form_title|default:'Daily Brief Entry' }}</h2>
+      <p class="muted">Record the recruiter-reported JDs and resume counts for one activity date.</p>
+    </div>
+    {% if brief %}<a class="button secondary" href="{% url 'performance_review:daily_brief_detail' brief.pk %}">{% icon 'view' %}View record</a>{% endif %}
+  </div>
   <form method="post" novalidate id="daily-brief-entry-form">
     {% csrf_token %}
     {{ entry_form.non_field_errors }}
     <div class="daily-brief-main-fields">
-      <label>{{ entry_form.recruiter.label }} <span class="required-mark">*</span>{{ entry_form.recruiter }}{{ entry_form.recruiter.errors }}</label>
-      <label>{{ entry_form.activity_date.label }} <span class="required-mark">*</span>{{ entry_form.activity_date }}{{ entry_form.activity_date.errors }}</label>
-      <label>{{ entry_form.achieved.label }}{{ entry_form.achieved }}{{ entry_form.achieved.errors }}</label>
-      <div class="daily-brief-calculated"><span>Total Number of JDs Submitted</span><strong data-jd-count aria-live="polite">{{ brief.total_jds_submitted|default:0 }}</strong><small>Calculated from complete, valid detail rows</small></div>
-      <div class="daily-brief-calculated"><span>Total Resumes Submitted</span><strong data-resume-count aria-live="polite">{{ brief.total_resumes_submitted|default:0 }}</strong><small>Calculated from the row counts</small></div>
+      <section class="daily-brief-field-group" aria-label="Report details">
+        <h3 class="daily-brief-group-title">Report details</h3>
+        <div class="daily-brief-field-grid">
+          <label class="daily-brief-field"><span class="daily-brief-field-label">{{ entry_form.recruiter.label }} <span class="required-mark">*</span></span>{{ entry_form.recruiter }}{{ entry_form.recruiter.errors }}</label>
+          <label class="daily-brief-field"><span class="daily-brief-field-label">{{ entry_form.activity_date.label }} <span class="required-mark">*</span></span>{{ entry_form.activity_date }}{{ entry_form.activity_date.errors }}</label>
+          <label class="daily-brief-field"><span class="daily-brief-field-label">{{ entry_form.achieved.label }}</span>{{ entry_form.achieved }}{{ entry_form.achieved.errors }}</label>
+        </div>
+      </section>
+      <section class="daily-brief-totals" aria-label="Calculated totals">
+        <h3 class="daily-brief-group-title">Calculated totals</h3>
+        <div class="daily-brief-total-cards">
+          <div class="daily-brief-calculated"><span>Total Number of JDs Submitted</span><strong data-jd-count aria-live="polite">{{ brief.total_jds_submitted|default:0 }}</strong><small>From complete, valid rows</small></div>
+          <div class="daily-brief-calculated"><span>Total Resumes Submitted</span><strong data-resume-count aria-live="polite">{{ brief.total_resumes_submitted|default:0 }}</strong><small>From the row counts</small></div>
+        </div>
+      </section>
     </div>
 
     <fieldset class="daily-brief-details-fieldset">
@@ -16,14 +32,15 @@
       <p class="muted">Each row records one reported JD and its resume count. JD Numbers are text, for example 07-01.</p>
       {{ detail_formset.management_form }}
       {% if detail_formset.non_form_errors %}<div class="errorlist" role="alert">{{ detail_formset.non_form_errors }}</div>{% endif %}
+      <div class="daily-brief-details-head" aria-hidden="true"><span>JD Number</span><span>Total Resumes Submitted</span><span>Actions</span></div>
       <div class="daily-brief-rows" data-brief-rows>
         {% for row in detail_formset.forms %}
           <div class="daily-brief-row" data-brief-row>
             {% for hidden in row.hidden_fields %}<span class="daily-brief-hidden">{{ hidden }}</span>{% endfor %}
             <span class="daily-brief-hidden daily-brief-delete-field"><input type="hidden" name="{{ row.DELETE.html_name }}" value="{% if row.DELETE.value %}1{% endif %}" data-delete-flag></span>
-            <label><span>JD Number <b class="required-mark">*</b></span>{{ row.jd_number }}{{ row.jd_number.errors }}</label>
-            <label><span>Total Resumes Submitted <b class="required-mark">*</b></span>{{ row.total_resumes_submitted }}{{ row.total_resumes_submitted.errors }}</label>
-            <div class="daily-brief-row-actions"><button type="button" class="button secondary" data-add-brief-row title="Add another JD row">+</button><button type="button" class="button secondary" data-remove-brief-row title="Delete this JD row">−</button></div>
+            <label class="daily-brief-row-field"><span>JD Number <b class="required-mark">*</b></span>{{ row.jd_number }}{{ row.jd_number.errors }}</label>
+            <label class="daily-brief-row-field"><span>Total Resumes Submitted <b class="required-mark">*</b></span>{{ row.total_resumes_submitted }}{{ row.total_resumes_submitted.errors }}</label>
+            <div class="daily-brief-row-actions"><button type="button" class="button secondary daily-brief-icon-button" data-add-brief-row title="Add another JD row" aria-label="Add another JD row">{% icon 'plus' %}</button><button type="button" class="button secondary daily-brief-icon-button" data-remove-brief-row title="Delete this JD row" aria-label="Delete this JD row">{% icon 'remove' %}</button></div>
           </div>
         {% endfor %}
       </div>
@@ -31,9 +48,9 @@
         <div class="daily-brief-row" data-brief-row>
           {% for hidden in detail_formset.empty_form.hidden_fields %}<span class="daily-brief-hidden">{{ hidden }}</span>{% endfor %}
           <span class="daily-brief-hidden daily-brief-delete-field"><input type="hidden" name="{{ detail_formset.empty_form.DELETE.html_name }}" value="0" data-delete-flag></span>
-          <label><span>JD Number <b class="required-mark">*</b></span>{{ detail_formset.empty_form.jd_number }}</label>
-          <label><span>Total Resumes Submitted <b class="required-mark">*</b></span>{{ detail_formset.empty_form.total_resumes_submitted }}</label>
-          <div class="daily-brief-row-actions"><button type="button" class="button secondary" data-add-brief-row title="Add another JD row">+</button><button type="button" class="button secondary" data-remove-brief-row title="Delete this JD row">−</button></div>
+          <label class="daily-brief-row-field"><span>JD Number <b class="required-mark">*</b></span>{{ detail_formset.empty_form.jd_number }}</label>
+          <label class="daily-brief-row-field"><span>Total Resumes Submitted <b class="required-mark">*</b></span>{{ detail_formset.empty_form.total_resumes_submitted }}</label>
+          <div class="daily-brief-row-actions"><button type="button" class="button secondary daily-brief-icon-button" data-add-brief-row title="Add another JD row" aria-label="Add another JD row">{% icon 'plus' %}</button><button type="button" class="button secondary daily-brief-icon-button" data-remove-brief-row title="Delete this JD row" aria-label="Delete this JD row">{% icon 'remove' %}</button></div>
         </div>
       </template>
     </fieldset>
