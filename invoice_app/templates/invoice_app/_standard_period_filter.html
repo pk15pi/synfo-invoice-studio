@@ -48,6 +48,17 @@ Hidden controls are also disabled, so they are never submitted. Query names/valu
   </label>
   <label class="compact-filter-label" data-period-fields="custom"{% if pmode != 'custom' %} hidden{% endif %}><span>From</span><input class="field" type="date" name="date_from" value="{{ request.GET.date_from }}"{% if pmode != 'custom' %} disabled{% endif %}></label>
   <label class="compact-filter-label" data-period-fields="custom"{% if pmode != 'custom' %} hidden{% endif %}><span>To</span><input class="field" type="date" name="date_to" value="{{ request.GET.date_to }}"{% if pmode != 'custom' %} disabled{% endif %}></label>
+  <label class="compact-filter-label" data-period-fields="custom"{% if pmode != 'custom' %} hidden{% endif %}><span>Quick range</span>
+    <select class="field" data-period-quick-range{% if pmode != 'custom' %} disabled{% endif %}>
+      <option value="">Choose a range</option>
+      <option value="0">Today</option>
+      <option value="1">Last 7 days</option>
+      <option value="2">This month</option>
+      <option value="3">Last month</option>
+      <option value="4">This quarter</option>
+      <option value="5">This financial year</option>
+    </select>
+  </label>
   {% if standard_period_include_weekly %}
   <label class="compact-filter-label" data-period-fields="weekly"{% if pmode != 'weekly' %} hidden{% endif %}><span>Week</span>
     <input class="field" type="week" name="week" data-period-week

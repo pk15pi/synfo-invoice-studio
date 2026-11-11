@@ -2433,3 +2433,58 @@ main .card a.btn:hover{
   .session-user{min-width:0}
   .role-grid{grid-template-columns:1fr}
 }
+
+/* Date entry: keep the native picker but make its calendar affordance clear
+   and easy to hit; quick range helpers are filling aids only. */
+input[type="date"],input[type="week"],input[type="month"]{accent-color:var(--navy)}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator{
+  width:20px;height:20px;padding:3px;margin-left:4px;border-radius:4px;
+  cursor:pointer;opacity:.82;background-color:transparent;
+}
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="week"]:hover::-webkit-calendar-picker-indicator,
+input[type="month"]:hover::-webkit-calendar-picker-indicator{opacity:1;background-color:rgba(11,83,148,.12)}
+input[type="date"]:focus-visible::-webkit-calendar-picker-indicator,
+input[type="week"]:focus-visible::-webkit-calendar-picker-indicator,
+input[type="month"]:focus-visible::-webkit-calendar-picker-indicator{opacity:1;background-color:rgba(11,83,148,.18)}
+.qf-date-presets{display:inline-flex;align-items:center;gap:5px;flex:0 1 auto;min-width:0}
+.qf-date-presets-label{color:#536779;font-size:11px;font-weight:700;white-space:nowrap}
+.qf-date-preset-select{width:auto;min-width:132px;min-height:35px;padding:6px 8px;font-size:12px}
+.qf-date-today{
+  display:inline-flex;align-items:center;justify-content:center;min-height:35px;
+  padding:6px 10px;border:1px solid #cfdde8;border-radius:7px;background:#f3f8fc;
+  color:var(--navy);font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;
+}
+.qf-date-today:hover{background:#e4f0f8;border-color:#b7d0e3}
+.qf-date-today:focus-visible{outline:2px solid rgba(11,83,148,.35);outline-offset:1px}
+@media(max-width:640px){
+  .qf-date-presets{flex:1 1 100%}
+  .qf-date-preset-select{flex:1 1 auto;width:100%;min-width:0;max-width:none}
+}
+
+/* Flatpickr (vendored) uses the app palette; the original input keeps a clear
+   calendar affordance after Flatpickr converts it to a text field. */
+.flatpickr-calendar{
+  font-family:inherit;border-color:var(--line);border-radius:10px;
+  box-shadow:0 12px 30px rgba(15,40,60,.18);
+}
+.flatpickr-calendar.arrowTop:before,.flatpickr-calendar.arrowTop:after{border-bottom-color:#fff}
+.flatpickr-months .flatpickr-month{color:var(--ink)}
+.flatpickr-current-month .flatpickr-monthDropdown-months{font-weight:700}
+.flatpickr-current-month .flatpickr-monthDropdown-months:hover{background:#eef5fa}
+span.flatpickr-weekday{color:var(--muted)}
+.flatpickr-day{color:var(--ink)}
+.flatpickr-day:hover,.flatpickr-day:focus{background:#eaf3f9;border-color:#eaf3f9}
+.flatpickr-day.selected,.flatpickr-day.startRange,.flatpickr-day.endRange,.flatpickr-day.selected:hover{
+  background:var(--navy);border-color:var(--navy);
+}
+.flatpickr-day.today{border-color:var(--navy)}
+.flatpickr-day.today:hover{background:var(--navy);border-color:var(--navy);color:#fff}
+.flatpickr-day.flatpickr-disabled,.flatpickr-day.prevMonthDay,.flatpickr-day.nextMonthDay{color:#b7c3cd}
+input.flatpickr-input{
+  background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%230b5394'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Crect%20x='3'%20y='5'%20width='18'%20height='16'%20rx='2'/%3E%3Cpath%20d='M8%203v4M16%203v4M3%2011h18'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 7px center;background-size:15px 15px;
+  padding-right:28px;cursor:pointer;
+}

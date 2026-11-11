@@ -22,8 +22,9 @@ def visible(block):
         if ' hidden' in lab.group(1):
             continue
         for ctl in re.finditer(r'<(?:select|input)\b([^>]*)>', lab.group(2)):
-            if ' disabled' not in ctl.group(1):
-                names.append(re.search(r'name="([^"]+)"', ctl.group(1)).group(1))
+            name = re.search(r'name="([^"]+)"', ctl.group(1))
+            if name and ' disabled' not in ctl.group(1):
+                names.append(name.group(1))
     return names
 
 
@@ -51,6 +52,9 @@ class PeriodPickerTests(TestCase):
     def test_custom_shows_only_dates(self):
         b = self.block('?period_mode=custom&date_from=2026-04-01&date_to=2026-04-30')
         self.assertEqual(visible(b), ['period_mode', 'date_from', 'date_to'])
+        quick = re.search(r'<label class="compact-filter-label"[^>]*><span>Quick range</span>(.*?)</label>', b, re.S)
+        self.assertIsNotNone(quick)
+        self.assertNotIn('name=', quick.group(1))
 
     def test_fy_breakdowns(self):
         self.assertEqual(visible(self.block('?period_mode=financial&fy=2026&period_type=quarterly&period_value=Q3')),

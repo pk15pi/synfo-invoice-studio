@@ -33,8 +33,14 @@ class ReportingPeriodForm(forms.Form):
     financial_year = forms.IntegerField(required=False, min_value=1900, max_value=9998)
     financial_year_part = forms.ChoiceField(required=False, choices=periods.FY_PARTS)
     month = forms.CharField(required=False, max_length=7)
-    date_from = forms.DateField(required=False, input_formats=['%Y-%m-%d'])
-    date_to = forms.DateField(required=False, input_formats=['%Y-%m-%d'])
+    date_from = forms.DateField(
+        required=False, input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+    )
+    date_to = forms.DateField(
+        required=False, input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+    )
 
     def clean(self):
         cleaned = super().clean()
