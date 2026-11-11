@@ -12,6 +12,7 @@ from django.utils import timezone
 from document_management.models import Document
 from employee_management.models import Department, Employee
 
+from .forms import AssetForm
 from .models import (
     Asset, AssetAcknowledgement, AssetAssignment, AssetCategory, AssetEvent, AssetLease, AssetLocation,
     AssetMaintenance, AssetSettings,
@@ -173,6 +174,26 @@ class AssetManagementTests(TestCase):
         self.assertEqual(asset.asset_code, 'QB-LAP-002')
         self.assertEqual(asset.current_status, Asset.COMPANY_STATUS)
         self.assertTrue(asset.events.filter(event_type='created').exists())
+
+    def test_register_form_offers_seeded_categories_and_saves_with_one(self):
+        form = AssetForm()
+        seeded_codes = set(form.fields['category'].queryset.values_list('code', flat=True))
+        self.assertTrue(
+            {'LAPTOP', 'DESKTOP', 'MONITOR', 'OTHER', 'FRIDGE', 'AC', 'TV', 'COFFEE'} <= seeded_codes,
+        )
+        settings = AssetSettings.current()
+        settings.asset_prefix = 'QB'
+        settings.next_asset_sequence = 1
+        settings.save()
+        category = AssetCategory.objects.get(code='MONITOR')
+        response = self.client.post(reverse('assets:asset_new'), {
+            'name': 'Seeded category monitor', 'category': category.pk, 'ownership_type': 'owned',
+            'usage_type': 'company', 'condition': 'good', 'current_location': '',
+        })
+        asset = Asset.objects.get(name='Seeded category monitor')
+        self.assertRedirects(response, reverse('assets:asset_detail', args=(asset.pk,)))
+        self.assertEqual(asset.category, category)
+        self.assertEqual(asset.asset_code, 'QB-MONITOR-001')
 
     def test_assign_and_return_workflow_updates_custody_and_events(self):
         asset = Asset.objects.create(

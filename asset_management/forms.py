@@ -45,7 +45,7 @@ class AssetForm(StyledForm, forms.ModelForm):
         self.fields['current_location'].queryset = AssetLocation.objects.filter(is_active=True)
         self.fields['current_location'].empty_label = 'No specific location'
         self.fields['category'].help_text = (
-            'The asset ID is generated from this category code when the asset is saved.'
+            'Select the category. The asset ID is generated from its code when the asset is saved.'
         )
 
 
