@@ -63,6 +63,14 @@
 .bk-import-page .bk-map-form label{display:grid;gap:5px;font-size:12px;font-weight:700}
 .bk-import-page .bk-map-form .bk-map-help,.bk-import-page .bk-map-form .form-actions{grid-column:1/-1}
 .bk-import-page .bk-mapping-table,.bk-import-page .bk-history-table,.bk-import-page .bk-accounting-table{min-width:900px}
+.bk-import-page .bk-accounting-table{min-width:1240px}
+.bk-import-page .bk-accounting-table td{vertical-align:top}
+.bk-import-page .bk-accounting-table td>small{display:block;margin-top:4px;color:#71808c;font-size:11px;line-height:1.35}
+.bk-import-page .bk-accounting-table td>small a{margin-top:3px}
+.bk-import-page .bk-draft-fields{display:grid;gap:7px;margin-top:9px;padding-top:9px;border-top:1px dashed #dbe5ec}
+.bk-import-page .bk-draft-fields label{display:grid;gap:4px;font-size:11px;font-weight:700;color:#435462}
+.bk-import-page .bk-draft-fields .field{width:100%;min-width:0;min-height:34px;padding:5px 8px;font-size:12px}
+.bk-import-page .bk-draft-fields [hidden]{display:none}
 .bk-import-page .bk-preview-table{min-width:1120px}
 .bk-import-page .bk-empty{padding:24px;text-align:center;color:#647684;background:#f8fafb}
 @media(max-width:760px){

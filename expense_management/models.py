@@ -225,6 +225,10 @@ class CompanyExpense(models.Model):
                                       help_text='Prior-period item: the earlier FY this cost belongs to.')
     is_prior_period = models.BooleanField('Prior-period expense', default=False, db_index=True)
     prior_period_note = models.CharField(max_length=300, blank=True)
+    source_bank_transaction = models.OneToOneField('bank_management.BankTransaction', null=True, blank=True,
+                                                   on_delete=models.PROTECT, related_name='draft_company_expense',
+                                                   verbose_name='Source statement line',
+                                                help_text='Set when a draft is created from a bank statement import.')
     remarks = models.TextField(blank=True)
     cancel_reason = models.CharField(max_length=300, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
@@ -404,6 +408,10 @@ class EmployeeExpenseClaim(models.Model):
                                       help_text='Prior-period item: the earlier FY this cost belongs to.')
     is_prior_period = models.BooleanField('Prior-period expense', default=False, db_index=True)
     prior_period_note = models.CharField(max_length=300, blank=True)
+    source_bank_transaction = models.OneToOneField('bank_management.BankTransaction', null=True, blank=True,
+                                                   on_delete=models.PROTECT, related_name='draft_employee_claim',
+                                                   verbose_name='Source statement line',
+                                                help_text='Set when a draft is created from a bank statement import.')
     remarks = models.TextField(blank=True)
     status = models.CharField(max_length=20, choices=STATUSES, default=DRAFT, db_index=True)
     approved_amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)

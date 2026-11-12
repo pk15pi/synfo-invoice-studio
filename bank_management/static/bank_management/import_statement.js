@@ -36,6 +36,18 @@
     controls.forEach((control) => control.addEventListener('change', filterRows));
   }
 
+  document.querySelectorAll('[data-bk-draft-fields]').forEach((fields) => {
+    const select = fields.closest('tr')?.querySelector('[data-bk-classification]');
+    if (!select) return;
+    const syncFields = () => {
+      fields.querySelectorAll('[data-bk-draft-kind]').forEach((label) => {
+        label.hidden = label.dataset.bkDraftKind !== select.value;
+      });
+    };
+    select.addEventListener('change', syncFields);
+    syncFields();
+  });
+
   document.querySelectorAll('form[data-submit-lock]').forEach((form) => {
     form.addEventListener('submit', (event) => {
       if (form.dataset.submitting === 'true') {

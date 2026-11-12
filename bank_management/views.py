@@ -659,14 +659,86 @@ def import_review(request, pk):
     })
 
 
+MIGRATION_CLASSIFICATIONS = {'expense', 'vendor_payment', 'salary', 'reimbursement', 'customer_receipt',
+                             'tax', 'bank_transfer', 'journal', 'asset', 'loan', 'capital', 'other', 'review'}
+
+
+def _draft_company_expense(batch, row, category_id):
+    """Create the statement-line follow-up as a draft only; never post, pay or approve."""
+    from expense_management.models import CompanyExpense, ExpenseCategory
+    txn = row.actual_transaction
+    category = ExpenseCategory.for_company().filter(pk=category_id).first() if category_id else None
+    if category is None:
+        category = (ExpenseCategory.for_company().filter(name__iexact='Other').first()
+                    or ExpenseCategory.for_company().first())
+    if category is None:
+        return None, 'No active company expense category is configured.'
+    existing = CompanyExpense.objects.filter(source_bank_transaction=txn).first()
+    if existing:
+        return existing, ''
+    expense = CompanyExpense(
+        source_bank_transaction=txn, expense_date=txn.date, category=category,
+        description=(txn.description or 'Bank statement withdrawal')[:300],
+        amount_mode=CompanyExpense.DIRECT, total_amount=txn.debit, currency='INR', exchange_rate=1,
+        is_draft=True, payment_status=CompanyExpense.UNPAID,
+        remarks=(f'Draft from bank statement import batch #{batch.pk}, row {row.row_number}, '
+                 f'bank transaction #{txn.pk} ({txn.date:%d-%m-%Y}). Review and finalize in Expense Management.'))
+    expense.full_clean()
+    expense.save()
+    return expense, ''
+
+
+def _draft_employee_claim(batch, row, employee_id, category_id):
+    """Create the reimbursement follow-up as a draft only; never submit, approve or reimburse."""
+    from employee_management.models import Employee
+    from expense_management.models import EmployeeExpenseClaim, ExpenseCategory
+    txn = row.actual_transaction
+    employee = Employee.objects.filter(pk=employee_id).first() if employee_id else None
+    if employee is None:
+        return None, 'Choose the employee before a draft claim can be created.'
+    category = ExpenseCategory.for_claims().filter(pk=category_id).first() if category_id else None
+    if category is None:
+        category = (ExpenseCategory.for_claims().filter(name__iexact='Employee Expenses').first()
+                    or ExpenseCategory.for_claims().first())
+    if category is None:
+        return None, 'No active employee claim category is configured.'
+    existing = EmployeeExpenseClaim.objects.filter(source_bank_transaction=txn).first()
+    if existing:
+        return existing, ''
+    claim = EmployeeExpenseClaim(
+        source_bank_transaction=txn, employee=employee, claim_date=timezone.localdate(),
+        expense_date=txn.date, category=category,
+        description=(txn.description or 'Bank statement reimbursement')[:300],
+        amount_claimed=txn.debit, currency='INR', exchange_rate=1,
+        status=EmployeeExpenseClaim.DRAFT,
+        remarks=(f'Draft from bank statement import batch #{batch.pk}, row {row.row_number}, '
+                 f'bank transaction #{txn.pk} ({txn.date:%d-%m-%Y}). Not submitted, approved or reimbursed.'))
+    claim.full_clean()
+    claim.save()
+    return claim, ''
+
+
+def _draft_follow_up_links(rows):
+    from expense_management.models import CompanyExpense, EmployeeExpenseClaim
+    txn_ids = [row.actual_transaction_id for row in rows if row.actual_transaction_id]
+    expenses = {e.source_bank_transaction_id: e for e in
+                CompanyExpense.objects.filter(source_bank_transaction_id__in=txn_ids)}
+    claims = {c.source_bank_transaction_id: c for c in
+              EmployeeExpenseClaim.objects.filter(source_bank_transaction_id__in=txn_ids)}
+    for row in rows:
+        row.accounting_linked = bool(row.actual_transaction_id and
+                                     row.actual_transaction.matches.filter(active=True).exists())
+        row.draft_expense = expenses.get(row.actual_transaction_id)
+        row.draft_claim = claims.get(row.actual_transaction_id)
+
+
 def import_migration(request, pk):
     batch = get_object_or_404(ImportBatch.objects.select_related('bank_account'), pk=pk)
     if batch.status == 'cancelled':
         messages.error(request, 'A cancelled draft cannot be migrated or classified for accounting.')
         return redirect('bank:import_review', batch.pk)
     rows = list(batch.draft_rows.filter(verification_status='verified').select_related('actual_transaction').order_by('row_number'))
-    for row in rows:
-        row.accounting_linked = row.actual_transaction.matches.filter(active=True).exists()
+    _draft_follow_up_links(rows)
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'defer':
@@ -675,20 +747,68 @@ def import_migration(request, pk):
             messages.info(request, 'Accounting classification was deferred. The bank statement import remains verified and unchanged.')
             return redirect('bank:import_review', batch.pk)
         if action == 'save_classification':
+            created_expenses, created_claims, warnings = [], [], []
             for row in rows:
                 classification = request.POST.get(f'class_{row.pk}', '')
-                if classification in {'expense', 'vendor_payment', 'salary', 'reimbursement', 'customer_receipt',
-                                      'tax', 'bank_transfer', 'journal', 'asset', 'loan', 'capital', 'other', 'review'}:
-                    row.migration_classification = classification
-                    row.migration_status = 'review' if classification in ('review', 'other') else 'classified'
-                    row.migration_justification = 'User selected a classification for follow-up. No accounting record was created.'
-                    row.save(update_fields=['migration_classification', 'migration_status', 'migration_justification'])
+                if classification not in MIGRATION_CLASSIFICATIONS:
+                    continue
+                row.migration_classification = classification
+                row.migration_status = 'review' if classification in ('review', 'other') else 'classified'
+                row.migration_justification = 'User selected a classification for follow-up. No accounting record was created.'
+                txn = row.actual_transaction
+                if classification in ('expense', 'reimbursement'):
+                    if txn is None or txn.debit <= 0:
+                        warnings.append(f'Row {row.row_number}: only a withdrawal can become a draft '
+                                        f'{"company expense" if classification == "expense" else "employee claim"}.')
+                    elif row.draft_expense or row.draft_claim:
+                        linked = row.draft_expense or row.draft_claim
+                        row.migration_status = 'draft'
+                        row.migration_justification = (
+                            f'{linked.expense_id if row.draft_expense else linked.claim_id} draft is already linked. '
+                            'It has not been posted, approved, paid or reconciled.')
+                    else:
+                        try:
+                            if classification == 'expense':
+                                draft, error = _draft_company_expense(
+                                    batch, row, request.POST.get(f'expense_category_{row.pk}'))
+                            else:
+                                draft, error = _draft_employee_claim(
+                                    batch, row, request.POST.get(f'claim_employee_{row.pk}'),
+                                    request.POST.get(f'claim_category_{row.pk}'))
+                        except (ValidationError, IntegrityError) as exc:
+                            draft, error = None, _err(exc)
+                        if draft:
+                            row.migration_status = 'draft'
+                            if classification == 'expense':
+                                created_expenses.append(draft.expense_id)
+                                row.migration_justification = (
+                                    f'Draft company expense {draft.expense_id} created. It is not posted or paid.')
+                            else:
+                                created_claims.append(draft.claim_id)
+                                row.migration_justification = (
+                                    f'Draft employee claim {draft.claim_id} created. It is not submitted, approved or reimbursed.')
+                        else:
+                            warnings.append(f'Row {row.row_number}: {error}')
+                            row.migration_justification = f'Classification saved, but no draft was created: {error}'
+                row.save(update_fields=['migration_classification', 'migration_status', 'migration_justification'])
             batch.accounting_migration_status = 'review'
             batch.save(update_fields=['accounting_migration_status'])
-            messages.success(request, 'Classifications saved. Posting into an accounting module is not performed here; use the existing module and reconcile the bank row to prevent duplicate entries.')
+            messages.success(request,
+                             f'Classifications saved. {len(created_expenses)} draft company expense(s) and '
+                             f'{len(created_claims)} draft employee claim(s) created. Drafts are not posted, '
+                             'approved, paid or reconciled here.')
+            for warning in warnings[:6]:
+                messages.warning(request, warning)
+            if len(warnings) > 6:
+                messages.warning(request, f'{len(warnings) - 6} more row(s) need attention before a draft can be created.')
             return redirect('bank:import_migration', batch.pk)
+    from employee_management.models import Employee
+    from expense_management.models import ExpenseCategory
     return render(request, 'bank_management/import_migration.html', {
         'batch': batch, 'rows': rows, 'categories': ImportDraftRow.MIGRATION_CATEGORIES,
+        'company_categories': ExpenseCategory.for_company(),
+        'claim_categories': ExpenseCategory.for_claims(),
+        'employees': Employee.objects.filter(status__in=Employee.EMPLOYED).order_by('first_name', 'last_name'),
     })
 
 

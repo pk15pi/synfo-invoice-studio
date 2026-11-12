@@ -299,7 +299,10 @@ class PDFImportReviewTests(TestCase):
             'action': 'save_classification', f'class_{row.pk}': 'expense',
         })
         row.refresh_from_db()
-        self.assertEqual(row.migration_status, 'classified')
+        from expense_management.models import CompanyExpense
+        draft = CompanyExpense.objects.get(source_bank_transaction=row.actual_transaction)
+        self.assertTrue(draft.is_draft)
+        self.assertEqual(row.migration_status, 'draft')
         self.assertEqual(JournalEntry.objects.count(), before_journals)
 
     def test_date_outside_extracted_period_requires_acknowledgement(self):
@@ -346,6 +349,82 @@ class PDFImportReviewTests(TestCase):
         from .pdf_import import extract_pdf
         with self.assertRaisesRegex(ValueError, 'password-protected'):
             extract_pdf(SimpleUploadedFile('locked.pdf', data, content_type='application/pdf'))
+
+    def _verified_batch(self):
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': text_statement_pdf()})
+        batch = ImportBatch.objects.get()
+        rows = list(batch.draft_rows.filter(transaction_date__isnull=False).order_by('row_number'))
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {
+            'action': 'confirm_period', 'from_date': '2026-04-01', 'to_date': '2026-04-30',
+        })
+        for row in rows:
+            self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'approve_row', 'row_id': row.pk})
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'import_approved'})
+        for row in rows:
+            row.refresh_from_db()
+        return batch, rows
+
+    def test_accounting_review_links_only_a_draft_company_expense(self):
+        from expense_management.models import CompanyExpense, CompanyExpensePayment, ExpenseCategory
+        batch, rows = self._verified_batch()
+        withdrawal = next(row for row in rows if row.actual_transaction and row.actual_transaction.debit > 0)
+        journals = JournalEntry.objects.count()
+        office = ExpenseCategory.for_company().get(name='Office')
+        response = self.client.post(reverse('bank:import_migration', args=[batch.pk]), {
+            'action': 'save_classification', f'class_{withdrawal.pk}': 'expense',
+            f'expense_category_{withdrawal.pk}': office.pk,
+        }, follow=True)
+        withdrawal.refresh_from_db()
+        expense = CompanyExpense.objects.get(source_bank_transaction=withdrawal.actual_transaction)
+        self.assertTrue(expense.is_draft)
+        self.assertEqual(expense.payment_status, CompanyExpense.UNPAID)
+        self.assertEqual((expense.total_amount, expense.expense_date), (D('25.00'), date(2026, 4, 1)))
+        self.assertEqual(expense.category, office)
+        self.assertEqual(withdrawal.migration_status, 'draft')
+        self.assertContains(response, f'Draft company expense {expense.expense_id}')
+        self.assertContains(response, 'not posted or paid')
+        self.assertEqual(JournalEntry.objects.count(), journals)
+        self.assertFalse(CompanyExpensePayment.objects.filter(expense=expense).exists())
+        self.client.post(reverse('bank:import_migration', args=[batch.pk]), {
+            'action': 'save_classification', f'class_{withdrawal.pk}': 'expense',
+            f'expense_category_{withdrawal.pk}': office.pk,
+        })
+        self.assertEqual(CompanyExpense.objects.filter(source_bank_transaction=withdrawal.actual_transaction).count(), 1)
+        deposit = next(row for row in rows if row.actual_transaction and row.actual_transaction.credit > 0)
+        self.client.post(reverse('bank:import_migration', args=[batch.pk]), {
+            'action': 'save_classification', f'class_{deposit.pk}': 'expense',
+        })
+        self.assertFalse(CompanyExpense.objects.filter(source_bank_transaction=deposit.actual_transaction).exists())
+
+    def test_accounting_review_links_only_a_draft_employee_claim(self):
+        from employee_management.models import Department, Employee
+        from expense_management.models import (EmployeeClaimReview, EmployeeExpenseClaim,
+                                               EmployeeReimbursement)
+        batch, rows = self._verified_batch()
+        withdrawal = next(row for row in rows if row.actual_transaction and row.actual_transaction.debit > 0)
+        band = Department.objects.create(name='Finance', code='FIN')
+        employee = Employee.objects.create(first_name='Asha', last_name='Rao', department=band,
+                                           designation='Analyst', date_of_joining=date(2025, 1, 1),
+                                           status=Employee.CONFIRMED)
+        journals = JournalEntry.objects.count()
+        url = reverse('bank:import_migration', args=[batch.pk])
+        self.client.post(url, {'action': 'save_classification', f'class_{withdrawal.pk}': 'reimbursement'})
+        self.assertFalse(EmployeeExpenseClaim.objects.exists())
+        response = self.client.post(url, {
+            'action': 'save_classification', f'class_{withdrawal.pk}': 'reimbursement',
+            f'claim_employee_{withdrawal.pk}': employee.pk,
+        }, follow=True)
+        withdrawal.refresh_from_db()
+        claim = EmployeeExpenseClaim.objects.get(source_bank_transaction=withdrawal.actual_transaction)
+        self.assertEqual(claim.status, EmployeeExpenseClaim.DRAFT)
+        self.assertEqual((claim.employee, claim.amount_claimed), (employee, D('25.00')))
+        self.assertEqual(claim.expense_date, date(2026, 4, 1))
+        self.assertEqual(withdrawal.migration_status, 'draft')
+        self.assertContains(response, f'Draft employee claim {claim.claim_id}')
+        self.assertContains(response, 'not submitted or reimbursed')
+        self.assertEqual(JournalEntry.objects.count(), journals)
+        self.assertFalse(EmployeeClaimReview.objects.filter(claim=claim).exists())
+        self.assertFalse(EmployeeReimbursement.objects.filter(claim=claim).exists())
 
 
 @override_settings(MEDIA_ROOT=DRAFT_MEDIA_ROOT)
