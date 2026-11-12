@@ -2,11 +2,12 @@ from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
-from django.db.models import Max, Q
+from django.db.models import Count, Max, ProtectedError, Q, Sum
 from django.http import FileResponse, Http404, HttpResponse
 from django.core.paginator import Paginator
 from invoice_app.pagination import paginate as qb_paginate
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -17,7 +18,7 @@ from invoice_app.table_sorting import apply_queryset_sort
 from reporting import periods as rp
 
 from . import importer, pdf_import, services as S
-from .forms import BankAccountForm, DraftRowForm, ManualEntryForm, TransactionForm, TransferForm, UploadForm
+from .forms import BankAccountForm, DraftRowEditForm, DraftRowForm, ManualEntryForm, TransactionForm, TransferForm, UploadForm
 from .models import BankAccount, BankTransaction, BankTransfer, ImportBatch, ImportDraftRow, ReconciliationMatch
 
 
@@ -654,6 +655,8 @@ def import_review(request, pk):
         'versions': versions, 'source_available': source_available,
         'cancel_block_reason': cancel_block_reason, 'can_cancel': not cancel_block_reason,
         'cancel_confirmation': cancel_confirmation,
+        'open_draft_count': _open_draft_rows(batch).count(),
+        'delete_block_reason': _delete_block_reason(batch), 'can_delete': not _delete_block_reason(batch),
         'can_review': batch.status not in {'imported', 'completed', 'cancelled', 'importing'},
         'can_regenerate': source_available and batch.status != 'importing',
     })
@@ -968,13 +971,18 @@ def _import_approved_rows(request, batch):
 
 
 def imports(request):
-    qs = ImportBatch.objects.select_related('bank_account')
+    qs = ImportBatch.objects.select_related('bank_account').annotate(
+        open_draft_rows=Count('draft_rows', distinct=True, filter=Q(
+            draft_rows__review_status__in=DRAFT_OPEN_STATUSES, draft_rows__actual_transaction__isnull=True)),
+        locked_rows=Count('draft_rows', distinct=True, filter=Q(
+            draft_rows__review_status__in=[ImportDraftRow.IMPORTED, ImportDraftRow.VERIFIED]) | Q(draft_rows__actual_transaction__isnull=False)),
+        txn_count=Count('transactions', distinct=True), version_count=Count('versions', distinct=True))
     qs, _, _ = apply_queryset_sort(qs, request, {
         'when': 'created_at', 'account': 'bank_account__name', 'file': 'file_name', 'status': 'status',
         'rows': 'total_rows', 'imported': 'imported', 'duplicates': 'duplicates', 'errors': 'errors',
     })
     return render(request, 'bank_management/imports.html', {
-        'rows': qs[:200],
+        'rows': _with_delete_flags(qs[:200]),
         'accounts': BankAccount.objects.order_by('kind', 'name'),
     })
 
@@ -1033,3 +1041,263 @@ def book(request, kind):
 
 def legacy_preview(request):
     return render(request, 'bank_management/legacy_preview.html', {'rows': S.legacy_bank_text_preview()})
+
+
+# ------------------------------------------------------------- draft rows: list and edit
+# A draft row stays editable until it has been written to, or verified against, the bank register.
+DRAFT_OPEN_STATUSES = (ImportDraftRow.PENDING, ImportDraftRow.APPROVED, ImportDraftRow.EXCLUDED, ImportDraftRow.FAILED)
+DRAFT_EDIT_FIELDS = ('transaction_date', 'value_date', 'description', 'reference', 'debit', 'credit', 'balance')
+_CHECKED_WARNING_PREFIXES = (
+    'One or more transactions are before the confirmed statement start date.',
+    'One or more transactions are after the confirmed statement end date.',
+    'Statement arithmetic differs:',
+    'Running balance does not reconcile between draft rows',
+)
+
+
+def _open_draft_rows(batch):
+    """Rows of a batch that are still drafts (not imported/verified and not linked to a bank transaction)."""
+    return batch.draft_rows.filter(review_status__in=DRAFT_OPEN_STATUSES, actual_transaction__isnull=True)
+
+
+def _draft_row_is_open(row):
+    return row.review_status in DRAFT_OPEN_STATUSES and not row.actual_transaction_id
+
+
+def _draft_edit_block_reason(batch, row=None):
+    """Why draft rows of this batch (or this particular row) cannot be edited; '' when editing is allowed."""
+    if batch.status == 'cancelled':
+        return 'This draft is cancelled. Regenerate a new version from its retained upload to edit rows again.'
+    if batch.status == 'importing':
+        return 'Import is in progress. Wait for it to finish before editing draft rows.'
+    if batch.status in ('imported', 'completed'):
+        return ('This batch has been imported, so its rows can no longer be edited as drafts. '
+                'Use the bank transaction correction workflow, or regenerate a new draft version.')
+    if batch.status == ImportBatch.PENDING:
+        return 'Map the statement columns and create the review draft before editing rows.'
+    if row is not None and not _draft_row_is_open(row):
+        return (f'Row {row.row_number} has already been imported or verified against the bank register '
+                'and cannot be edited as a draft.')
+    return ''
+
+
+def _draft_fingerprint(transaction_date, debit, credit, reference, description):
+    """Same in-statement duplicate fingerprint that importer.create_draft_rows uses."""
+    return (transaction_date, q2(debit or 0), q2(credit or 0), (reference or '').strip().casefold(), importer._norm(description))
+
+
+def _row_fingerprint(row):
+    return _draft_fingerprint(row.transaction_date, row.debit, row.credit, row.reference, row.description)
+
+
+def _refresh_statement_checks(batch):
+    """Recompute the warnings that _check_statement_totals derives from draft rows after a row edit.
+
+    Extractor warnings are kept; derived period/arithmetic/running-balance warnings are recalculated so a
+    corrected row clears a stale warning. If an edit introduces a new warning, any earlier acknowledgement
+    is withdrawn so the existing import guard asks for the warnings to be reviewed again.
+    """
+    before = list(batch.statement_warnings or [])
+    batch.statement_warnings = [w for w in before if not str(w).startswith(_CHECKED_WARNING_PREFIXES)]
+    _check_statement_totals(batch)
+    update = ['statement_warnings']
+    if set(batch.statement_warnings) - set(before):
+        metadata = dict(batch.extraction_metadata or {})
+        if metadata.get('statement_warnings_acknowledged'):
+            metadata['statement_warnings_acknowledged'] = False
+            batch.extraction_metadata = metadata
+            update.append('extraction_metadata')
+    batch.save(update_fields=update)
+
+
+def _apply_draft_row_edit(batch, row, data):
+    """Save edited statement fields on an open draft row and refresh every value derived from them.
+
+    Mirrors the inline 'save_row' review action: the row is re-compared with the bank register and returns
+    to pending review. No bank transaction or accounting record is touched.
+    """
+    old_fingerprint = _row_fingerprint(row)
+    before = {field: getattr(row, field) for field in DRAFT_EDIT_FIELDS}
+    row.transaction_date = data.get('transaction_date')
+    row.value_date = data.get('value_date')
+    row.description = (data.get('description') or '').strip()[:500]
+    row.reference = (data.get('reference') or '').strip()[:120]
+    row.debit = q2(data.get('debit') or 0)
+    row.credit = q2(data.get('credit') or 0)
+    row.balance = q2(data['balance']) if data.get('balance') is not None else None
+    row.normalized_description = importer._norm(row.description)[:500]
+    classification, existing, changes, justification = importer.classify_draft_row(batch.bank_account, {
+        'transaction_date': row.transaction_date, 'value_date': row.value_date, 'description': row.description,
+        'reference': row.reference, 'debit': row.debit, 'credit': row.credit, 'balance': row.balance,
+        'confidence': 100, 'extraction_error': '',
+    })
+    new_fingerprint = _row_fingerprint(row)
+    if new_fingerprint != old_fingerprint:
+        twins = [other for other in batch.draft_rows.exclude(pk=row.pk) if _row_fingerprint(other) == new_fingerprint]
+        row.fingerprint_occurrence = max(other.fingerprint_occurrence for other in twins) + 1 if twins else 0
+    if row.fingerprint_occurrence and classification == ImportDraftRow.NEW:
+        classification = ImportDraftRow.POSSIBLE
+        justification = ('An identical row (date, amount, reference and narration) appears elsewhere in this statement. '
+                         'Confirm that it is a separate bank transaction before importing.')
+    row.classification, row.existing_transaction, row.proposed_changes, row.justification = (
+        classification, existing, changes, justification)
+    row.extraction_error = ''
+    row.review_status, row.decision, row.reviewed_at = ImportDraftRow.PENDING, '', None
+    if row.verification_status == 'failed':
+        row.verification_status, row.verification_note = 'pending', ''
+    row.save()
+    _refresh_statement_checks(batch)
+    _refresh_batch_counts(batch)
+    _set_batch_review_status(batch)
+    return [field for field in DRAFT_EDIT_FIELDS if before[field] != getattr(row, field)]
+
+
+def import_draft_rows(request, pk):
+    """List the draft rows created by a statement import, with filters and an edit link per open row."""
+    batch = get_object_or_404(ImportBatch.objects.select_related('bank_account'), pk=pk)
+    if batch.status == ImportBatch.PENDING and not batch.draft_rows.exists():
+        messages.info(request, 'This upload has no draft rows yet. Map the columns and create the review draft first.')
+        return redirect('bank:import_batch', batch.pk)
+    show = request.GET.get('show') if request.GET.get('show') in ('draft', 'all') else 'draft'
+    status = request.GET.get('status', '')
+    classification = request.GET.get('classification', '')
+    search = (request.GET.get('q') or '').strip()
+    open_rows = _open_draft_rows(batch)
+    rows = open_rows if show == 'draft' else batch.draft_rows.all()
+    if status in dict(ImportDraftRow.REVIEW_STATUSES):
+        rows = rows.filter(review_status=status)
+    else:
+        status = ''
+    if classification in dict(ImportDraftRow.CLASSIFICATIONS):
+        rows = rows.filter(classification=classification)
+    else:
+        classification = ''
+    if search:
+        rows = rows.filter(Q(description__icontains=search) | Q(reference__icontains=search))
+    rows = rows.select_related('existing_transaction').order_by('row_number', 'id')
+    totals = rows.aggregate(debits=Sum('debit'), credits=Sum('credit'))
+    block_reason = _draft_edit_block_reason(batch)
+    return render(request, 'bank_management/import_draft_rows.html', {
+        'batch': batch, 'rows': rows, 'show': show, 'status': status, 'classification': classification, 'q': search,
+        'open_count': open_rows.count(), 'all_count': batch.draft_rows.count(), 'listed_count': rows.count(),
+        'listed_debits': q2(totals['debits'] or 0), 'listed_credits': q2(totals['credits'] or 0),
+        'review_statuses': ImportDraftRow.REVIEW_STATUSES, 'classifications': ImportDraftRow.CLASSIFICATIONS,
+        'open_statuses': DRAFT_OPEN_STATUSES, 'can_edit': not block_reason, 'block_reason': block_reason,
+    })
+
+
+def import_draft_row_edit(request, pk, row_pk):
+    """Edit one open draft row; imported/verified rows and closed batches are rejected."""
+    batch = get_object_or_404(ImportBatch.objects.select_related('bank_account'), pk=pk)
+    row = get_object_or_404(batch.draft_rows.select_related('existing_transaction'), pk=row_pk)
+    list_url = reverse('bank:import_draft_rows', args=[batch.pk])
+    reason = _draft_edit_block_reason(batch, row)
+    if reason:
+        messages.error(request, reason)
+        return redirect(list_url)
+    form = DraftRowEditForm(request.POST or None, instance=row)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            with transaction.atomic():
+                locked_batch = ImportBatch.objects.select_for_update().select_related('bank_account').get(pk=batch.pk)
+                locked_row = ImportDraftRow.objects.select_for_update().get(pk=row.pk, batch=locked_batch)
+                reason = _draft_edit_block_reason(locked_batch, locked_row)
+                if reason:
+                    raise ValueError(reason)
+                changed = _apply_draft_row_edit(locked_batch, locked_row, form.cleaned_data)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect(list_url)
+        labels = [form.fields[field].label for field in changed]
+        messages.success(request, (f'Draft row {locked_row.row_number} saved' +
+                                   (f' ({", ".join(labels)} changed)' if labels else ' (no field changed)') +
+                                   f'. Comparison refreshed: {locked_row.get_classification_display()}. '
+                                   'The row is back to pending review; no bank or accounting record was changed.'))
+        return redirect(f'{list_url}#draft-row-{locked_row.pk}')
+    open_ids = list(_open_draft_rows(batch).order_by('row_number', 'id').values_list('pk', flat=True))
+    position = open_ids.index(row.pk) if row.pk in open_ids else None
+    return render(request, 'bank_management/import_draft_row_edit.html', {
+        'batch': batch, 'row': row, 'form': form,
+        'previous_id': open_ids[position - 1] if position else None,
+        'next_id': open_ids[position + 1] if position is not None and position + 1 < len(open_ids) else None,
+    })
+
+
+# ------------------------------------------------------------- delete an unimported draft batch
+def _delete_block_reason(batch):
+    """Why this import batch cannot be deleted as a draft; '' when deletion is allowed.
+
+    Deletion is only for drafts that never reached the bank register. Annotated counts from the imports list
+    (locked_rows, txn_count, version_count) are used when present to avoid per-row queries.
+    """
+    if batch.status == 'importing':
+        return 'Import is in progress. Wait for it to finish before deleting this draft.'
+    locked = getattr(batch, 'locked_rows', None)
+    if locked is None:
+        locked = batch.draft_rows.filter(Q(review_status__in=[ImportDraftRow.IMPORTED, ImportDraftRow.VERIFIED]) |
+                                         Q(actual_transaction__isnull=False)).count()
+    txns = getattr(batch, 'txn_count', None)
+    if txns is None:
+        txns = batch.transactions.count()
+    if batch.imported or batch.verified or batch.modified or batch.duplicates or locked or txns:
+        return ('Rows from this batch have already been imported into or verified against the bank register, so it '
+                'cannot be deleted. Use the bank transaction correction or reversal workflow.')
+    if batch.status in ('imported', 'completed', 'verification_failed'):
+        return 'This batch has entered the import workflow and cannot be deleted as a draft.'
+    versions = getattr(batch, 'version_count', None)
+    if versions is None:
+        versions = batch.versions.count()
+    if versions:
+        return (f'This is the original upload for {versions} regenerated draft version(s), which share its file. '
+                'Delete those versions first.')
+    return ''
+
+
+def _with_delete_flags(batches):
+    rows = list(batches)
+    for batch in rows:
+        batch.delete_block_reason = _delete_block_reason(batch)
+    return rows
+
+
+def _remove_unreferenced_import_files(files):
+    """Best-effort removal of statement files no remaining import batch points to."""
+    for storage, name in files:
+        if ImportBatch.objects.filter(Q(original_file=name) | Q(generated_csv=name)).exists():
+            continue
+        try:
+            if storage.exists(name):
+                storage.delete(name)
+        except Exception:  # noqa: BLE001 - a leftover file must never undo a committed delete
+            pass
+
+
+@require_POST
+def import_delete(request, pk):
+    """Permanently delete an unimported draft batch with its draft rows and draft-only files."""
+    batch = get_object_or_404(ImportBatch, pk=pk)
+    reason = (request.POST.get('delete_reason') or '').strip()
+    from_review = request.POST.get('return_to') == 'review'
+    try:
+        with transaction.atomic():
+            locked = ImportBatch.objects.select_for_update().get(pk=batch.pk)
+            block = _delete_block_reason(locked)
+            if block:
+                raise ValueError(block)
+            if not reason:
+                raise ValueError('Enter a reason for deleting this draft so the audit log explains why it was removed.')
+            label = f'batch #{locked.pk}, Draft Version {locked.version_number} ({locked.file_name})'
+            row_count = locked.draft_rows.count()
+            files = [(f.storage, f.name) for f in (locked.original_file, locked.generated_csv) if f and f.name]
+            from audit.recorder import log_manual
+            log_manual('bank_management', 'ImportDraftRow', locked.pk, f'Draft rows of import {label}', 'delete',
+                       reason, {'draft_rows': [row_count, 0], 'import_batch': [locked.pk, None]})
+            locked.delete()  # draft rows cascade; the ImportBatch delete itself is audited by the audit app
+            transaction.on_commit(lambda: _remove_unreferenced_import_files(files))
+    except (ValueError, ProtectedError) as exc:
+        messages.error(request, str(exc) if isinstance(exc, ValueError) else
+                       'This draft is still referenced by other records and was not deleted.')
+        return redirect('bank:import_review', batch.pk) if from_review else redirect('bank:imports')
+    messages.success(request, f'Deleted draft {label} and its {row_count} draft row(s). '
+                              'No bank transaction or accounting record was changed.')
+    return redirect('bank:imports')

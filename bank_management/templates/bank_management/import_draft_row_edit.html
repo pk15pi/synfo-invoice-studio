@@ -1,0 +1,39 @@
+{% extends 'bank_management/base_bank.html' %}{% load static %}{% block bk_title %}Edit draft row {{ row.row_number }} &middot; import #{{ batch.pk }}{% endblock %}{% block bk %}
+<div class="bk-import-page">
+  <div class="page-heading">
+    <p class="eyebrow">Bank statement import &middot; Batch #{{ batch.pk }} &middot; Draft Version {{ batch.version_number }} &middot; Row {{ row.row_number }}</p>
+    <h1>Edit draft row {{ row.row_number }}</h1>
+    <p class="muted">{{ batch.file_name }} &middot; {{ batch.bank_account.name }}</p>
+    <p class="muted">Saving changes only this draft row. It is re-compared with the bank register and returns to pending review; approve and import it from the review page. No bank or accounting record is changed here.</p>
+  </div>
+
+  <section class="panel" aria-labelledby="bk-draft-row-current-title">
+    <h2 id="bk-draft-row-current-title">Current comparison</h2>
+    <div class="bk-review-summary">
+      <div><small>Classification</small><b>{{ row.get_classification_display }}</b></div>
+      <div><small>Review status</small><b>{{ row.get_review_status_display }}</b></div>
+      <div><small>Existing bank row</small><b>{% if row.existing_transaction %}<a href="{% url 'bank:txn_detail' row.existing_transaction.pk %}">#{{ row.existing_transaction_id }}</a>{% else %}None{% endif %}</b></div>
+      <div><small>Confidence</small><b>{{ row.confidence|default:'-' }}{% if row.confidence %}%{% endif %}</b></div>
+    </div>
+    {% if row.justification %}<p class="bk-status-note">{{ row.justification }}</p>{% endif %}
+    {% if row.extraction_error %}<p class="bk-status-note error">{{ row.extraction_error }}</p>{% endif %}
+    {% if row.raw_source.source_row %}<details><summary>Original source row</summary><div class="bk-full-text">{{ row.raw_source.source_row|join:' | ' }}</div></details>{% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="bk-draft-row-form-title">
+    <h2 id="bk-draft-row-form-title">Row details</h2>
+    <form method="post" class="bk-map-form" data-submit-lock>{% csrf_token %}
+      {% if form.non_field_errors %}<div class="bk-status-note error bk-map-help">{{ form.non_field_errors }}</div>{% endif %}
+      {% for f in form %}<label for="{{ f.id_for_label }}">{{ f.label }}{% if f.field.required %} *{% endif %} {{ f }}{% if f.errors %}<span class="bk-row-error">{{ f.errors|join:' ' }}</span>{% endif %}</label>{% endfor %}
+      <p class="muted bk-map-help">Enter exactly one positive amount: a debit (money out) or a credit (money in). Amounts use two decimal places.</p>
+      <div class="form-actions bk-import-actions">
+        <button class="button primary" type="submit" data-loading-text="Saving.">Save draft row</button>
+        <a class="button secondary" href="{% url 'bank:import_draft_rows' batch.pk %}#draft-row-{{ row.pk }}">Cancel</a>
+        {% if previous_id %}<a class="button secondary" href="{% url 'bank:import_draft_row_edit' batch.pk previous_id %}">&larr; Previous draft row</a>{% endif %}
+        {% if next_id %}<a class="button secondary" href="{% url 'bank:import_draft_row_edit' batch.pk next_id %}">Next draft row &rarr;</a>{% endif %}
+      </div>
+    </form>
+  </section>
+</div>
+<script src="{% static 'bank_management/import_statement.js' %}" defer></script>
+{% endblock %}

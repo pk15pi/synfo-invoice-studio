@@ -1,0 +1,7 @@
+<dialog class="bk-confirm-dialog" id="bk-delete-dialog-{{ batch.pk }}" aria-labelledby="bk-delete-title-{{ batch.pk }}" aria-describedby="bk-delete-description-{{ batch.pk }}">
+  <header><h2 id="bk-delete-title-{{ batch.pk }}">Delete this draft?</h2><button class="button secondary" type="button" data-close-dialog>Close</button></header>
+  <div class="dialog-body"><p id="bk-delete-description-{{ batch.pk }}">Batch #{{ batch.pk }} &middot; Draft Version {{ batch.version_number }} &middot; {{ batch.file_name }} &middot; {{ batch.total_rows }} row(s).</p>
+    <p>This permanently deletes the import batch, all of its draft rows and review decisions{% if not batch.source_batch_id %}, the retained original upload{% endif %} and the generated CSV. Nothing from it has been imported, so no bank transaction or accounting record is affected. This cannot be undone; use Cancel Draft instead if you want to keep the history.</p>
+    <form method="post" action="{% url 'bank:import_delete' batch.pk %}" data-submit-lock>{% csrf_token %}<input type="hidden" name="return_to" value="{{ return_to }}"><label for="bk-delete-reason-{{ batch.pk }}">Reason for deleting</label><textarea class="field" id="bk-delete-reason-{{ batch.pk }}" name="delete_reason" maxlength="500" required></textarea><footer><button class="button secondary" type="button" data-close-dialog>Keep draft</button><button class="button danger" type="submit" data-loading-text="Deleting.">Delete draft permanently</button></footer></form>
+  </div>
+</dialog>

@@ -802,3 +802,323 @@ class UISmokeTests(TestCase):
     def test_local_only(self):
         r = self.client.get(reverse('bank:accounts'), REMOTE_ADDR='10.1.2.3')
         self.assertIn(r.status_code, (403, 404))
+
+
+ROWS_MEDIA_ROOT = Path(tempfile.mkdtemp(prefix='qb-bank-draft-rows-tests-'))
+
+
+@override_settings(MEDIA_ROOT=ROWS_MEDIA_ROOT)
+class DraftRowListEditTests(TestCase):
+    """The 'View draft rows' list and the per-row draft editor."""
+
+    def setUp(self):
+        self.bank = make_bank()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(ROWS_MEDIA_ROOT, ignore_errors=True)
+
+    def _draft(self):
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': csv_upload()})
+        batch = ImportBatch.objects.latest('id')
+        self.client.post(reverse('bank:import_batch', args=[batch.pk]), dict(MAP, action='create_draft'))
+        batch.refresh_from_db()
+        return batch
+
+    def _list_url(self, batch):
+        return reverse('bank:import_draft_rows', args=[batch.pk])
+
+    def _edit_url(self, batch, row):
+        return reverse('bank:import_draft_row_edit', args=[batch.pk, row.pk])
+
+    def _post(self, batch, row, **overrides):
+        data = {'transaction_date': '2026-04-02', 'value_date': '', 'description': 'Bank charges', 'reference': '',
+                'debit': '59.00', 'credit': '', 'balance': ''}
+        data.update(overrides)
+        return self.client.post(self._edit_url(batch, row), data)
+
+    def _snapshot(self, row):
+        row.refresh_from_db()
+        return (row.transaction_date, row.description, row.reference, row.debit, row.credit, row.balance,
+                row.classification, row.review_status)
+
+    def test_buttons_link_to_draft_rows_list(self):
+        batch = self._draft()
+        url = self._list_url(batch)
+        self.assertContains(self.client.get(reverse('bank:imports')), url)
+        self.assertContains(self.client.get(reverse('bank:import_review', args=[batch.pk])), url)
+
+    def test_list_shows_draft_rows_with_edit_links_and_filters(self):
+        batch = self._draft()
+        response = self.client.get(self._list_url(batch))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Imported draft rows')
+        for row in batch.draft_rows.all():
+            self.assertContains(response, self._edit_url(batch, row))
+        self.assertContains(response, 'Opening deposit')
+        bad = batch.draft_rows.get(classification=ImportDraftRow.UNCERTAIN)
+        uncertain = self.client.get(self._list_url(batch) + '?classification=uncertain')
+        self.assertContains(uncertain, self._edit_url(batch, bad))
+        self.assertNotContains(uncertain, 'Opening deposit')
+        searched = self.client.get(self._list_url(batch) + '?q=charges')
+        self.assertContains(searched, 'Bank charges')
+        self.assertNotContains(searched, 'Opening deposit')
+        self.assertEqual(self.client.get(self._list_url(batch) + '?show=all&status=nonsense').status_code, 200)
+
+    def test_pending_upload_without_drafts_redirects_to_mapping(self):
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': csv_upload()})
+        batch = ImportBatch.objects.get()
+        self.assertRedirects(self.client.get(self._list_url(batch)), reverse('bank:import_batch', args=[batch.pk]))
+
+    def test_edit_fixes_uncertain_row_and_refreshes_derived_counts(self):
+        batch = self._draft()
+        bad = batch.draft_rows.get(classification=ImportDraftRow.UNCERTAIN)
+        self.assertEqual((batch.failed_extractions, batch.new_transactions), (1, 2))
+        page = self.client.get(self._edit_url(batch, bad))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, 'Edit draft row')
+        response = self._post(batch, bad, transaction_date='2026-04-02', description='Interest credit',
+                              reference='INT1', debit='', credit='12.50')
+        self.assertRedirects(response, self._list_url(batch) + f'#draft-row-{bad.pk}', fetch_redirect_response=False)
+        bad.refresh_from_db()
+        self.assertEqual((bad.transaction_date, bad.description, bad.reference, bad.debit, bad.credit),
+                         (date(2026, 4, 2), 'Interest credit', 'INT1', D('0.00'), D('12.50')))
+        self.assertEqual(bad.normalized_description, 'interest credit')
+        self.assertEqual((bad.classification, bad.review_status, bad.extraction_error),
+                         (ImportDraftRow.NEW, ImportDraftRow.PENDING, ''))
+        batch.refresh_from_db()
+        self.assertEqual((batch.failed_extractions, batch.new_transactions), (0, 3))
+        self.assertEqual(batch.status, 'under_review')
+        self.assertEqual(BankTransaction.objects.count(), 0)
+
+    def test_validation_rejects_invalid_values_without_saving(self):
+        batch = self._draft()
+        row = batch.draft_rows.get(description='Opening deposit')
+        before = self._snapshot(row)
+        cases = [
+            ({'debit': '10', 'credit': '10'}, 'Enter exactly one positive debit or credit amount.'),
+            ({'debit': '', 'credit': ''}, 'Enter exactly one positive debit or credit amount.'),
+            ({'debit': '-5', 'credit': ''}, 'Amount cannot be negative.'),
+            ({'debit': '1.234'}, 'decimal place'),
+            ({'description': '   '}, 'This field is required.'),
+            ({'transaction_date': ''}, 'This field is required.'),
+        ]
+        for overrides, message in cases:
+            response = self._post(batch, row, **overrides)
+            self.assertEqual(response.status_code, 200, overrides)
+            self.assertContains(response, message)
+            self.assertEqual(self._snapshot(row), before, overrides)
+
+    def test_approved_row_returns_to_pending_after_edit(self):
+        batch = self._draft()
+        row = batch.draft_rows.get(description='Opening deposit')
+        self.client.post(reverse('bank:import_review', args=[batch.pk]), {'action': 'approve_row', 'row_id': row.pk})
+        row.refresh_from_db()
+        self.assertEqual((row.review_status, row.decision), (ImportDraftRow.APPROVED, 'new'))
+        self._post(batch, row, transaction_date='2026-04-01', description='Opening deposit NEFT', reference='R1',
+                   debit='', credit='10000.00', balance='10000.00')
+        row.refresh_from_db()
+        self.assertEqual((row.review_status, row.decision, row.reviewed_at), (ImportDraftRow.PENDING, '', None))
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'under_review')
+
+    def test_in_statement_duplicate_flag_follows_edits(self):
+        batch = self._draft()
+        first, second = list(batch.draft_rows.filter(description='Bank charges').order_by('row_number'))
+        self.assertEqual((second.classification, second.fingerprint_occurrence), (ImportDraftRow.POSSIBLE, 1))
+        self._post(batch, second, description='Bank charges GST', debit='60.00')
+        second.refresh_from_db()
+        self.assertEqual((second.classification, second.fingerprint_occurrence), (ImportDraftRow.NEW, 0))
+        self._post(batch, second)  # identical to the first charge again
+        second.refresh_from_db()
+        self.assertEqual((second.classification, second.fingerprint_occurrence), (ImportDraftRow.POSSIBLE, 1))
+        first.refresh_from_db()
+        self.assertEqual(first.fingerprint_occurrence, 0)
+
+    def test_statement_warnings_follow_edits_and_withdraw_acknowledgement(self):
+        batch = self._draft()
+        first = batch.draft_rows.filter(description='Bank charges').order_by('row_number').first()
+        ImportBatch.objects.filter(pk=batch.pk).update(extraction_metadata={'statement_warnings_acknowledged': True})
+        self._post(batch, first, debit='60.00', balance='9941.00')
+        batch.refresh_from_db()
+        self.assertTrue(any(w.startswith('Running balance does not reconcile') for w in batch.statement_warnings))
+        self.assertFalse(batch.extraction_metadata['statement_warnings_acknowledged'])
+        self._post(batch, first, debit='59.00', balance='9941.00')
+        batch.refresh_from_db()
+        self.assertFalse(any(w.startswith('Running balance does not reconcile') for w in batch.statement_warnings))
+
+    def test_imported_and_verified_rows_are_rejected(self):
+        batch = self._draft()
+        review = reverse('bank:import_review', args=[batch.pk])
+        self.client.post(review, {'action': 'confirm_period', 'from_date': '2026-04-01', 'to_date': '2026-04-02'})
+        new_ids = list(batch.draft_rows.filter(classification=ImportDraftRow.NEW).values_list('pk', flat=True))
+        self.client.post(review, {'action': 'approve_selected', 'row_ids': new_ids})
+        self.client.post(review, {'action': 'import_approved'})
+        batch.refresh_from_db()
+        self.assertEqual(batch.status, 'imported')
+        verified = batch.draft_rows.filter(review_status=ImportDraftRow.VERIFIED).first()
+        pending = batch.draft_rows.filter(review_status=ImportDraftRow.PENDING).first()
+        txn_count = BankTransaction.objects.count()
+        # Closed batch: no row is editable, including still-pending ones.
+        for row in (verified, pending):
+            before = self._snapshot(row)
+            self.assertRedirects(self.client.get(self._edit_url(batch, row)), self._list_url(batch))
+            self.assertRedirects(self._post(batch, row, description='Changed'), self._list_url(batch))
+            self.assertEqual(self._snapshot(row), before)
+        listing = self.client.get(self._list_url(batch) + '?show=all')
+        self.assertContains(listing, 'Imported - locked')
+        self.assertNotContains(listing, self._edit_url(batch, verified))
+        # Row-level guard: even if the batch were reopened, an imported/verified row stays locked.
+        ImportBatch.objects.filter(pk=batch.pk).update(status='verification_failed')
+        before = self._snapshot(verified)
+        response = self._post(batch, verified, description='Changed')
+        self.assertRedirects(response, self._list_url(batch))
+        self.assertEqual(self._snapshot(verified), before)
+        self.assertEqual(BankTransaction.objects.count(), txn_count)
+        # ...while an open draft row in that reopened batch can still be corrected.
+        self.assertContains(self.client.get(self._list_url(batch)), self._edit_url(batch, pending))
+
+    def test_cancelled_batch_rows_are_read_only(self):
+        batch = self._draft()
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Wrong account.'})
+        row = batch.draft_rows.first()
+        before = self._snapshot(row)
+        self.assertRedirects(self._post(batch, row, description='Changed'), self._list_url(batch))
+        self.assertEqual(self._snapshot(row), before)
+        listing = self.client.get(self._list_url(batch))
+        self.assertContains(listing, 'Rows are shown read-only')
+        self.assertNotContains(listing, self._edit_url(batch, row))
+
+    def test_row_from_another_batch_is_not_found(self):
+        batch = self._draft()
+        other = ImportBatch.objects.create(bank_account=self.bank, file_name='other.csv', status='draft_ready')
+        row = batch.draft_rows.first()
+        self.assertEqual(self.client.get(reverse('bank:import_draft_row_edit', args=[other.pk, row.pk])).status_code, 404)
+
+
+DELETE_MEDIA_ROOT = Path(tempfile.mkdtemp(prefix='qb-bank-draft-delete-tests-'))
+
+
+@override_settings(MEDIA_ROOT=DELETE_MEDIA_ROOT)
+class DraftDeleteTests(TestCase):
+    """The 'Delete draft' button next to 'View draft rows'."""
+
+    def setUp(self):
+        self.bank = make_bank()
+        self.txn, _ = S.add_transaction(self.bank, date(2026, 3, 1), 'Existing NEFT', credit=D('5'))
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        shutil.rmtree(DELETE_MEDIA_ROOT, ignore_errors=True)
+
+    def _draft(self, text=CSV, name='stmt.csv'):
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': csv_upload(text, name)})
+        batch = ImportBatch.objects.latest('id')
+        self.client.post(reverse('bank:import_batch', args=[batch.pk]), dict(MAP, action='create_draft'))
+        batch.refresh_from_db()
+        return batch
+
+    def _delete(self, batch, reason='Uploaded the wrong statement.', **extra):
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(reverse('bank:import_delete', args=[batch.pk]), dict(delete_reason=reason, **extra))
+
+    def _import_new_rows(self, batch):
+        review = reverse('bank:import_review', args=[batch.pk])
+        self.client.post(review, {'action': 'confirm_period', 'from_date': '2026-04-01', 'to_date': '2026-04-02'})
+        ids = list(batch.draft_rows.filter(classification=ImportDraftRow.NEW).values_list('pk', flat=True))
+        self.client.post(review, {'action': 'approve_selected', 'row_ids': ids})
+        self.client.post(review, {'action': 'import_approved'})
+        batch.refresh_from_db()
+
+    def test_buttons_shown_next_to_view_draft_rows(self):
+        batch = self._draft()
+        url = reverse('bank:import_delete', args=[batch.pk])
+        imports = self.client.get(reverse('bank:imports'))
+        self.assertContains(imports, url)
+        self.assertContains(imports, 'Delete draft')
+        review = self.client.get(reverse('bank:import_review', args=[batch.pk]))
+        self.assertContains(review, url)
+        self.assertContains(review, 'name="return_to" value="review"')
+
+    def test_delete_removes_batch_rows_and_draft_files_only(self):
+        from audit.models import AuditEvent
+        batch = self._draft()
+        other = self._draft(CSV.replace('oops', 'oops two'), 'other.csv')
+        storage = batch.original_file.storage
+        source, generated = batch.original_file.name, batch.generated_csv.name
+        self.assertTrue(storage.exists(source) and storage.exists(generated))
+        before_txns = list(BankTransaction.objects.values_list('pk', 'date', 'debit', 'credit', 'description'))
+        other_rows = list(other.draft_rows.values_list('pk', 'description', 'review_status'))
+        response = self._delete(batch)
+        self.assertRedirects(response, reverse('bank:imports'))
+        self.assertFalse(ImportBatch.objects.filter(pk=batch.pk).exists())
+        self.assertFalse(ImportDraftRow.objects.filter(batch_id=batch.pk).exists())
+        self.assertFalse(storage.exists(source))
+        self.assertFalse(storage.exists(generated))
+        self.assertEqual(list(BankTransaction.objects.values_list('pk', 'date', 'debit', 'credit', 'description')), before_txns)
+        self.assertEqual(list(other.draft_rows.values_list('pk', 'description', 'review_status')), other_rows)
+        self.assertTrue(other.original_file.storage.exists(other.original_file.name))
+        self.assertTrue(AuditEvent.objects.filter(model='ImportBatch', object_id=str(batch.pk), action='delete').exists())
+        manual = AuditEvent.objects.get(model='ImportDraftRow', object_id=str(batch.pk), action='delete')
+        self.assertEqual(manual.reason, 'Uploaded the wrong statement.')
+        # The same file can now be uploaded again.
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': csv_upload()})
+        self.assertEqual(ImportBatch.objects.count(), 2)
+
+    def test_pending_and_cancelled_drafts_can_be_deleted(self):
+        self.client.post(reverse('bank:import_upload', args=[self.bank.pk]), {'file': csv_upload()})
+        pending = ImportBatch.objects.get()
+        self.assertEqual(pending.status, ImportBatch.PENDING)
+        self._delete(pending)
+        self.assertFalse(ImportBatch.objects.exists())
+        batch = self._draft()
+        self.client.post(reverse('bank:import_cancel', args=[batch.pk]), {'cancellation_reason': 'Wrong account.'})
+        self._delete(batch)
+        self.assertFalse(ImportBatch.objects.filter(pk=batch.pk).exists())
+
+    def test_get_and_missing_reason_do_not_delete(self):
+        batch = self._draft()
+        self.assertEqual(self.client.get(reverse('bank:import_delete', args=[batch.pk])).status_code, 405)
+        response = self._delete(batch, reason='  ', return_to='review')
+        self.assertRedirects(response, reverse('bank:import_review', args=[batch.pk]))
+        self.assertTrue(ImportBatch.objects.filter(pk=batch.pk).exists())
+        self.assertEqual(batch.draft_rows.count(), 4)
+
+    def test_imported_batch_cannot_be_deleted(self):
+        batch = self._draft()
+        self._import_new_rows(batch)
+        self.assertEqual(batch.status, 'imported')
+        rows, txns = batch.draft_rows.count(), BankTransaction.objects.count()
+        self._delete(batch)
+        self.assertTrue(ImportBatch.objects.filter(pk=batch.pk).exists())
+        self.assertEqual((batch.draft_rows.count(), BankTransaction.objects.count()), (rows, txns))
+        imports = self.client.get(reverse('bank:imports'))
+        self.assertNotContains(imports, reverse('bank:import_delete', args=[batch.pk]))
+        self.assertContains(imports, 'disabled title="Rows from this batch have already been imported')
+        self.assertNotContains(self.client.get(reverse('bank:import_review', args=[batch.pk])),
+                               reverse('bank:import_delete', args=[batch.pk]))
+
+    def test_partially_imported_batch_cannot_be_deleted_even_if_reopened(self):
+        batch = self._draft()
+        self._import_new_rows(batch)
+        ImportBatch.objects.filter(pk=batch.pk).update(status='under_review', imported=0, verified=0, duplicates=0)
+        txns = BankTransaction.objects.count()
+        self._delete(batch)
+        self.assertTrue(ImportBatch.objects.filter(pk=batch.pk).exists())
+        self.assertEqual(BankTransaction.objects.count(), txns)
+
+    def test_original_with_versions_is_blocked_and_version_keeps_shared_upload(self):
+        root = self._draft()
+        version = ImportBatch.objects.create(
+            bank_account=self.bank, source_batch=root, version_number=2, file_name=root.file_name,
+            source_kind=root.source_kind, original_file=root.original_file.name, file_sha256=root.file_sha256,
+            status='draft_ready')
+        self._delete(root)
+        self.assertTrue(ImportBatch.objects.filter(pk=root.pk).exists())
+        self._delete(version)
+        self.assertFalse(ImportBatch.objects.filter(pk=version.pk).exists())
+        self.assertTrue(root.original_file.storage.exists(root.original_file.name))
+        self._delete(root)
+        self.assertFalse(ImportBatch.objects.filter(pk=root.pk).exists())

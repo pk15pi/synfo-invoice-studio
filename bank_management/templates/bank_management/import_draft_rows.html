@@ -1,0 +1,54 @@
+{% extends 'bank_management/base_bank.html' %}{% load pagination_ui %}{% block bk_title %}Draft rows &middot; import #{{ batch.pk }}{% endblock %}{% block bk %}
+<div class="bk-import-page">
+  <div class="page-heading">
+    <p class="eyebrow">Bank statement import &middot; Batch #{{ batch.pk }} &middot; Draft Version {{ batch.version_number }} &middot; {{ batch.get_status_display|default:batch.status|title }}</p>
+    <h1>Imported draft rows</h1>
+    <p class="muted">{{ batch.file_name }} &middot; {{ batch.bank_account.name }}</p>
+    <p class="muted">These rows came from the statement upload and are still drafts. Editing a row only changes the draft: it is re-compared with the bank register and returns to pending review. Nothing reaches the bank transactions or accounting tables until you approve and import rows on the review page.</p>
+  </div>
+
+  <section class="panel" aria-labelledby="bk-draft-rows-actions-title">
+    <h2 id="bk-draft-rows-actions-title">Draft rows</h2>
+    <div class="bk-import-actions">
+      <a class="button primary" href="{% url 'bank:import_review' batch.pk %}">Back to review &amp; approve</a>
+      <a class="button secondary" href="{% url 'bank:imports' %}">Import history</a>
+      {% if batch.original_file %}<a class="button secondary" href="{% url 'bank:import_source_download' batch.pk %}" target="_blank" rel="noopener">View original statement</a>{% endif %}
+    </div>
+    {% if block_reason %}<p class="bk-status-note warning">{{ block_reason }} Rows are shown read-only.</p>{% endif %}
+    <div class="bk-review-summary">
+      <div><small>Open draft rows</small><b>{{ open_count }}</b><small>of {{ all_count }} source/review rows</small></div>
+      <div><small>Rows listed</small><b>{{ listed_count }}</b></div>
+      <div><small>Listed debit total</small><b>{{ listed_debits }}</b></div>
+      <div><small>Listed credit total</small><b>{{ listed_credits }}</b></div>
+    </div>
+    <form method="get" class="bk-review-filters">
+      <label>Show <select class="field" name="show"><option value="draft"{% if show == 'draft' %} selected{% endif %}>Draft rows only (not yet imported)</option><option value="all"{% if show == 'all' %} selected{% endif %}>All rows in this batch</option></select></label>
+      <label>Review status <select class="field" name="status"><option value="">All</option>{% for value, label in review_statuses %}<option value="{{ value }}"{% if status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label>Classification <select class="field" name="classification"><option value="">All</option>{% for value, label in classifications %}<option value="{{ value }}"{% if classification == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+      <label>Search <input class="field" type="search" name="q" value="{{ q }}" placeholder="Narration or reference"></label>
+      <button class="button secondary" type="submit">Apply filters</button>
+      <a class="button secondary" href="{% url 'bank:import_draft_rows' batch.pk %}">Reset</a>
+    </form>
+  </section>
+
+  <section class="panel" aria-labelledby="bk-draft-rows-table-title">
+    <h2 id="bk-draft-rows-table-title">{% if show == 'draft' %}Draft rows awaiting import{% else %}All rows in this batch{% endif %}</h2>
+    <div class="bk-table-scroll" role="region" aria-label="Imported draft rows" tabindex="0">
+      <table class="bk-history-table bk-draft-rows-table"><thead><tr><th class="num">Row</th><th>Transaction date</th><th>Value date</th><th>Narration / reference</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th><th>Classification</th><th>Review status</th><th>Action</th></tr></thead>
+        {% paginate rows as qb_pg1 %}<tbody>
+        {% for row in qb_pg1 %}<tr id="draft-row-{{ row.pk }}">
+          <td class="num">{{ row.row_number }}{% if row.source_page %}<small>PDF p.{{ row.source_page }}</small>{% endif %}</td>
+          <td>{{ row.transaction_date|date:'d-m-Y'|default:'Uncertain' }}</td>
+          <td>{{ row.value_date|date:'d-m-Y'|default:'-' }}</td>
+          <td>{{ row.description|default:'No narration extracted'|truncatechars:120 }}{% if row.reference %}<small>Ref: {{ row.reference }}</small>{% endif %}{% if row.extraction_error %}<span class="bk-row-error">{{ row.extraction_error }}</span>{% endif %}</td>
+          <td class="num">{{ row.debit|floatformat:2 }}</td><td class="num">{{ row.credit|floatformat:2 }}</td><td class="num">{{ row.balance|floatformat:2|default:'-' }}</td>
+          <td>{{ row.get_classification_display }}{% if row.existing_transaction %}<small><a href="{% url 'bank:txn_detail' row.existing_transaction.pk %}">Bank row #{{ row.existing_transaction_id }}</a></small>{% endif %}</td>
+          <td>{{ row.get_review_status_display }}{% if row.verification_status == 'failed' %}<span class="bk-row-error">{{ row.verification_note }}</span>{% endif %}</td>
+          <td>{% if can_edit and row.review_status in open_statuses and not row.actual_transaction_id %}<a class="button secondary" href="{% url 'bank:import_draft_row_edit' batch.pk row.pk %}">Edit row</a>{% elif row.review_status in open_statuses and not row.actual_transaction_id %}<span class="muted">Read-only</span>{% else %}<span class="muted">Imported - locked</span>{% endif %}</td>
+        </tr>{% empty %}<tr><td colspan="10" class="bk-empty">{% if show == 'draft' %}No draft rows are waiting for import in this batch.{% else %}No rows match these filters.{% endif %}</td></tr>{% endfor %}
+        </tbody>
+      </table>{% pager qb_pg1 %}
+    </div>
+  </section>
+</div>
+{% endblock %}

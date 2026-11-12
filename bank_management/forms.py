@@ -117,3 +117,52 @@ class DraftRowForm(forms.ModelForm):
         if (debit > 0) == (credit > 0):
             raise forms.ValidationError('Enter exactly one positive debit or credit amount.')
         return cleaned
+
+
+class DraftRowEditForm(DraftRowForm):
+    """Stand-alone editor for one import draft row: the inline review rules plus import-readiness checks."""
+
+    class Meta(DraftRowForm.Meta):
+        labels = {
+            'transaction_date': 'Transaction date', 'value_date': 'Value date', 'description': 'Narration',
+            'reference': 'Reference / cheque no.', 'debit': 'Debit (withdrawal)', 'credit': 'Credit (deposit)',
+            'balance': 'Statement balance',
+        }
+        widgets = dict(
+            DraftRowForm.Meta.widgets,
+            debit=forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            credit=forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            balance=forms.NumberInput(attrs={'step': '0.01'}),
+        )
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.fields['transaction_date'].required = True
+        self.fields['description'].required = True
+        self.fields['debit'].required = False
+        self.fields['credit'].required = False
+        self.fields['balance'].required = False
+        _style(self)
+
+    def clean_description(self):
+        value = (self.cleaned_data.get('description') or '').strip()
+        if not value:
+            raise forms.ValidationError('Enter the narration.')
+        return value
+
+    def clean_reference(self):
+        return (self.cleaned_data.get('reference') or '').strip()
+
+    def _amount(self, name):
+        from decimal import Decimal
+        value = self.cleaned_data.get(name)
+        value = Decimal('0.00') if value is None else value
+        if value < 0:
+            raise forms.ValidationError('Amount cannot be negative.')
+        return value
+
+    def clean_debit(self):
+        return self._amount('debit')
+
+    def clean_credit(self):
+        return self._amount('credit')

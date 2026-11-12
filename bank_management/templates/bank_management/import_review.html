@@ -12,6 +12,8 @@
     <div class="bk-import-actions">
       {% if batch.original_file %}<a class="button secondary" href="{% url 'bank:import_source_download' batch.pk %}" target="_blank" rel="noopener">View original statement</a>{% endif %}
       {% if batch.generated_csv %}<a class="button secondary" href="{% url 'bank:import_csv_download' batch.pk %}">Download extracted CSV</a>{% endif %}
+      <a class="button primary" href="{% url 'bank:import_draft_rows' batch.pk %}">View / edit draft rows ({{ open_draft_count }})</a>
+      {% if can_delete %}<button class="button danger" type="button" data-open-dialog="#bk-delete-dialog-{{ batch.pk }}">Delete draft</button>{% else %}<button class="button danger" type="button" disabled title="{{ delete_block_reason }}">Delete draft</button>{% endif %}
       <a class="button secondary" href="{% url 'bank:imports' %}">Import history</a>
       {% if can_regenerate %}
         <form method="post" action="{% url 'bank:import_regenerate' batch.pk %}" data-submit-lock>{% csrf_token %}<button class="button secondary" type="submit" data-loading-text="Regenerating…">Regenerate Draft</button></form>
@@ -112,6 +114,7 @@
       </div>
     </dialog>
   {% endif %}
+  {% if can_delete %}{% include 'bank_management/_delete_draft_dialog.html' with return_to='review' %}{% endif %}
 </div>
 <script src="{% static 'bank_management/import_statement.js' %}" defer></script>
 {% endblock %}
