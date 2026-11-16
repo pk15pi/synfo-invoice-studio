@@ -18,6 +18,7 @@ HR = 'hr'
 PAYROLL = 'payroll'
 ATTENDANCE = 'attendance'
 PERFORMANCE = 'performance'
+DAILY_BRIEF = 'daily_brief'
 EXPENSES = 'expenses'
 REPORTS = 'reports'
 ACCOUNTING = 'accounting'
@@ -39,6 +40,7 @@ MODULE_LABELS = {
     PAYROLL: 'Payroll Management',
     ATTENDANCE: 'Attendance & Leave',
     PERFORMANCE: 'Performance Review',
+    DAILY_BRIEF: 'Daily Brief',
     EXPENSES: 'Expense Management',
     REPORTS: 'Reports & Analytics',
     ACCOUNTING: 'Accounting',
@@ -60,6 +62,7 @@ ALL_MODULES = frozenset(MODULE_LABELS) - {SELF_SERVICE}
 
 # Longest prefixes first so nested URLs resolve to the intended module.
 PREFIX_MODULES = (
+    ('/performance/daily-brief/', DAILY_BRIEF),
     ('/financial-reports/', FINANCIAL_REPORTS),
     ('/description-templates/', INVOICING),
     ('/format-templates/', INVOICING),
@@ -110,12 +113,12 @@ ROLE_MODULES = {
                                      COMPLIANCE, FINANCIAL_REPORTS, ASSETS, DOCUMENTS, SHARED}),
     Role.ACCOUNTANT: frozenset({INVOICING, EXPENSES, REPORTS, ACCOUNTING, BANK, COMPLIANCE,
                                 FINANCIAL_REPORTS, ASSETS, DOCUMENTS, SHARED}),
-    Role.HEAD_HR: frozenset({HR, PAYROLL, ATTENDANCE, PERFORMANCE, RECRUITMENT, EXPENSES,
+    Role.HEAD_HR: frozenset({HR, PAYROLL, ATTENDANCE, PERFORMANCE, DAILY_BRIEF, RECRUITMENT, EXPENSES,
                              ASSETS, DOCUMENTS, SHARED}),
-    Role.HR: frozenset({HR, PAYROLL, ATTENDANCE, PERFORMANCE, RECRUITMENT, EXPENSES,
+    Role.HR: frozenset({HR, PAYROLL, ATTENDANCE, PERFORMANCE, DAILY_BRIEF, RECRUITMENT, EXPENSES,
                         ASSETS, DOCUMENTS, SHARED}),
-    Role.SENIOR_RECRUITER: frozenset({HR, ATTENDANCE, RECRUITMENT, PERFORMANCE, DOCUMENTS, SHARED}),
-    Role.RECRUITER: frozenset({HR, ATTENDANCE, RECRUITMENT, PERFORMANCE, DOCUMENTS, SHARED}),
+    Role.SENIOR_RECRUITER: frozenset({HR, ATTENDANCE, RECRUITMENT, PERFORMANCE, DAILY_BRIEF, DOCUMENTS, SHARED}),
+    Role.RECRUITER: frozenset({HR, ATTENDANCE, RECRUITMENT, PERFORMANCE, DAILY_BRIEF, DOCUMENTS, SHARED}),
     Role.PROJECT_MANAGER: frozenset({INVOICING, RECRUITMENT, EXPENSES, REPORTS, DOCUMENTS, SHARED}),
     Role.AUDITOR: frozenset({REPORTS, FINANCIAL_REPORTS, AUDIT, DOCUMENTS, SHARED}),
     Role.IT_ADMIN: frozenset({USERS, BACKUPS, AUDIT, SHARED}),

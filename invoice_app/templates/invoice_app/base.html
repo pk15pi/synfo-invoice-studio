@@ -23,7 +23,9 @@
 {% endif %}
 {% if 'performance' in allowed_modules %}
 <div class="navgroup"><a href="{% url 'performance_review:dashboard' %}">Performance Review &#9662;</a><div class="navmenu"><a href="{% url 'performance_review:dashboard' %}">Performance Dashboard</a><a href="{% url 'performance_review:activity' %}">Record Recruiter Activity</a><a href="{% url 'performance_review:records' %}">Recruiter-wise Records</a><a href="{% url 'performance_review:reports' %}">Performance Reports</a><a href="{% url 'performance_review:settings' %}">Performance Settings</a></div></div>
-<div class="navgroup"><a href="{% url 'performance_review:daily_brief_records' %}">Daily Brief &#9662;</a><div class="navmenu"><a href="{% url 'performance_review:daily_brief_records' %}">Daily Brief · Entry &amp; Records</a><a href="{% url 'performance_review:daily_brief_analytics' %}">Daily Brief Analytics</a></div></div>
+{% endif %}
+{% if 'daily_brief' in allowed_modules %}
+<div class="navgroup"><a href="{% url 'performance_review:daily_brief_records' %}">Daily Brief &#9662;</a><div class="navmenu"><a href="{% url 'performance_review:daily_brief_records' %}">Entry &amp; Records</a><a href="{% url 'performance_review:daily_brief_analytics' %}">Analytics</a></div></div>
 {% endif %}
 {% if 'attendance' in allowed_modules %}
 <div class="navgroup"><a href="{% url 'att:daily' %}">Attendance &amp; Leave &#9662;</a><div class="navmenu"><a href="{% url 'att:daily' %}">Attendance</a><a href="{% url 'att:holidays' %}">Holidays</a><a href="{% url 'att:leave_types' %}">Leave Types</a><a href="{% url 'att:applications' %}">Leave Applications</a><a href="{% url 'att:balances' %}">Leave Balances</a><a href="{% url 'att:reports' %}">Attendance Reports</a></div></div>

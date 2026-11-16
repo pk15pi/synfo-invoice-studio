@@ -1,7 +1,7 @@
 {% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load static %}{% load ui_icons %}{% block title %}Daily Brief · Records{% endblock %}
 {% block extra_head %}<link rel="stylesheet" href="{% static 'performance_review/performance.css' %}">{% endblock %}
 {% block content %}
-<div class="page-heading split"><div><p class="eyebrow">PERFORMANCE REVIEW · DAILY BRIEF</p><h1>Daily Brief Entry &amp; Records</h1><p class="muted">Manually enter recruiter-reported JD and resume activity. This module is separate from candidate and JD operations.</p></div><div class="heading-actions"><a class="button primary" href="{% url 'performance_review:daily_brief_analytics' %}">Daily Brief Analytics</a><a class="button secondary" href="{% url 'performance_review:dashboard' %}">Performance Review</a></div></div>
+<div class="page-heading split"><div><p class="eyebrow">DAILY BRIEF</p><h1>Entry &amp; Records</h1><p class="muted">Enter recruiter-reported JD and resume activity, then review or correct saved reports.</p></div><div class="heading-actions"><a class="button primary" href="{% url 'performance_review:daily_brief_analytics' %}">View analytics</a></div></div>
 {% include 'performance_review/_daily_brief_entry_form.html' with form_title='Daily Brief Entry' submit_label='Save Daily Brief' %}
 {% include 'performance_review/_daily_brief_filters.html' %}
 <section class="panel pr-section">
