@@ -43,6 +43,7 @@ from .models import (
     DocumentType,
     GeneratedDocument,
 )
+from .lifecycle_services import can_view_document
 from .services import create_clause_version, create_template_version, transition_clause, transition_template_version
 from .template_engine import html_document_content, resolve_template
 
@@ -268,6 +269,7 @@ def generate_document(request):
         messages.success(request, f'{generated.document_type.name} {generated.document_number} generated.')
         return render(request, 'document_generation/generated.html', {
             'document': generated,
+            'document_detail_url': reverse('document_generation:document_detail', args=(generated.pk,)),
             'word_url': reverse(
                 'document_generation:download',
                 args=(generated.pk, 'docx'),
@@ -335,23 +337,62 @@ def generate_document(request):
                 initial['template_version'] = template_id
             elif versions.count() == 1:
                 initial['template_version'] = versions.first().pk
+        related_record = request.GET.get('entity')
+        related_asset = request.GET.get('asset')
         revision_id = request.GET.get('revise')
         if revision_id:
             initial['revision_of'] = revision_id
-            previous = GeneratedDocument.objects.filter(pk=revision_id, status='draft').first()
-            if previous:
-                selected_type = previous.document_type
-                initial.update({
-                    'document_type': previous.document_type_id,
-                    'category': previous.document_type.categories.filter(is_active=True).values_list(
-                        'pk', flat=True,
-                    ).first(),
-                    'template_version': previous.template_version_id,
-                })
+            previous = GeneratedDocument.objects.select_related('document_type', 'template_version').filter(
+                pk=revision_id,
+            ).first()
+            if (not previous or not can_view_document(request.user, previous)
+                    or previous.status not in {'draft', 'revision_requested', 'rejected', 'issued', 'sent',
+                                                'signed', 'acknowledged'}
+                    or previous.superseding_documents.exists()):
+                raise Http404('This document version cannot be revised.')
+            if previous.status in {'issued', 'sent', 'signed', 'acknowledged'} and not request.GET.get('amend'):
+                raise PermissionDenied('Issued documents must be revised through the amendment action.')
+            selected_type = previous.document_type
+            available_versions = DocumentTemplateVersion.objects.filter(
+                template__document_type=selected_type,
+                template__is_active=True,
+                status=DocumentTemplateVersion.APPROVED,
+                template__active_version_id=F('pk'),
+            ).order_by('template__name')
+            selected_version = available_versions.filter(pk=previous.template_version_id).first()
+            if not selected_version:
+                selected_version = available_versions.first()
+            initial.update({
+                'document_type': previous.document_type_id,
+                'category': previous.document_type.categories.filter(is_active=True).values_list(
+                    'pk', flat=True,
+                ).first(),
+                'template_version': selected_version.pk if selected_version else None,
+                'document_date': previous.issue_date or timezone.localdate(),
+                'effective_date': previous.effective_date or '',
+                'authorised_signatory': (
+                    previous.authorised_signatory_id
+                    if previous.authorised_signatory_id and CompanyDocumentSignatory.objects.filter(
+                        pk=previous.authorised_signatory_id, is_active=True, is_authorized=True,
+                    ).exists() else None
+                ),
+                'revision_reason': request.GET.get('reason', ''),
+            })
+            initial.update(previous.content_snapshot.get('field_values', {}))
+            initial.update(previous.content_snapshot.get('party', {}).get('manual_fields', {}))
+            for prior_party in previous.parties.select_related('content_type'):
+                if not prior_party.content_type_id or not prior_party.object_id:
+                    continue
+                model_name = prior_party.content_type.model
+                if model_name == 'asset':
+                    related_asset = prior_party.object_id
+                elif model_name in {'employee', 'client', 'vendor'}:
+                    related_record = f'{model_name}:{prior_party.object_id}'
+                    break
         elif request.GET.get('category'):
             initial['category'] = request.GET['category']
-        related_record = request.GET.get('entity')
-        related_asset = request.GET.get('asset')
+        related_record = request.GET.get('entity') or related_record
+        related_asset = request.GET.get('asset') or related_asset
         if edit_payload:
             initial.update(edit_payload['field_values'])
             initial.update({
@@ -391,6 +432,8 @@ def download(request, document_id, output_format):
     generated = GeneratedDocument.objects.filter(pk=document_id).first()
     if generated is None:
         raise Http404
+    if not can_view_document(request.user, generated):
+        raise PermissionDenied('You are not permitted to download this document.')
     reference = generated.word_file_document if output_format == 'docx' else generated.pdf_file_document
     if reference is None or reference.missing:
         raise Http404('The generated file is not available.')

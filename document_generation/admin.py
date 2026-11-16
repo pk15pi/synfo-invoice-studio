@@ -14,6 +14,7 @@ from .models import (
     DocumentClause,
     DocumentFieldDefinition,
     DocumentNumberSequence,
+    DocumentNotification,
     DocumentParty,
     DocumentSignature,
     DocumentTemplate,
@@ -59,8 +60,8 @@ class DocumentCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentType)
 class DocumentTypeAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'number_prefix', 'approval_required', 'is_active')
-    list_filter = ('categories', 'approval_required', 'is_active', 'reset_frequency')
+    list_display = ('name', 'code', 'number_prefix', 'approval_required', 'requires_expiry', 'is_active')
+    list_filter = ('categories', 'approval_required', 'requires_expiry', 'is_active', 'reset_frequency')
     search_fields = ('name', 'code', 'description', 'number_prefix')
     filter_horizontal = ('categories',)
     readonly_fields = ('created_at', 'updated_at')
@@ -303,7 +304,7 @@ class DocumentPartyAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentApproval)
 class DocumentApprovalAdmin(admin.ModelAdmin):
-    list_display = ('generated_document', 'approver_name', 'status', 'requested_at', 'decided_at')
+    list_display = ('generated_document', 'level', 'approver_name', 'status', 'requested_at', 'decided_at')
     list_filter = ('status',)
     search_fields = ('generated_document__document_number', 'approver_name')
     readonly_fields = tuple(field.name for field in DocumentApproval._meta.fields)
@@ -358,6 +359,23 @@ class DocumentActivityLogAdmin(admin.ModelAdmin):
     list_filter = ('action', 'created_at')
     search_fields = ('generated_document__document_number', 'actor_label')
     readonly_fields = tuple(field.name for field in DocumentActivityLog._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(DocumentNotification)
+class DocumentNotificationAdmin(admin.ModelAdmin):
+    list_display = ('user', 'generated_document', 'action', 'created_at', 'read_at')
+    list_filter = ('action', 'created_at', 'read_at')
+    search_fields = ('user__username', 'generated_document__document_number', 'message')
+    readonly_fields = tuple(field.name for field in DocumentNotification._meta.fields)
 
     def has_add_permission(self, request):
         return False

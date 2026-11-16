@@ -5,6 +5,8 @@
   <div><p class="eyebrow">Document Management</p><h1>Document &amp; Agreement Management</h1></div>
   <div class="heading-actions">
     <a class="button primary" href="{% url 'document_generation:generate' %}">Generate document</a>
+    <a class="button secondary" href="{% url 'document_generation:lifecycle_dashboard' %}">Document lifecycle</a>
+    <a class="button secondary" href="{% url 'document_generation:pending_approvals' %}">My pending approvals</a>
     <a class="button secondary" href="{% url 'document_generation:catalogue' %}">Document catalogue</a>
     <a class="button secondary" href="{% url 'document_generation:library' %}">Standard document library</a>
     <a class="button secondary" href="{% url 'document_generation:settings' %}">Company profile</a>

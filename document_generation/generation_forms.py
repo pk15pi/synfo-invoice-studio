@@ -94,6 +94,8 @@ class UniversalDocumentForm(forms.Form):
         empty_label='Select authorised signatory',
     )
     revision_of = forms.IntegerField(required=False, widget=forms.HiddenInput)
+    revision_reason = forms.CharField(required=False, max_length=2000,
+                                      widget=forms.Textarea(attrs={'rows': 3}))
 
     def __init__(self, *args, document_type=None, related_record=None, related_asset=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -305,8 +307,14 @@ class UniversalDocumentForm(forms.Form):
         revision_id = cleaned.get('revision_of')
         if revision_id:
             previous = GeneratedDocument.objects.filter(pk=revision_id).first()
-            if not previous or previous.status != 'draft':
-                self.add_error('revision_of', 'Only an existing draft can be revised.')
+            if not previous or previous.status not in {
+                'draft', 'revision_requested', 'rejected', 'issued', 'sent', 'signed', 'acknowledged',
+            }:
+                self.add_error('revision_of', 'This document cannot be revised from its current status.')
+            elif previous.superseding_documents.exists():
+                self.add_error('revision_of', 'Revise the latest document version instead.')
+            elif previous.status != 'draft' and not cleaned.get('revision_reason', '').strip():
+                self.add_error('revision_reason', 'Describe why this revision or amendment is needed.')
             elif document_type and previous.document_type_id != document_type.pk:
                 self.add_error('revision_of', 'A revised document must keep its document type.')
         current_values = dict(cleaned)

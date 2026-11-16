@@ -1,10 +1,17 @@
 from django.urls import path
 
 from . import views
+from . import lifecycle_views
 
 app_name = 'document_generation'
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('lifecycle/', lifecycle_views.lifecycle_dashboard, name='lifecycle_dashboard'),
+    path('approvals/', lifecycle_views.pending_approvals, name='pending_approvals'),
+    path('approval-workflows/', lifecycle_views.approval_workflows, name='approval_workflows'),
+    path('lifecycle/<int:document_id>/', lifecycle_views.document_detail, name='document_detail'),
+    path('lifecycle/<int:document_id>/<str:action>/', lifecycle_views.lifecycle_action, name='lifecycle_action'),
+    path('notifications/<int:notification_id>/read/', lifecycle_views.notification_read, name='notification_read'),
     path('catalogue/', views.catalogue, name='catalogue'),
     path('settings/', views.settings, name='settings'),
     path('library/', views.library, name='library'),

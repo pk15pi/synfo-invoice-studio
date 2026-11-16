@@ -2532,6 +2532,41 @@ input.flatpickr-input{
 }
 .receipt-note.error{color:#8a2c2c;background:#fbeaea;border-color:#efc6c6}
 
+/* Document generation lifecycle pages. */
+.dg-lifecycle-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:12px 0 20px}
+.dg-status-card{display:flex;flex-direction:column;gap:4px;padding:14px;text-decoration:none;color:var(--ink)}
+.dg-status-card span{font-size:12px;color:var(--muted)}
+.dg-status-card strong{font-size:24px;color:var(--navy);font-variant-numeric:tabular-nums}
+.dg-status{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;background:#edf2f6;color:#405362;font-size:11px;font-weight:700;white-space:nowrap}
+.dg-status-pending_approval,.dg-status-pending{background:#fff2d8;color:#76520c}
+.dg-status-revision_requested{background:#eaf3ff;color:#24547c}
+.dg-status-rejected,.dg-status-cancelled{background:#fce9e9;color:#872e2e}
+.dg-status-approved,.dg-status-issued,.dg-status-signed{background:#e7f4eb;color:#28613b}
+.dg-status-sent{background:#e8f2fb;color:#24547c}
+.dg-document-summary dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0 18px}
+.dg-document-summary dl>div{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fbfcfd;min-width:0}
+.dg-document-summary dt{font-size:11px;color:var(--muted);font-weight:700}
+.dg-document-summary dd{margin:3px 0 0;overflow-wrap:anywhere}
+.dg-decision-form,.dg-lifecycle-form{display:grid;gap:10px;margin:12px 0;padding:14px 0;border-top:1px solid var(--line)}
+.dg-decision-form label,.dg-lifecycle-form label{display:grid;gap:5px;font-weight:700;font-size:12px}
+.dg-decision-form .button,.dg-lifecycle-form .button{justify-self:start}
+.dg-timeline{list-style:none;margin:14px 0 0;padding:0;border-left:2px solid #d9e7f1}
+.dg-timeline li{position:relative;padding:0 0 18px 20px;margin-left:10px}
+.dg-timeline li:before{content:"";position:absolute;left:-17px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--navy);border:2px solid #fff;box-shadow:0 0 0 1px #b9d0e0}
+.dg-timeline li div{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.dg-timeline li div span,.dg-timeline li small{color:var(--muted);font-size:11px}
+.dg-timeline li p{margin:5px 0;font-size:13px}
+.dg-workflow-required{display:flex;align-items:center;gap:8px;margin:14px 0;font-weight:700}
+.dg-workflow-required input{width:17px;height:17px;min-height:0}
+.dg-workflow-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.dg-workflow-step{display:grid;align-content:start;gap:8px;padding:13px;border:1px solid var(--line);border-radius:8px;background:#fbfcfd}
+.dg-workflow-step[hidden]{display:none}
+.dg-workflow-step select{width:100%;min-height:39px;border:1px solid #d9e2e9;border-radius:6px;background:#fff;padding:8px}
+.dg-notification-list{list-style:none;margin:10px 0;padding:0;display:grid;gap:7px}
+.dg-notification-list li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 11px;border:1px solid var(--line);border-radius:8px}
+.dg-notification-list small{display:block;color:var(--muted)}
+@media(max-width:640px){.dg-document-summary dl{grid-template-columns:1fr}.dg-timeline li div{display:grid}.dg-notification-list li{align-items:flex-start;flex-direction:column}}
+
 /* Asset assignment accessory picker: one searchable field with selected chips. */
 .form-grid .form-field:has(> .asset-accessory-picker){grid-column:1/-1}
 .asset-accessory-picker{position:relative;width:100%}

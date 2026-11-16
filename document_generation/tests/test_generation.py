@@ -448,6 +448,7 @@ class UniversalDocumentGenerationTests(TestCase):
         self.assertEqual(original.version_number, 1)
 
     def test_preview_and_download_views_use_private_document_storage(self):
+        self.client.force_login(self.user)
         document_type = DocumentType.objects.get(code='offer-letter')
         version = self._create_approved_template(document_type)
         form_data = self._form_data(document_type, version)

@@ -17,6 +17,8 @@ from employee_management.validators import sniff_upload
 DOCUMENT_STATUSES = [
     ('draft', 'Draft'),
     ('pending_approval', 'Pending Approval'),
+    ('revision_requested', 'Revision Requested'),
+    ('rejected', 'Rejected'),
     ('approved', 'Approved'),
     ('issued', 'Issued'),
     ('sent', 'Sent'),
@@ -164,6 +166,7 @@ class DocumentType(models.Model):
     year_convention = models.CharField(max_length=12, choices=YEAR_CONVENTIONS, default=YEAR_CALENDAR)
     reset_frequency = models.CharField(max_length=16, choices=RESET_FREQUENCIES, default=RESET_CALENDAR)
     approval_required = models.BooleanField(default=True)
+    requires_expiry = models.BooleanField(default=False)
     approval_workflow = models.JSONField(default=list, blank=True)
     default_output_formats = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -555,14 +558,16 @@ class GeneratedDocumentQuerySet(models.QuerySet):
 
 class GeneratedDocument(models.Model):
     IMMUTABLE_STATUSES = {
+        'pending_approval', 'revision_requested', 'rejected', 'approved',
         'issued', 'sent', 'acknowledged', 'signed', 'superseded', 'cancelled', 'expired',
     }
     SNAPSHOT_FIELDS = (
         'document_number', 'document_type_id', 'template_version_id', 'version_number',
-        'rendered_content', 'content_snapshot', 'issue_date', 'issued_at',
+        'rendered_content', 'content_snapshot', 'issue_date', 'expiry_date',
         'expiry_date', 'file_document_id', 'authorised_signatory_id', 'signatory_snapshot',
-        'created_by_id', 'approved_by_id', 'issued_by_id', 'approved_at',
+        'created_by_id', 'approved_by_id', 'issued_by_id', 'approved_at', 'issued_at',
         'effective_date', 'word_file_document_id', 'pdf_file_document_id', 'supersedes_id',
+        'official_issue_date', 'cancelled_at', 'cancelled_by_id',
     )
 
     document_number = models.CharField(max_length=100, unique=True)
@@ -610,10 +615,27 @@ class GeneratedDocument(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     approved_at = models.DateTimeField(null=True, blank=True)
     issue_date = models.DateField(null=True, blank=True)
+    official_issue_date = models.DateField(null=True, blank=True)
     effective_date = models.DateField(null=True, blank=True)
     issued_at = models.DateTimeField(null=True, blank=True)
     expiry_date = models.DateField(null=True, blank=True)
     cancellation_reason = models.TextField(blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='cancelled_generated_documents',
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    sent_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='sent_generated_documents',
+    )
+    sent_recipient = models.CharField(max_length=180, blank=True)
+    delivery_method = models.CharField(max_length=24, blank=True, choices=[
+        ('email', 'Email'), ('physical_copy', 'Physical Copy'),
+        ('hand_delivery', 'Hand Delivery'), ('other', 'Other'),
+    ])
+    sent_remarks = models.TextField(blank=True)
     supersedes = models.ForeignKey(
         'self', null=True, blank=True, on_delete=models.PROTECT,
         related_name='superseding_documents',
@@ -661,6 +683,22 @@ class GeneratedDocument(models.Model):
     def save(self, *args, **kwargs):
         if self.pk:
             previous = type(self).objects.filter(pk=self.pk).first()
+            if previous and previous.status != self.status:
+                transitions = {
+                    'draft': {'pending_approval', 'approved', 'cancelled'},
+                    'pending_approval': {'approved', 'revision_requested', 'rejected', 'cancelled'},
+                    'revision_requested': {'cancelled'},
+                    'rejected': {'cancelled'},
+                    'approved': {'issued', 'cancelled'},
+                    'issued': {'sent', 'signed', 'superseded', 'cancelled', 'expired'},
+                    'sent': {'signed', 'superseded', 'cancelled', 'expired'},
+                    'acknowledged': {'signed', 'superseded', 'cancelled', 'expired'},
+                    'signed': {'superseded', 'cancelled', 'expired'},
+                }
+                if self.status not in transitions.get(previous.status, set()):
+                    raise ValidationError(
+                        f'Cannot change a document from {previous.get_status_display()} to {self.get_status_display()}.'
+                    )
             if previous and previous.status in self.IMMUTABLE_STATUSES:
                 changed = [
                     field for field in self.SNAPSHOT_FIELDS
@@ -668,6 +706,14 @@ class GeneratedDocument(models.Model):
                 ]
                 if previous.status == 'cancelled' and previous.cancellation_reason != self.cancellation_reason:
                     changed.append('cancellation_reason')
+                allowed = set()
+                if previous.status == 'pending_approval' and self.status == 'approved':
+                    allowed.update({'approved_by_id', 'approved_at'})
+                if previous.status == 'approved' and self.status == 'issued':
+                    allowed.update({'issued_by_id', 'issued_at', 'official_issue_date', 'expiry_date'})
+                if self.status == 'cancelled' and previous.status != 'cancelled':
+                    allowed.update({'cancelled_at', 'cancelled_by_id'})
+                changed = [field for field in changed if field not in allowed]
                 if changed:
                     raise ValidationError(
                         'Issued document snapshots are immutable; create a superseding document instead.'
@@ -788,12 +834,27 @@ class DocumentTemplateClause(models.Model):
         return f'{self.template_version} / {self.clause}'
 
 
+class DocumentApprovalQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError('Use document approval lifecycle services to record decisions.')
+
+    def bulk_update(self, *args, **kwargs):
+        raise ValidationError('Use document approval lifecycle services to record decisions.')
+
+    def delete(self):
+        raise ValidationError('Document approval history cannot be deleted.')
+
+
 class DocumentApproval(models.Model):
-    PENDING, APPROVED, REJECTED, WITHDRAWN = 'pending', 'approved', 'rejected', 'withdrawn'
+    WAITING, PENDING, APPROVED, REJECTED, REVISION, WITHDRAWN = (
+        'waiting', 'pending', 'approved', 'rejected', 'revision_requested', 'withdrawn',
+    )
     STATUSES = [
+        (WAITING, 'Waiting'),
         (PENDING, 'Pending'),
         (APPROVED, 'Approved'),
         (REJECTED, 'Rejected'),
+        (REVISION, 'Revision Requested'),
         (WITHDRAWN, 'Withdrawn'),
     ]
 
@@ -805,7 +866,8 @@ class DocumentApproval(models.Model):
         related_name='document_approvals',
     )
     approver_name = models.CharField(max_length=160, blank=True)
-    status = models.CharField(max_length=10, choices=STATUSES, default=PENDING, db_index=True)
+    level = models.PositiveSmallIntegerField(default=1)
+    status = models.CharField(max_length=24, choices=STATUSES, default=PENDING, db_index=True)
     comments = models.TextField(blank=True)
     requested_at = models.DateTimeField(default=timezone.now)
     decided_at = models.DateTimeField(null=True, blank=True)
@@ -813,6 +875,35 @@ class DocumentApproval(models.Model):
 
     class Meta:
         ordering = ['-requested_at', '-id']
+        constraints = [models.UniqueConstraint(
+            fields=['generated_document', 'level'], name='dgen_approval_document_level_uniq',
+        )]
+
+    objects = DocumentApprovalQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = type(self).objects.filter(pk=self.pk).first()
+            if previous:
+                identity = ('generated_document_id', 'approver_id', 'approver_name', 'level')
+                if any(getattr(previous, field) != getattr(self, field) for field in identity):
+                    raise ValidationError('An assigned approver and approval level cannot be changed.')
+                if previous.decided_at:
+                    fields = (*identity, 'status', 'comments', 'requested_at', 'decided_at')
+                    if any(getattr(previous, field) != getattr(self, field) for field in fields):
+                        raise ValidationError('A completed approval decision cannot be changed.')
+                allowed_transitions = {
+                    self.WAITING: {self.PENDING, self.WITHDRAWN},
+                    self.PENDING: {self.APPROVED, self.REJECTED, self.REVISION, self.WITHDRAWN},
+                }
+                if self.status != previous.status and self.status not in allowed_transitions.get(
+                    previous.status, set(),
+                ):
+                    raise ValidationError('This approval status transition is not allowed.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Document approval history cannot be deleted.')
 
     def __str__(self):
         return f'{self.generated_document} - {self.get_status_display()}'
@@ -951,3 +1042,429 @@ class DocumentActivityLog(models.Model):
 
     def __str__(self):
         return f'{self.generated_document} - {self.action}'
+
+
+class DocumentNotification(models.Model):
+    DELIVERY_STATUSES = [
+        ('pending', 'Pending'), ('sent', 'Sent'), ('delivered', 'Delivered'),
+        ('failed', 'Failed'), ('cancelled', 'Cancelled'),
+    ]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                             related_name='document_notifications')
+    generated_document = models.ForeignKey(GeneratedDocument, on_delete=models.PROTECT,
+                                          related_name='notifications')
+    action = models.CharField(max_length=40)
+    message = models.CharField(max_length=240)
+    subject = models.CharField(max_length=180, blank=True)
+    trigger_event = models.CharField(max_length=64, blank=True)
+    delivery_method = models.CharField(max_length=12, default='in_app')
+    delivery_status = models.CharField(max_length=12, choices=DELIVERY_STATUSES, default='sent')
+    failure_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['user', 'read_at', 'created_at'], name='dgen_notice_user_read_idx'),
+            models.Index(fields=['action', 'created_at'], name='dgen_notice_action_date_idx'),
+        ]
+
+    def __str__(self):
+        return self.message
+
+
+class DocumentShare(models.Model):
+    """One immutable issued-version sharing event with append-only follow-up history."""
+    RECIPIENT_TYPES = [
+        ('employee', 'Employee'), ('client', 'Client'),
+        ('external', 'External recipient'), ('other', 'Other authorised recipient'),
+    ]
+    METHODS = [
+        ('email', 'Email (tracked manually)'), ('physical_copy', 'Physical copy'),
+        ('hand_delivery', 'Hand delivery'), ('other', 'Other'),
+    ]
+    DELIVERY_STATUSES = [('recorded', 'Sharing recorded'), ('delivered', 'Handed over / delivered')]
+    ACK_STATUSES = [
+        ('not_requested', 'Not requested'), ('pending', 'Pending'),
+        ('acknowledged', 'Acknowledged'), ('declined', 'Declined'),
+        ('unable', 'Unable to acknowledge'),
+    ]
+    ACK_METHODS = [
+        ('manual', 'Recorded by staff'), ('email', 'Email reply recorded'),
+        ('physical', 'Signed physical evidence'), ('other', 'Other recorded method'),
+    ]
+
+    generated_document = models.ForeignKey(
+        GeneratedDocument, on_delete=models.PROTECT, related_name='shares',
+    )
+    party = models.ForeignKey(
+        DocumentParty, null=True, blank=True, on_delete=models.PROTECT, related_name='shares',
+    )
+    recipient_type = models.CharField(max_length=16, choices=RECIPIENT_TYPES)
+    recipient_name = models.CharField(max_length=180)
+    recipient_email = models.EmailField(blank=True)
+    sharing_method = models.CharField(max_length=24, choices=METHODS)
+    shared_at = models.DateTimeField(default=timezone.now, db_index=True)
+    shared_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='document_shares',
+    )
+    remarks = models.TextField(blank=True)
+    delivery_status = models.CharField(max_length=12, choices=DELIVERY_STATUSES, default='recorded')
+    delivery_evidence = models.ForeignKey(
+        Document, null=True, blank=True, on_delete=models.PROTECT, related_name='delivery_evidence_for_shares',
+    )
+    acknowledgement_status = models.CharField(max_length=16, choices=ACK_STATUSES, default='not_requested')
+    acknowledgement_requested_at = models.DateTimeField(null=True, blank=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True)
+    acknowledgement_method = models.CharField(max_length=12, choices=ACK_METHODS, blank=True)
+    acknowledgement_name = models.CharField(max_length=180, blank=True)
+    acknowledgement_remarks = models.TextField(blank=True)
+    acknowledgement_evidence = models.ForeignKey(
+        Document, null=True, blank=True, on_delete=models.PROTECT, related_name='acknowledgement_evidence_for_shares',
+    )
+    acknowledgement_updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='document_share_acknowledgements',
+    )
+    signature_required = models.BooleanField(default=False)
+    next_follow_up_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-shared_at', '-id']
+        indexes = [
+            models.Index(fields=['acknowledgement_status', 'shared_at'], name='dgen_share_ack_date_idx'),
+            models.Index(fields=['recipient_type', 'shared_at'], name='dgen_share_recipient_idx'),
+        ]
+
+    def clean(self):
+        if self.generated_document_id:
+            if self.generated_document.status in {'draft', 'pending_approval', 'revision_requested', 'rejected', 'approved', 'cancelled'}:
+                raise ValidationError('Only an issued document version may be shared.')
+            if self.generated_document.status in {'superseded', 'expired'}:
+                raise ValidationError('A superseded or expired document version cannot be shared.')
+        if self.party_id and self.party.generated_document_id != self.generated_document_id:
+            raise ValidationError({'party': 'Select a recipient already linked to this document.'})
+        if self.acknowledgement_status == 'acknowledged' and not self.acknowledged_at:
+            raise ValidationError({'acknowledged_at': 'Record when the acknowledgement was received.'})
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = type(self).objects.get(pk=self.pk)
+            immutable = (
+                'generated_document_id', 'party_id', 'recipient_type', 'recipient_name',
+                'recipient_email', 'sharing_method', 'shared_at', 'shared_by_id',
+                'remarks', 'signature_required',
+            )
+            if any(getattr(previous, field) != getattr(self, field) for field in immutable):
+                raise ValidationError('The original sharing event is immutable; record another share instead.')
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Sharing history cannot be deleted.')
+
+    @property
+    def signature_status(self):
+        if not self.signature_required:
+            return 'not_required'
+        signatories = list(self.signatories.all())
+        if not signatories:
+            return 'pending'
+        statuses = [signatory.status for signatory in signatories]
+        if all(status == 'signed' for status in statuses):
+            return 'fully_signed'
+        if 'declined' in statuses:
+            return 'declined'
+        if 'expired' in statuses:
+            return 'expired'
+        if 'signed' in statuses:
+            return 'partially_signed'
+        return 'pending'
+
+    def __str__(self):
+        return f'{self.generated_document.document_number} shared with {self.recipient_name}'
+
+
+class DocumentShareSignatory(models.Model):
+    STATUSES = [
+        ('pending', 'Pending'), ('submitted', 'Submitted for review'), ('signed', 'Signed'),
+        ('declined', 'Declined'), ('expired', 'Expired'),
+    ]
+    VERIFICATION = [
+        ('not_submitted', 'Not submitted'), ('awaiting', 'Awaiting verification'),
+        ('verified', 'Verified'), ('rejected', 'Verification rejected'),
+    ]
+
+    share = models.ForeignKey(DocumentShare, on_delete=models.PROTECT, related_name='signatories')
+    name = models.CharField(max_length=180)
+    role = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=12, choices=STATUSES, default='pending', db_index=True)
+    signed_at = models.DateTimeField(null=True, blank=True)
+    signed_document = models.ForeignKey(
+        Document, null=True, blank=True, on_delete=models.PROTECT, related_name='signed_copies_for_signatories',
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='signed_document_uploads',
+    )
+    uploaded_at = models.DateTimeField(null=True, blank=True)
+    file_sha256 = models.CharField(max_length=64, blank=True)
+    verification_status = models.CharField(max_length=16, choices=VERIFICATION, default='not_submitted')
+    verification_reason = models.TextField(blank=True)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='verified_signed_documents',
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['id']
+
+    def clean(self):
+        if self.share_id and not self.share.signature_required:
+            raise ValidationError('This sharing event does not require a signature.')
+        if self.verification_status == 'rejected' and not self.verification_reason.strip():
+            raise ValidationError({'verification_reason': 'A reason is required when rejecting verification.'})
+        if self.status == 'signed' and self.verification_status != 'verified':
+            raise ValidationError('A signatory can be marked signed only after the copy is verified.')
+
+    def __str__(self):
+        return f'{self.name} / {self.share.generated_document.document_number}'
+
+
+class DocumentShareEvent(models.Model):
+    """Append-only audit trail for delivery, acknowledgement, signature, access and follow-ups."""
+    share = models.ForeignKey(DocumentShare, on_delete=models.PROTECT, related_name='events')
+    action = models.CharField(max_length=40, db_index=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='document_share_events',
+    )
+    actor_label = models.CharField(max_length=160)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['created_at', 'id']
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('Sharing history is append-only.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Sharing history is append-only.')
+
+
+class DocumentRenewal(models.Model):
+    STATUSES = [
+        ('not_due', 'Not Due'), ('due', 'Renewal Due'), ('initiated', 'Renewal Initiated'),
+        ('in_progress', 'Renewal In Progress'), ('renewed', 'Renewed'),
+        ('declined', 'Renewal Declined'), ('overdue', 'Renewal Overdue'),
+    ]
+    generated_document = models.ForeignKey(
+        GeneratedDocument, on_delete=models.PROTECT, related_name='renewal_tracking',
+    )
+    lead_time_days = models.PositiveSmallIntegerField(default=90)
+    status = models.CharField(max_length=16, choices=STATUSES, default='not_due', db_index=True)
+    initiated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='initiated_document_renewals',
+    )
+    initiated_at = models.DateTimeField(null=True, blank=True)
+    renewal_document = models.ForeignKey(
+        GeneratedDocument, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='renewal_of_documents',
+    )
+    renewal_date = models.DateField(null=True, blank=True)
+    new_expiry_date = models.DateField(null=True, blank=True)
+    remarks = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['generated_document'], name='dgen_renewal_document_uniq')]
+
+    def clean(self):
+        if self.renewal_document_id and self.renewal_document.supersedes_id != self.generated_document_id:
+            raise ValidationError({'renewal_document': 'The renewal document must supersede this document.'})
+
+
+class DocumentAutomationRule(models.Model):
+    TYPES = [
+        ('approval', 'Approval reminders'), ('expiry', 'Expiry reminders'),
+        ('renewal', 'Renewal follow-ups'), ('signature', 'Signature reminders'),
+        ('acknowledgement', 'Acknowledgement reminders'), ('compliance', 'Compliance checks'),
+    ]
+    code = models.SlugField(max_length=64, unique=True)
+    name = models.CharField(max_length=160)
+    rule_type = models.CharField(max_length=20, choices=TYPES, db_index=True)
+    enabled = models.BooleanField(default=True, db_index=True)
+    intervals_days = models.JSONField(default=list, blank=True)
+    escalation_after_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    calendar_days = models.BooleanField(default=True)
+    in_app_enabled = models.BooleanField(default=True)
+    email_enabled = models.BooleanField(default=False)
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    next_run_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='updated_document_automation_rules',
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        if not isinstance(self.intervals_days, list) or any(
+            not isinstance(day, int) or day < 0 for day in self.intervals_days
+        ):
+            raise ValidationError({'intervals_days': 'Reminder intervals must be a list of non-negative day counts.'})
+        if self.email_enabled:
+            raise ValidationError({'email_enabled': 'No supported outbound email integration is configured.'})
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentAutomationExecution(models.Model):
+    STATUSES = [('running', 'Running'), ('completed', 'Completed'), ('failed', 'Failed')]
+    rule = models.ForeignKey(DocumentAutomationRule, on_delete=models.PROTECT, related_name='executions')
+    generated_document = models.ForeignKey(
+        GeneratedDocument, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='automation_executions',
+    )
+    idempotency_key = models.CharField(max_length=180, unique=True)
+    started_at = models.DateTimeField(default=timezone.now, db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=12, choices=STATUSES, default='running', db_index=True)
+    result_count = models.PositiveIntegerField(default=0)
+    details = models.JSONField(default=dict, blank=True)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-started_at', '-id']
+
+
+class DocumentNotificationPreference(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='document_notification_preference',
+    )
+    approval_reminders = models.BooleanField(default=True)
+    expiry_reminders = models.BooleanField(default=True)
+    renewal_reminders = models.BooleanField(default=True)
+    signature_reminders = models.BooleanField(default=True)
+    acknowledgement_reminders = models.BooleanField(default=True)
+    compliance_alerts = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class DocumentComplianceRequirement(models.Model):
+    RECIPIENT_TYPES = DocumentShare.RECIPIENT_TYPES
+    name = models.CharField(max_length=160)
+    document_type = models.ForeignKey(
+        DocumentType, on_delete=models.PROTECT, related_name='compliance_requirements',
+    )
+    recipient_type = models.CharField(max_length=16, choices=RECIPIENT_TYPES)
+    mandatory = models.BooleanField(default=True)
+    validity_period_days = models.PositiveIntegerField(null=True, blank=True)
+    approval_required = models.BooleanField(default=False)
+    signature_required = models.BooleanField(default=False)
+    acknowledgement_required = models.BooleanField(default=False)
+    responsible_person = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='responsible_document_requirements',
+    )
+    review_frequency_days = models.PositiveSmallIntegerField(default=30)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='created_document_requirements',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['document_type__name', 'name']
+        constraints = [models.UniqueConstraint(
+            fields=['name', 'document_type', 'recipient_type'], name='dgen_compliance_req_unique',
+        )]
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentComplianceReview(models.Model):
+    STATUSES = [
+        ('compliant', 'Compliant'), ('non_compliant', 'Non-Compliant'),
+        ('pending', 'Pending'), ('not_applicable', 'Not Applicable'), ('under_review', 'Under Review'),
+    ]
+    requirement = models.ForeignKey(
+        DocumentComplianceRequirement, on_delete=models.PROTECT, related_name='reviews',
+    )
+    generated_document = models.ForeignKey(
+        GeneratedDocument, null=True, blank=True, on_delete=models.PROTECT, related_name='compliance_reviews',
+    )
+    party = models.ForeignKey(
+        DocumentParty, null=True, blank=True, on_delete=models.PROTECT, related_name='compliance_reviews',
+    )
+    status = models.CharField(max_length=16, choices=STATUSES, db_index=True)
+    reason = models.TextField(blank=True)
+    corrective_action = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='document_compliance_reviews',
+    )
+    checked_at = models.DateTimeField(default=timezone.now, db_index=True)
+    due_date = models.DateField(null=True, blank=True)
+    resolution_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-checked_at', '-id']
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('Compliance reviews are historical and cannot be overwritten.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Compliance review history cannot be deleted.')
+
+
+class DocumentCorrectiveAction(models.Model):
+    STATUSES = [
+        ('open', 'Open'), ('in_progress', 'In Progress'), ('pending_review', 'Pending Review'),
+        ('resolved', 'Resolved'), ('closed', 'Closed'),
+    ]
+    requirement = models.ForeignKey(
+        DocumentComplianceRequirement, on_delete=models.PROTECT, related_name='corrective_actions',
+    )
+    review = models.ForeignKey(
+        DocumentComplianceReview, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='corrective_actions',
+    )
+    generated_document = models.ForeignKey(
+        GeneratedDocument, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='corrective_actions',
+    )
+    problem = models.TextField()
+    responsible_person = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='assigned_document_corrective_actions',
+    )
+    target_date = models.DateField()
+    status = models.CharField(max_length=16, choices=STATUSES, default='open', db_index=True)
+    resolution_notes = models.TextField(blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='created_document_corrective_actions',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['target_date', '-created_at']
+
+    def clean(self):
+        if self.status in {'resolved', 'closed'} and not self.resolution_notes.strip():
+            raise ValidationError({'resolution_notes': 'Resolution notes are required.'})

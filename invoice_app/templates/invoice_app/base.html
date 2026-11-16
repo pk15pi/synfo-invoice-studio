@@ -54,6 +54,9 @@
 {% if 'documents' in allowed_modules %}
 <div class="navgroup"><a href="{% url 'document_generation:dashboard' %}">Document &amp; Agreement Management &#9662;</a><div class="navmenu">
 <a href="{% url 'document_generation:dashboard' %}">Dashboard</a>
+<a href="{% url 'document_generation:lifecycle_dashboard' %}">Document lifecycle</a>
+<a href="{% url 'document_generation:pending_approvals' %}">My pending approvals</a>
+{% if 'document_controller' == current_role or 'head_hr' == current_role or 'hr' == current_role or 'director' == current_role or 'admin' == current_role or request.user.is_staff %}<a href="{% url 'document_generation:approval_workflows' %}">Approval workflows</a>{% endif %}
 <a href="{% url 'document_generation:library' %}">Standard Document Library</a>
 <a href="{% url 'document_generation:catalogue' %}">Document Catalogue</a>
 <a href="{% url 'document_generation:generate' %}">Generate Document</a>

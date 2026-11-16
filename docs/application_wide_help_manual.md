@@ -170,6 +170,10 @@ The table lists each user-facing page route pattern with a contextual guide. Dyn
 | Document Generation | Template versions and review (`/documents/library/versions/<int:version_id>/edit/`) | Yes | Yes |
 | Document Generation | Document settings (`/documents/settings/`) | Yes | Yes |
 | Document Generation | Template preview (`/documents/template-preview/<int:version_id>/`) | Yes | Yes |
+| Document Generation | Approval workflow settings (`/documents/approval-workflows/`) | Yes | Yes |
+| Document Generation | Document lifecycle dashboard (`/documents/lifecycle/`) | Yes | Yes |
+| Document Generation | Pending document approvals (`/documents/approvals/`) | Yes | Yes |
+| Document Generation | Generated document lifecycle and version history (`/documents/lifecycle/<int:document_id>/`) | Yes | Yes |
 | Employee & Payroll | Employee records hub (`/bank-details/`) | Yes | Yes |
 | Employee & Payroll | Departments (`/departments/`) | Yes | Yes |
 | Employee & Payroll | Add or edit department (`/departments/<int:pk>/edit/`) | Yes | Yes |

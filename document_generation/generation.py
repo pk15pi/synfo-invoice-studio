@@ -123,12 +123,14 @@ def prepare_preview(form):
             previous = GeneratedDocument.objects.get(pk=previous_id)
         except GeneratedDocument.DoesNotExist as error:
             raise ValidationError('The document being revised no longer exists.') from error
-        if previous.status != 'draft':
-            raise ValidationError('Only a draft document can be revised.')
+        if previous.status not in {
+            'draft', 'revision_requested', 'rejected', 'issued', 'sent', 'signed', 'acknowledged',
+        }:
+            raise ValidationError('This document cannot be revised from its current status.')
         if previous.document_type_id != document_type.pk:
             raise ValidationError('A revised document must keep its document type.')
         if previous.superseding_documents.exists():
-            raise ValidationError('Revise the latest draft version instead of an older version.')
+            raise ValidationError('Revise the latest document version instead of an older version.')
         version_number = previous.version_number + 1
 
     profile = CompanyDocumentProfile.current()
@@ -203,6 +205,7 @@ def prepare_preview(form):
         'template_version_id': template_version.pk,
         'version_number': version_number,
         'previous_document_id': previous.pk if previous else None,
+        'revision_reason': data.get('revision_reason', '').strip(),
         'document_number': document_number,
         'document_date': data['document_date'].isoformat(),
         'effective_date': data.get('effective_date').isoformat() if data.get('effective_date') else '',
@@ -332,10 +335,18 @@ def generate_document(payload, output_format, user=None):
             previous = GeneratedDocument.objects.get(pk=payload['previous_document_id'])
         except GeneratedDocument.DoesNotExist as error:
             raise ValidationError('The document being revised no longer exists.') from error
-        if previous.status != 'draft' or previous.document_type_id != document_type.pk:
-            raise ValidationError('Only a draft of this document type can be revised.')
+        if previous.status not in {
+            'draft', 'revision_requested', 'rejected', 'issued', 'sent', 'signed', 'acknowledged',
+        } or previous.document_type_id != document_type.pk:
+            raise ValidationError('This document cannot be revised from its current status or type.')
         if previous.superseding_documents.exists():
-            raise ValidationError('Revise the latest draft version instead of an older version.')
+            raise ValidationError('Revise the latest document version instead of an older version.')
+        if (previous.status != 'draft' and not payload.get('revision_reason', '').strip()):
+            raise ValidationError('Describe why this revision or amendment is needed.')
+        if (previous.created_by_id and getattr(user, 'pk', None) != previous.created_by_id):
+            from .lifecycle_services import is_document_manager
+            if not is_document_manager(user):
+                raise ValidationError('Only the document creator or document management may revise this document.')
         if payload['version_number'] != previous.version_number + 1:
             raise ValidationError('The draft version changed. Please create a new preview.')
 
@@ -425,9 +436,12 @@ def generate_document(payload, output_format, user=None):
         generated.save(update_fields=(
             'word_file_document', 'pdf_file_document', 'file_document', 'updated_at',
         ))
+        is_amendment = bool(previous and previous.status in {
+            'issued', 'sent', 'signed', 'acknowledged',
+        })
         DocumentActivityLog.objects.create(
             generated_document=generated,
-            action='generated',
+            action='amendment_created' if is_amendment else 'revision_created' if previous else 'generated',
             actor=user if getattr(user, 'is_authenticated', False) else None,
             details={
                 'format': output_format,
@@ -435,6 +449,9 @@ def generate_document(payload, output_format, user=None):
                 'version_number': generated.version_number,
                 'word_document': generated.word_file_document_id,
                 'pdf_document': generated.pdf_file_document_id,
+                'previous_document_id': previous.pk if previous else None,
+                'revision_reason': payload.get('revision_reason', ''),
+                'amendment': is_amendment,
             },
         )
     except Exception:

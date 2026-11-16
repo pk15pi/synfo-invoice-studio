@@ -689,6 +689,8 @@ _add("document_generation:types", "Document type library", "Manage the standard 
      ["Review the type code and category.", "Add or edit only a distinct, approved type.", "Check numbering/field settings before generating documents."],
      rules=["Type codes must be unique. Avoid duplicating a type that already represents the same workflow."],
      related=["Categories, template library and document generation."])
+PAGE_GUIDES["document_generation:types"]["steps"].append(
+    "Set Require expiry for agreement types that need an expiry date; an expiry date is captured when an approved version is issued.")
 _add("document_generation:templates", "Document templates", "Browse templates by document type and lifecycle state.",
      "Only active templates with approved active versions are available to normal generation.",
      ["Start typing in Search or change a filter to update results automatically.", "Open a template to review its version history.", "Draft changes as a new version, then submit and follow the approval workflow."],
@@ -716,9 +718,29 @@ _add("document_generation:clauses document_generation:clause_new document_genera
      related=["Template versions, document generation and generated document snapshots."])
 _add("document_generation:generate", "Generate document", "Create a document from an active approved template and the selected party’s existing record data.",
      "Generation combines a template, resolved fields and approved clause text into a stored output.",
-     ["Select an active template and output format.", "Choose the party/record and complete any explicit fields requested.", "Select optional clauses if offered and review the preview.", "Generate, then open or download the resulting document."],
-     rules=["Only configured placeholders are supported; unknown or malformed placeholders are rejected.", "Generated output is a draft document unless the existing lifecycle is advanced separately."],
+     ["Select an active template and output format.", "Choose the party/record and complete any explicit fields requested.", "Select optional clauses if offered and review the preview.", "Generate the draft, open its lifecycle record, and submit it to the configured approval workflow."],
+     rules=["Only configured placeholders are supported; unknown or malformed placeholders are rejected.", "A generated file is a draft until submitted and approved; only an approved version can be issued.", "Revisions preserve the earlier generated file and create a new linked version."],
      related=["Template library, company profile and shared document storage."])
+_add("document_generation:lifecycle_dashboard", "Document Approval Dashboard", "Search generated document versions by number, type, recipient, creator, approver, date and lifecycle status.",
+     "The dashboard shows status totals, the current approver for pending versions, upcoming expiry and unread in-app document notices.",
+     ["Use filters to find a document or status group.", "Open a document to inspect its files, version chain, approval decisions and lifecycle events.", "Submit a draft or revision from its detail page.", "Management users can issue fully approved versions, record sending, confirm manual signing, cancel eligible documents and configure workflows."],
+     rules=["A version remains separate from its template version.", "Expired documents are marked when a lifecycle page is accessed; they are not deleted or cancelled.", "Upcoming expiry shows issued or sent documents expiring within 30 days."],
+     related=["My Pending Approvals, document details, approval workflow configuration and the Standard Document Library."])
+_add("document_generation:pending_approvals", "My Pending Approvals", "Review approval steps assigned to your account in sequence.",
+     "The queue shows documents assigned to you; document management users can see the full queue.",
+     ["Filter by type, date, approval status or document search.", "Open a row to view the private document file, recipient and prior decisions.", "Approve with optional comments, reject with a required reason, or request revision with required change notes."],
+     rules=["Only the currently active level can decide; later levels wait for earlier decisions.", "A completed decision cannot be edited or deleted.", "Revision requests and rejection stop remaining approval levels."],
+     related=["Document lifecycle dashboard and document details/history."])
+_add("document_generation:document_detail", "Document Details and Lifecycle History", "Review one generated version, its approvals, files, linked versions, signatures and chronological activity.",
+     "This is the record for controlled review, issue, sending, amendment, cancellation and expiry tracking.",
+     ["Check document number, type, recipient, dates and current status.", "Review every approval level and its decision comments.", "Use Submit for approval for an eligible draft.", "Management may issue an approved version, record manual sending, confirm a manual signing, or cancel with a reason.", "Create a new version for a requested revision or an amendment; never edit an issued file in place."],
+     rules=["Only approved latest versions can be issued.", "Marking Sent records a manual event and does not send or confirm receipt.", "Signed means an authorized person manually confirmed signing; no digital signature is applied.", "Cancellation preserves document files and history. Superseded versions remain available.", "An expiry date is required at issue when the document type requires expiry."],
+     related=["Lifecycle dashboard, pending approvals and workflow configuration."])
+_add("document_generation:approval_workflows", "Approval Workflow Configuration", "Configure the ordered approvers and mandatory-approval setting for each document type.",
+     "The saved sequence is copied to each new document approval record so later configuration changes do not reassign submitted work.",
+     ["Choose a document type.", "Turn on Require approval before issue when approvals are mandatory.", "Add approvers in the intended level order; remove unneeded levels.", "Save and verify the displayed sequence."],
+     rules=["A required workflow must have at least one active user approver.", "Up to ten levels run in order.", "Turning off mandatory approval causes an explicit Submit action to mark that version approved without an approval step; the action is recorded."],
+     related=["Document type library, pending approvals and document lifecycle dashboard."])
 _add("document_generation:template_preview", "Template preview", "Preview a template version with sample values before approval.",
      "Preview helps reviewers check rendering and placeholder structure.",
      ["Review the version and sample output.", "Check placeholder substitutions, clause order and page layout.", "Return to the version record to request changes or approve when authorized."],
@@ -934,6 +956,8 @@ NON_PAGE_ROUTES = {
     "compliance:gst_input_toggle", "compliance:payment_cancel", "docs:serve",
     "audit:export", "backup:create", "backup:export", "backup:import", "backup:verify", "backup:retention", "backup:pg_settings", "backup:pg_test", "backup:pg_sync",
     "backup:confirm_merge", "backup:download_import_package", "document_generation:download",
+    "document_generation:lifecycle_action", "document_generation:notification_read",
+    "performance_review:daily_brief_delete",
     "document_generation:template_duplicate", "document_generation:template_new_version",
     "document_generation:template_version_action", "document_generation:clause_new_version",
     "document_generation:clause_action", "em:advance_action", "em:department_toggle", "em:department_delete",

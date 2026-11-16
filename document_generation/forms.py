@@ -1,5 +1,8 @@
 from django import forms
-from django.forms import inlineformset_factory
+from django.contrib.auth import get_user_model
+from django.forms import formset_factory, inlineformset_factory
+from django.utils import timezone
+from access_control.permissions import DOCUMENTS, can_access, is_read_only_role, role_for
 from django.utils.text import slugify
 
 from .models import (
@@ -34,9 +37,55 @@ class DocumentTypeForm(forms.ModelForm):
         model = DocumentType
         fields = (
             'code', 'name', 'categories', 'description', 'number_prefix', 'number_padding',
-            'year_convention', 'reset_frequency', 'approval_required', 'default_output_formats', 'is_active',
+            'year_convention', 'reset_frequency', 'approval_required', 'requires_expiry',
+            'default_output_formats', 'is_active',
         )
         widgets = {'categories': forms.CheckboxSelectMultiple()}
+
+
+class ApprovalStepForm(forms.Form):
+    approver = forms.ModelChoiceField(queryset=get_user_model().objects.none(), required=False,
+                                      empty_label='Select an approver')
+    ORDER = forms.IntegerField(required=False, widget=forms.HiddenInput())
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        active_users = get_user_model().objects.filter(is_active=True).order_by(
+            'first_name', 'last_name', 'username',
+        )
+        eligible = [user.pk for user in active_users
+                    if user.is_superuser
+                    or (can_access(user, DOCUMENTS) and not is_read_only_role(role_for(user)))]
+        self.fields['approver'].queryset = active_users.filter(pk__in=eligible)
+
+
+ApprovalStepFormSet = formset_factory(ApprovalStepForm, extra=3, max_num=10, validate_max=True,
+                                      can_delete=True, can_order=True)
+
+
+class IssueDocumentForm(forms.Form):
+    official_issue_date = forms.DateField(initial=timezone.localdate, widget=forms.DateInput(attrs={'type': 'date'}))
+    expiry_date = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
+
+
+class SendDocumentForm(forms.Form):
+    sent_recipient = forms.CharField(max_length=180, label='Recipient')
+    delivery_method = forms.ChoiceField(choices=[
+        ('email', 'Email'), ('physical_copy', 'Physical Copy'),
+        ('hand_delivery', 'Hand Delivery'), ('other', 'Other'),
+    ])
+    sent_date = forms.DateField(initial=timezone.localdate, widget=forms.DateInput(attrs={'type': 'date'}))
+    sent_remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 3}))
+
+
+class SignedDocumentForm(forms.Form):
+    signer_name = forms.CharField(max_length=160, label='Confirmed signer')
+    comments = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 3}))
+    confirmed = forms.BooleanField(label='I confirm this signing was verified manually', required=True)
+
+
+class CancelDocumentForm(forms.Form):
+    reason = forms.CharField(widget=forms.Textarea(attrs={'rows': 3}), max_length=2000)
 
 
 class DocumentTemplateForm(forms.ModelForm):

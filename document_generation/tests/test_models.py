@@ -112,6 +112,8 @@ class DocumentGenerationModelTests(TestCase):
             generated_document=document, role='client', display_name='Example Client',
             contact_snapshot={'address': 'Original'},
         )
+        document.status = 'approved'
+        document.save()
         document.status = 'issued'
         document.save()
         document.rendered_content = 'Changed'

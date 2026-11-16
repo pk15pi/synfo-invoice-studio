@@ -10,8 +10,9 @@
   <h2>Download</h2>
   {% if word_url %}<p><a class="btn" href="{{ word_url }}">Download Word (.docx)</a></p>{% endif %}
   {% if pdf_url %}<p><a class="btn" href="{{ pdf_url }}">Download PDF (.pdf)</a></p>{% endif %}
-  <p>These are unsigned working drafts. Review all terms and obtain appropriate approvals before issuing or signing.</p>
-  <p><a href="{% url 'document_generation:generate' %}?revise={{ document.pk }}">Create a revised draft</a></p>
+  <p>This version is a draft. Submit it for its configured approvals before it can be issued.</p>
+  <p><a class="button primary" href="{{ document_detail_url }}">Open document history and submit</a></p>
+  <p><a href="{% url 'document_generation:generate' %}?revise={{ document.pk }}">Create a revised version</a></p>
   <p><a href="{% url 'document_generation:dashboard' %}">Back to document dashboard</a></p>
 </section>
 {% endblock %}
