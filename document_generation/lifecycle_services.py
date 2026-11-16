@@ -74,6 +74,19 @@ def _notify_creator(document, action, message):
     _notify(document.created_by, document, action, message)
 
 
+def _notify_document_managers(document, action, message):
+    User = get_user_model()
+    for user in User.objects.filter(is_active=True):
+        if not (user.is_superuser or role_for(user) in MANAGER_ROLES):
+            continue
+        DocumentNotification.objects.get_or_create(
+            dedupe_key=f'lifecycle:{action}:{document.pk}:{user.pk}'[:180],
+            defaults={'user': user, 'generated_document': document, 'action': action,
+                      'subject': document.document_number, 'message': message[:240],
+                      'trigger_event': action, 'delivery_method': 'in_app', 'delivery_status': 'sent'},
+        )
+
+
 def _workflow_users(document):
     if not document.document_type.approval_required:
         return []
@@ -140,6 +153,9 @@ def submit_document(document, actor):
         _notify(steps[0], document, 'approval_assigned',
                 f'Approval level 1 is assigned: {document.document_number}.')
     _notify_creator(document, action, f'{document.document_number} was submitted for approval.')
+    if document.status == 'approved':
+        _notify_document_managers(document, 'issuance_task',
+                                  f'{document.document_number} is approved and ready for an authorised issuance decision.')
     return document
 
 
@@ -201,6 +217,9 @@ def decide_approval(approval, actor, decision, comments=''):
          approval_level=approval.level, approver_id=approval.approver_id,
          assigned_approver=approval.approver_name)
     _notify_creator(document, event, f'{document.document_number}: {event.replace("_", " ")}.')
+    if document.status == 'approved':
+        _notify_document_managers(document, 'issuance_task',
+                                  f'{document.document_number} is approved and ready for an authorised issuance decision.')
     return document
 
 
@@ -236,6 +255,8 @@ def issue_document(document, actor, official_issue_date=None, expiry_date=None):
     _log(document, 'issued', actor, previous, official_issue_date=issue_date.isoformat(),
          expiry_date=expiry_date.isoformat() if expiry_date else '')
     _notify_creator(document, 'issued', f'{document.document_number} has been issued.')
+    _notify_document_managers(document, 'sharing_task',
+                              f'{document.document_number} was issued; review whether recipient sharing is required.')
     old = document.supersedes
     if old and old.status in {'issued', 'sent', 'acknowledged', 'signed'}:
         old_status = old.status

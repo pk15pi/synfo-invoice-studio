@@ -2,6 +2,9 @@ from django.urls import path
 
 from . import views
 from . import lifecycle_views
+from . import sharing_views
+from . import automation_views
+from . import document_reports
 
 app_name = 'document_generation'
 urlpatterns = [
@@ -9,6 +12,28 @@ urlpatterns = [
     path('lifecycle/', lifecycle_views.lifecycle_dashboard, name='lifecycle_dashboard'),
     path('approvals/', lifecycle_views.pending_approvals, name='pending_approvals'),
     path('approval-workflows/', lifecycle_views.approval_workflows, name='approval_workflows'),
+    path('sharing/', sharing_views.sharing_dashboard, name='sharing_dashboard'),
+    path('lifecycle/<int:document_id>/share/', sharing_views.share_document, name='share_document'),
+    path('sharing/<int:share_id>/', sharing_views.share_detail, name='share_detail'),
+    path('sharing/<int:share_id>/<str:action>/', sharing_views.share_action, name='share_action'),
+    path('sharing/signed-copy/<int:copy_id>/download/', sharing_views.signed_copy_download, name='signed_copy_download'),
+    path('sharing/<int:share_id>/evidence/<int:document_id>/', sharing_views.share_evidence_download, name='share_evidence_download'),
+    path('automation/', automation_views.automation_dashboard, name='automation_dashboard'),
+    path('automation/settings/', automation_views.automation_settings, name='automation_settings'),
+    path('automation/history/', automation_views.automation_history, name='automation_history'),
+    path('automation/run/', automation_views.automation_run, name='automation_run'),
+    path('automation/retry/<int:rule_id>/', automation_views.automation_retry, name='automation_retry'),
+    path('notifications/', automation_views.notification_history, name='notification_history'),
+    path('notifications/preferences/', automation_views.notification_preferences, name='notification_preferences'),
+    path('notifications/<int:notification_id>/mark-read/', automation_views.notification_mark_read, name='notification_mark_read'),
+    path('compliance/', automation_views.compliance_dashboard, name='compliance_dashboard'),
+    path('compliance/run/', automation_views.compliance_run, name='compliance_run'),
+    path('compliance/requirements/', automation_views.compliance_requirements, name='compliance_requirements'),
+    path('compliance/requirements/<int:requirement_id>/toggle/', automation_views.compliance_requirement_toggle, name='compliance_requirement_toggle'),
+    path('compliance/history/', automation_views.compliance_history, name='compliance_history'),
+    path('compliance/actions/', automation_views.corrective_actions, name='corrective_actions'),
+    path('lifecycle/<int:document_id>/renewal/', automation_views.renewal_update, name='renewal_update'),
+    path('reports/', document_reports.document_reports, name='document_reports'),
     path('lifecycle/<int:document_id>/', lifecycle_views.document_detail, name='document_detail'),
     path('lifecycle/<int:document_id>/<str:action>/', lifecycle_views.lifecycle_action, name='lifecycle_action'),
     path('notifications/<int:notification_id>/read/', lifecycle_views.notification_read, name='notification_read'),

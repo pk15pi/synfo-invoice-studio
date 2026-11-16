@@ -736,11 +736,81 @@ _add("document_generation:document_detail", "Document Details and Lifecycle Hist
      ["Check document number, type, recipient, dates and current status.", "Review every approval level and its decision comments.", "Use Submit for approval for an eligible draft.", "Management may issue an approved version, record manual sending, confirm a manual signing, or cancel with a reason.", "Create a new version for a requested revision or an amendment; never edit an issued file in place."],
      rules=["Only approved latest versions can be issued.", "Marking Sent records a manual event and does not send or confirm receipt.", "Signed means an authorized person manually confirmed signing; no digital signature is applied.", "Cancellation preserves document files and history. Superseded versions remain available.", "An expiry date is required at issue when the document type requires expiry."],
      related=["Lifecycle dashboard, pending approvals and workflow configuration."])
+_add("document_generation:renewal_update", "Document Renewal Tracking", "Record the status and dates of renewal work for an eligible expiring document.",
+     "Renewal tracking follows the document type's configured renewal setting and never issues a replacement document automatically.",
+     ["Set lead time and update the follow-up status.", "When marking Renewed, select the issued superseding version and record renewal and new expiry dates.", "Create, approve and issue the replacement through the regular document workflow first."],
+     rules=["A draft or unapproved replacement cannot be marked renewed.", "The previous document and its file remain preserved."],
+     related=["Document lifecycle details, automation dashboard and document reports."])
 _add("document_generation:approval_workflows", "Approval Workflow Configuration", "Configure the ordered approvers and mandatory-approval setting for each document type.",
      "The saved sequence is copied to each new document approval record so later configuration changes do not reassign submitted work.",
      ["Choose a document type.", "Turn on Require approval before issue when approvals are mandatory.", "Add approvers in the intended level order; remove unneeded levels.", "Save and verify the displayed sequence."],
      rules=["A required workflow must have at least one active user approver.", "Up to ten levels run in order.", "Turning off mandatory approval causes an explicit Submit action to mark that version approved without an approval step; the action is recorded."],
      related=["Document type library, pending approvals and document lifecycle dashboard."])
+_add("document_generation:sharing_dashboard", "Document Sharing Dashboard", "Review issued-version shares, recipients, delivery, acknowledgement, signing and verification status.",
+     "Each recipient and each repeat share has an independent history record. Email is manually tracked; this local-only application does not send email or offer public recipient links.",
+     ["Filter by document, recipient, method, acknowledgement and date; open a share for its full timeline.", "Use the issued version's Share action to record employee/client parties already linked to the document, or enter an external recipient without creating a master record.", "Track handover, acknowledgement, reminders and signature evidence in the share record."],
+     rules=["Only current, issued, unexpired versions can be shared.", "Delivery does not imply receipt; acknowledgement is separate from signature.", "Downloading never changes acknowledgement or signing status.", "Uploaded signed copies remain private and Awaiting Verification until reviewed."],
+     related=["Document lifecycle details, notification history and automation dashboard."])
+_add("document_generation:share_document", "Record Document Sharing", "Record a manual email, physical-copy or hand-delivery event for an issued document version.",
+     "The selected DocumentParty remains linked to its existing employee/client record; external recipients are stored only on this share.",
+     ["Choose a linked recipient where available, or enter the recipient name and email.", "Select the actual sharing method and decide whether acknowledgement or signature follow-up is required.", "Add signatories one per line as Name | Role and save the share."],
+     rules=["The application does not send email or publish a recipient link.", "A repeated share creates a new history record.", "Only the current issued version can be shared; a superseded/cancelled/expired version is blocked."],
+     related=["Sharing dashboard and document lifecycle history."])
+_add("document_generation:share_detail", "Sharing History and Recipient Follow-up", "Track delivery, acknowledgement, signing, verification, reminders and revocation for one share event.",
+     "The timeline is append-only and preserves each event, uploaded evidence reference and signer verification decision.",
+     ["Record delivery only after an actual handover; delivery does not set acknowledgement or signature.", "Record a recipient's acknowledgement or decline and preserve optional evidence.", "Record each reminder and next follow-up date.", "Upload a signed PDF/JPG/PNG copy for each signatory; management must verify it, and rejection requires a reason.", "Review signatory progress and download the issued original or private signed copy."],
+     rules=["No upload is assumed authentic until verified.", "Fully Signed requires every configured signatory's uploaded copy to be verified.", "Revocation is recorded for audit; it cannot recall a copy already delivered outside the app.", "No digital signature provider or public token link is configured."],
+     related=["Sharing dashboard, document history and compliance dashboard."])
+_add("document_generation:automation_dashboard", "Document Automation Dashboard", "Monitor pending approvals, expiry, renewal, recipient actions, failed runs and notifications.",
+     "The dashboard summarizes current records; historical execution details are kept separately.",
+     ["Use the cards to open the corresponding lifecycle, sharing or compliance view.", "Review rule intervals, last run, next run and failures.", "Management may run enabled rules immediately; scheduled Windows deployments should run the documented management command daily."],
+     rules=["Automations create in-app notifications only; no email delivery is configured.", "Automations never issue, cancel, delete or overwrite documents.", "Repeated runs use stable notification keys to avoid duplicate threshold reminders."],
+     related=["Automation settings, execution history and notification history."])
+_add("document_generation:automation_settings", "Automation Settings", "Enable or disable reminder rules and configure day thresholds and escalation.",
+     "Safe defaults cover approvals, expiries, renewals, acknowledgements, signatures and recurring compliance checks.",
+     ["Enter comma-separated calendar-day thresholds, such as 1,3,5.", "Set an escalation interval where applicable and choose whether this rule is enabled.", "Save the rule and review its append-only configuration and execution history."],
+     rules=["Email is unavailable and cannot be enabled.", "Disabling a rule preserves its history and existing notifications.", "Approval reminders stop when the approval step is no longer pending."],
+     related=["Automation dashboard, automation history and Windows scheduling guide."])
+_add("document_generation:automation_history", "Automation Execution History", "Review completed and failed automation runs and retry failed rules.",
+     "A lock prevents concurrent runners; failed executions remain visible and retries create new history.",
+     ["Filter by rule and status.", "Inspect each run's start, completion, result count and error.", "Use Retry safely to run the failed rule again; notification idempotency prevents duplicate reminders."],
+     rules=["The execution history is retained when rules are disabled.", "A successful command run does not mean an email was sent."],
+     related=["Automation dashboard and automation settings."])
+_add("document_generation:notification_history", "Document Notification History", "Search in-app alerts by document, type, recipient and status.",
+     "Users see their own notifications; authorised document managers can review the full notification history.",
+     ["Filter or search notifications and mark your own unread items as read.", "Use preferences to adjust optional personal reminder categories."],
+     rules=["Only in-app notifications are supported.", "No notification is marked delivered based on an attempted email."],
+     related=["Automation dashboard and notification preferences."])
+_add("document_generation:notification_preferences", "Notification Preferences", "Choose optional document reminder categories for your account.",
+     "Management approval, expiry and compliance alerts remain enabled where they are mandatory.",
+     ["Toggle available categories and save.", "Review the notification history to see created in-app messages."],
+     rules=["Preferences do not change document permissions or status.", "This app currently has no outbound email notification integration."],
+     related=["Notification history and automation settings."])
+_add("document_generation:compliance_dashboard", "Document Compliance Dashboard", "Review configured policy checks and dated compliance results.",
+     "Results use only the requirements configured by management and recipients already linked through generated documents.",
+     ["Review latest results, missing/expired documents and upcoming dates.", "Management can run checks and configure requirements.", "Use corrective actions to assign follow-up work."],
+     rules=["A Compliant result means only that the configured checks passed against available records; it is not legal or statutory certification.", "No legal requirement is assumed by default.", "A missing-document check can only cover linked recipient records known to the document module."],
+     related=["Compliance requirements, review history and corrective actions."])
+_add("document_generation:compliance_requirements", "Compliance Requirements Configuration", "Define company-policy checks by document type and recipient type.",
+     "Requirements control whether checks look for presence, approval, expiry validity, a verified signed copy or acknowledgement.",
+     ["Choose a document type and applicable recipient group.", "Set mandatory/optional, validity period, approval/signature/acknowledgement rules, responsible person and review frequency.", "Disable retired policies to preserve their historical reviews."],
+     rules=["Examples are not universal legal requirements.", "Disabling a rule does not remove earlier results."],
+     related=["Compliance dashboard, compliance history and corrective actions."])
+_add("document_generation:compliance_history", "Compliance Review History", "Review each dated result from a configured policy check.",
+     "New evaluations create new records; earlier results are not overwritten.",
+     ["Filter results by status.", "Review the requirement, related generated version, linked recipient, reason and responsible person."],
+     rules=["Results are based on available linked records and configured rules only.", "They are monitoring aids, not legal determinations."],
+     related=["Compliance dashboard and corrective actions."])
+_add("document_generation:corrective_actions", "Compliance Corrective Actions", "Assign and track work to resolve a configured non-compliance result.",
+     "Each create/update is recorded in the action history. Uploading a file does not resolve an action automatically.",
+     ["Select a requirement, describe the issue, assign a responsible person and target date.", "Move the action through Open, In Progress, Pending Review, Resolved or Closed.", "Resolution requires notes and a reviewer decision."],
+     rules=["Resolved status does not itself change the compliance review result; run a new check to record the new result."],
+     related=["Compliance dashboard and review history."])
+_add("document_generation:document_reports", "Document Reports", "Filter and export approval, expiry, renewal, signing, acknowledgement, compliance, corrective-action, automation and notification reports.",
+     "Each report uses configured records and the document visibility permissions of the current user.",
+     ["Choose a report, then apply date, document type, status, recipient or text filters.", "Export the filtered results to Excel or PDF."],
+     rules=["Compliance and corrective-action reports are management-only.", "Exports include only records visible to the current user."],
+     related=["Automation dashboard, sharing dashboard and compliance history."])
 _add("document_generation:template_preview", "Template preview", "Preview a template version with sample values before approval.",
      "Preview helps reviewers check rendering and placeholder structure.",
      ["Review the version and sample output.", "Check placeholder substitutions, clause order and page layout.", "Return to the version record to request changes or approve when authorized."],
@@ -957,6 +1027,11 @@ NON_PAGE_ROUTES = {
     "audit:export", "backup:create", "backup:export", "backup:import", "backup:verify", "backup:retention", "backup:pg_settings", "backup:pg_test", "backup:pg_sync",
     "backup:confirm_merge", "backup:download_import_package", "document_generation:download",
     "document_generation:lifecycle_action", "document_generation:notification_read",
+    "document_generation:share_action", "document_generation:signed_copy_download",
+    "document_generation:share_evidence_download",
+    "document_generation:automation_run", "document_generation:automation_retry",
+    "document_generation:notification_mark_read", "document_generation:compliance_run",
+    "document_generation:compliance_requirement_toggle",
     "performance_review:daily_brief_delete",
     "document_generation:template_duplicate", "document_generation:template_new_version",
     "document_generation:template_version_action", "document_generation:clause_new_version",

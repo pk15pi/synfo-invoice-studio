@@ -22,6 +22,12 @@ from .models import (
     DocumentTemplateVersion,
     DocumentType,
     GeneratedDocument,
+    DocumentShare, DocumentShareSignatory, DocumentShareEvent, DocumentRenewal,
+    DocumentSignedCopy, DocumentComplianceRequirementEvent,
+    DocumentAutomationRule, DocumentAutomationExecution, DocumentAutomationLock,
+    DocumentAutomationRuleEvent, DocumentNotificationPreference,
+    DocumentComplianceRequirement, DocumentComplianceReview,
+    DocumentCorrectiveAction, DocumentCorrectiveActionEvent,
 )
 
 
@@ -385,3 +391,45 @@ class DocumentNotificationAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(DocumentShare)
+class DocumentShareAdmin(admin.ModelAdmin):
+    list_display = ('generated_document', 'recipient_name', 'recipient_type', 'sharing_method',
+                    'shared_at', 'acknowledgement_status', 'revoked_at')
+    list_filter = ('recipient_type', 'sharing_method', 'acknowledgement_status', 'shared_at')
+    search_fields = ('generated_document__document_number', 'recipient_name', 'recipient_email')
+    readonly_fields = tuple(field.name for field in DocumentShare._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+class _ReadOnlyLifecycleAdmin(admin.ModelAdmin):
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+for _model in (
+    DocumentShareSignatory, DocumentShareEvent, DocumentAutomationExecution,
+    DocumentAutomationLock, DocumentAutomationRuleEvent, DocumentComplianceReview,
+    DocumentCorrectiveActionEvent, DocumentSignedCopy, DocumentComplianceRequirementEvent,
+    DocumentRenewal, DocumentAutomationRule, DocumentComplianceRequirement,
+    DocumentCorrectiveAction, DocumentNotificationPreference,
+):
+    admin.site.register(_model, _ReadOnlyLifecycleAdmin)

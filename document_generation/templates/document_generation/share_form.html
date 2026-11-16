@@ -1,0 +1,6 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}Record Document Sharing{% endblock %}
+{% block content %}
+<div class="page-heading"><p class="eyebrow">DOCUMENT {{ document.document_number }} - VERSION {{ document.version_number }}</p><h1>Record sharing</h1><p class="muted">Only current issued versions can be shared. Email delivery is tracked manually; the app does not send email.</p></div>
+<section class="panel form-panel"><form method="post">{% csrf_token %}{{ form.as_p }}<button class="button primary" type="submit">Create sharing record</button> <a class="button secondary" href="{% url 'document_generation:document_detail' document.pk %}">Cancel</a></form></section>
+{% endblock %}

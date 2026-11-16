@@ -2534,6 +2534,15 @@ input.flatpickr-input{
 
 /* Document generation lifecycle pages. */
 .dg-lifecycle-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:12px 0 20px}
+.dg-automation-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin:12px 0 20px}
+.dg-automation-cards .panel{display:flex;flex-direction:column;gap:4px;padding:14px;text-decoration:none;color:var(--ink)}
+.dg-automation-cards strong{font-size:24px;color:var(--navy);font-variant-numeric:tabular-nums}
+.dg-automation-cards span{font-size:12px;color:var(--muted)}
+.dg-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));align-items:end;gap:12px}
+.dg-filter-grid label{display:grid;gap:5px;font-size:12px;font-weight:700}
+.dg-automation-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;align-items:end}
+.dg-automation-form p{display:grid;gap:5px;margin:0}
+.dg-automation-form .button{justify-self:start}
 .dg-status-card{display:flex;flex-direction:column;gap:4px;padding:14px;text-decoration:none;color:var(--ink)}
 .dg-status-card span{font-size:12px;color:var(--muted)}
 .dg-status-card strong{font-size:24px;color:var(--navy);font-variant-numeric:tabular-nums}

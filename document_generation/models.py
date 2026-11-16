@@ -167,6 +167,8 @@ class DocumentType(models.Model):
     reset_frequency = models.CharField(max_length=16, choices=RESET_FREQUENCIES, default=RESET_CALENDAR)
     approval_required = models.BooleanField(default=True)
     requires_expiry = models.BooleanField(default=False)
+    renewal_enabled = models.BooleanField(default=False)
+    renewal_lead_time_days = models.PositiveSmallIntegerField(default=90)
     approval_workflow = models.JSONField(default=list, blank=True)
     default_output_formats = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -1057,6 +1059,7 @@ class DocumentNotification(models.Model):
     message = models.CharField(max_length=240)
     subject = models.CharField(max_length=180, blank=True)
     trigger_event = models.CharField(max_length=64, blank=True)
+    dedupe_key = models.CharField(max_length=180, unique=True, null=True, blank=True)
     delivery_method = models.CharField(max_length=12, default='in_app')
     delivery_status = models.CharField(max_length=12, choices=DELIVERY_STATUSES, default='sent')
     failure_reason = models.TextField(blank=True)
@@ -1129,6 +1132,12 @@ class DocumentShare(models.Model):
     )
     signature_required = models.BooleanField(default=False)
     next_follow_up_date = models.DateField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='revoked_document_shares',
+    )
+    revocation_reason = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1234,6 +1243,65 @@ class DocumentShareSignatory(models.Model):
         return f'{self.name} / {self.share.generated_document.document_number}'
 
 
+class AppendOnlyHistoryQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError('History records are append-only.')
+
+    def delete(self):
+        raise ValidationError('History records are append-only.')
+
+    def bulk_update(self, *args, **kwargs):
+        raise ValidationError('History records are append-only.')
+
+
+class DocumentSignedCopy(models.Model):
+    """Each uploaded signed file remains a separate private record, including replacements."""
+    VERIFICATION = [
+        ('awaiting', 'Awaiting Verification'), ('verified', 'Verified'),
+        ('rejected', 'Verification Rejected'),
+    ]
+    signatory = models.ForeignKey(
+        DocumentShareSignatory, on_delete=models.PROTECT, related_name='signed_copies',
+    )
+    document = models.ForeignKey(Document, on_delete=models.PROTECT, related_name='tracked_signed_copies')
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='tracked_signed_copy_uploads',
+    )
+    uploaded_at = models.DateTimeField(default=timezone.now)
+    sha256 = models.CharField(max_length=64)
+    verification_status = models.CharField(max_length=16, choices=VERIFICATION, default='awaiting')
+    verification_reason = models.TextField(blank=True)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='reviewed_signed_copies',
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-uploaded_at', '-id']
+
+    objects = AppendOnlyHistoryQuerySet.as_manager()
+
+    def clean(self):
+        if self.verification_status == 'rejected' and not self.verification_reason.strip():
+            raise ValidationError({'verification_reason': 'A reason is required when rejecting verification.'})
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = type(self).objects.get(pk=self.pk)
+            for field in ('signatory_id', 'document_id', 'uploaded_by_id', 'uploaded_at', 'sha256'):
+                if getattr(previous, field) != getattr(self, field):
+                    raise ValidationError('Uploaded signed-copy identity and file hash are immutable.')
+            if previous.verification_status != 'awaiting':
+                raise ValidationError('A completed signed-copy verification cannot be changed.')
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Uploaded signed copies cannot be deleted.')
+
+
 class DocumentShareEvent(models.Model):
     """Append-only audit trail for delivery, acknowledgement, signature, access and follow-ups."""
     share = models.ForeignKey(DocumentShare, on_delete=models.PROTECT, related_name='events')
@@ -1248,6 +1316,8 @@ class DocumentShareEvent(models.Model):
 
     class Meta:
         ordering = ['created_at', 'id']
+
+    objects = AppendOnlyHistoryQuerySet.as_manager()
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -1303,6 +1373,9 @@ class DocumentAutomationRule(models.Model):
     enabled = models.BooleanField(default=True, db_index=True)
     intervals_days = models.JSONField(default=list, blank=True)
     escalation_after_days = models.PositiveSmallIntegerField(null=True, blank=True)
+    escalation_recipients = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name='escalated_document_automation_rules',
+    )
     calendar_days = models.BooleanField(default=True)
     in_app_enabled = models.BooleanField(default=True)
     email_enabled = models.BooleanField(default=False)
@@ -1344,6 +1417,49 @@ class DocumentAutomationExecution(models.Model):
 
     class Meta:
         ordering = ['-started_at', '-id']
+
+    objects = AppendOnlyHistoryQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = type(self).objects.get(pk=self.pk)
+            if previous.status != 'running' or self.status not in {'completed', 'failed'}:
+                raise ValidationError('A completed automation execution cannot be changed or deleted.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Automation execution history cannot be deleted.')
+
+
+class DocumentAutomationLock(models.Model):
+    name = models.CharField(max_length=40, unique=True, default='document-automation')
+    owner_token = models.CharField(max_length=64, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class DocumentAutomationRuleEvent(models.Model):
+    rule = models.ForeignKey(DocumentAutomationRule, on_delete=models.PROTECT, related_name='history')
+    action = models.CharField(max_length=24)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='document_automation_rule_events',
+    )
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    objects = AppendOnlyHistoryQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('Automation rule history is append-only.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Automation rule history cannot be deleted.')
 
 
 class DocumentNotificationPreference(models.Model):
@@ -1393,6 +1509,32 @@ class DocumentComplianceRequirement(models.Model):
         return self.name
 
 
+class DocumentComplianceRequirementEvent(models.Model):
+    requirement = models.ForeignKey(
+        DocumentComplianceRequirement, on_delete=models.PROTECT, related_name='history',
+    )
+    action = models.CharField(max_length=24)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='document_compliance_requirement_events',
+    )
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    objects = AppendOnlyHistoryQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('Compliance requirement history is append-only.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Compliance requirement history cannot be deleted.')
+
+
 class DocumentComplianceReview(models.Model):
     STATUSES = [
         ('compliant', 'Compliant'), ('non_compliant', 'Non-Compliant'),
@@ -1420,6 +1562,8 @@ class DocumentComplianceReview(models.Model):
 
     class Meta:
         ordering = ['-checked_at', '-id']
+
+    objects = AppendOnlyHistoryQuerySet.as_manager()
 
     def save(self, *args, **kwargs):
         if self.pk:
@@ -1468,3 +1612,29 @@ class DocumentCorrectiveAction(models.Model):
     def clean(self):
         if self.status in {'resolved', 'closed'} and not self.resolution_notes.strip():
             raise ValidationError({'resolution_notes': 'Resolution notes are required.'})
+
+
+class DocumentCorrectiveActionEvent(models.Model):
+    corrective_action = models.ForeignKey(
+        DocumentCorrectiveAction, on_delete=models.PROTECT, related_name='history',
+    )
+    action = models.CharField(max_length=24)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='document_corrective_action_events',
+    )
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    objects = AppendOnlyHistoryQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError('Corrective-action history is append-only.')
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError('Corrective-action history cannot be deleted.')

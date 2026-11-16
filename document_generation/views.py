@@ -450,6 +450,10 @@ def download(request, document_id, output_format):
     )
     response['Cache-Control'] = 'no-store, private'
     response['X-Content-Type-Options'] = 'nosniff'
+    for share in generated.shares.all():
+        from .sharing_services import _event
+        _event(share, 'issued_file_downloaded_by_authorised_user', request.user,
+               output_format=output_format, original_issued_file=True)
     return response
 
 

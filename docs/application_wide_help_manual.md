@@ -6,6 +6,8 @@
 
 **Follow-up update (7 November 2026):** Bank statement import guidance now covers the staged PDF/CSV/XLSX workflow, explicit draft cancellation and versioned regeneration. Migrations `0003`-`0009` add review rows, source lineage and cancellation audit fields; they are additive and do not edit existing bank transaction records. See [bank_statement_import_upgrade.md](bank_statement_import_upgrade.md) and [bank_draft_management_gap_analysis.md](bank_draft_management_gap_analysis.md).
 
+**Document Generation updates (16 November 2026):** Phases 5 and 6 add issued-version sharing records, private delivery/acknowledgement evidence, multi-signatory signed-copy review, renewal tracking, configurable in-app reminders, compliance policy checks, corrective actions, execution history and Excel/PDF reports. Email sending and external recipient links are unavailable because the app has no supported email integration and its document views are local-only. Configure Windows Task Scheduler to run `manage.py run_document_automation` hourly; see [document_automation_scheduling.md](document_automation_scheduling.md). Compliance results describe configured company-policy checks only and are not legal certification.
+
 ## Overview
 
 The shared page-help component adds a compact circular `?` button to the current page heading, at the far right of the page title/action row. On narrow screens it stays at the heading's upper-right corner. Screens without a standard heading get a right-aligned fallback at the start of the content area.
@@ -174,6 +176,20 @@ The table lists each user-facing page route pattern with a contextual guide. Dyn
 | Document Generation | Document lifecycle dashboard (`/documents/lifecycle/`) | Yes | Yes |
 | Document Generation | Pending document approvals (`/documents/approvals/`) | Yes | Yes |
 | Document Generation | Generated document lifecycle and version history (`/documents/lifecycle/<int:document_id>/`) | Yes | Yes |
+| Document Generation | Renewal tracking for a document (`/documents/lifecycle/<int:document_id>/renewal/`) | Yes | Yes |
+| Document Generation | Sharing dashboard (`/documents/sharing/`) | Yes | Yes |
+| Document Generation | Record sharing for an issued version (`/documents/lifecycle/<int:document_id>/share/`) | Yes | Yes |
+| Document Generation | Sharing history and recipient follow-up (`/documents/sharing/<int:share_id>/`) | Yes | Yes |
+| Document Generation | Document automation dashboard (`/documents/automation/`) | Yes | Yes |
+| Document Generation | Automation settings (`/documents/automation/settings/`) | Yes | Yes |
+| Document Generation | Automation execution history (`/documents/automation/history/`) | Yes | Yes |
+| Document Generation | Notification history (`/documents/notifications/`) | Yes | Yes |
+| Document Generation | Notification preferences (`/documents/notifications/preferences/`) | Yes | Yes |
+| Document Generation | Document compliance dashboard (`/documents/compliance/`) | Yes | Yes |
+| Document Generation | Compliance requirements (`/documents/compliance/requirements/`) | Yes | Yes |
+| Document Generation | Compliance review history (`/documents/compliance/history/`) | Yes | Yes |
+| Document Generation | Compliance corrective actions (`/documents/compliance/actions/`) | Yes | Yes |
+| Document Generation | Document reports and Excel / PDF exports (`/documents/reports/`) | Yes | Yes |
 | Employee & Payroll | Employee records hub (`/bank-details/`) | Yes | Yes |
 | Employee & Payroll | Departments (`/departments/`) | Yes | Yes |
 | Employee & Payroll | Add or edit department (`/departments/<int:pk>/edit/`) | Yes | Yes |

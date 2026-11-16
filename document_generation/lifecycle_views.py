@@ -22,6 +22,7 @@ from .lifecycle_services import (
     evaluate_expired_documents, is_document_manager, issue_document,
     mark_document_sent, notify_upcoming_expiries, submit_document,
 )
+from .sharing_services import can_manage_share
 from .models import (
     DocumentApproval, DocumentNotification, DocumentType, GeneratedDocument,
 )
@@ -259,6 +260,9 @@ def document_detail(request, document_id):
         'can_amend': document.status in {'issued', 'sent', 'signed', 'acknowledged'}
         and ((request.user.is_authenticated and document.created_by_id == request.user.pk)
              or is_document_manager(request.user)),
+        'can_share': can_manage_share(request.user, document)
+        and document.status in {'issued', 'sent', 'signed', 'acknowledged'},
+        'shares': document.shares.prefetch_related('signatories').order_by('-shared_at'),
     })
 
 
