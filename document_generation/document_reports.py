@@ -43,7 +43,9 @@ def _data(kind, user, params):
         queryset = DocumentApproval.objects.filter(generated_document__in=docs, status='pending',
                                                     generated_document__status='pending_approval').select_related(
             'generated_document__document_type', 'approver')
-        if not can_view_all_documents(user):
+        if not getattr(user, 'is_authenticated', False):
+            queryset = queryset.none()
+        elif not can_view_all_documents(user):
             queryset = queryset.filter(approver=user)
         if kind == 'overdue_approvals':
             queryset = queryset.filter(requested_at__date__lt=today)

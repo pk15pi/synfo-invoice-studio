@@ -42,6 +42,20 @@ class DocumentTypeForm(forms.ModelForm):
         )
         widgets = {'categories': forms.CheckboxSelectMultiple()}
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Preserve compatibility with older forms and callers that predate the
+        # optional renewal tracking controls.
+        self.fields['renewal_lead_time_days'].required = False
+
+    def clean_renewal_lead_time_days(self):
+        value = self.cleaned_data.get('renewal_lead_time_days')
+        if value is not None:
+            return value
+        if self.instance and self.instance.pk:
+            return self.instance.renewal_lead_time_days
+        return DocumentType._meta.get_field('renewal_lead_time_days').get_default()
+
 
 class ApprovalStepForm(forms.Form):
     approver = forms.ModelChoiceField(queryset=get_user_model().objects.none(), required=False,

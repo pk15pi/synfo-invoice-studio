@@ -283,6 +283,21 @@ class DocumentAutomationComplianceTests(PhaseFiveSixBase):
 
 
 class DocumentReportTests(PhaseFiveSixBase):
+    def test_automation_dashboard_activity_columns_match_execution_data(self):
+        rule = DocumentAutomationRule.objects.create(
+            code='dashboard-ui-run', name='Dashboard UI run', rule_type='approval',
+        )
+        DocumentAutomationExecution.objects.create(
+            rule=rule, generated_document=self.document,
+            idempotency_key='dashboard-ui-run:test', status='completed', result_count=1,
+        )
+        self.client.force_login(self.manager)
+        response = self.client.get(reverse('document_generation:automation_dashboard'))
+        self.assertEqual(response.status_code, 200)
+        for heading in ('Recipient / Employee', 'Run started', 'Next rule run', 'Last executed', 'Actions'):
+            self.assertContains(response, heading)
+        self.assertContains(response, self.party.display_name)
+
     def test_report_page_and_excel_pdf_exports_use_filtered_scope(self):
         create_share(self.document, self.manager, self.share_data())
         self.client.force_login(self.manager)
