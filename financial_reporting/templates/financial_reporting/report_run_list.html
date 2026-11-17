@@ -1,0 +1,74 @@
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}
+{% block title %}Report Runs{% endblock %}
+{% block content %}
+<header class="page-heading split">
+  <div>
+    <p class="eyebrow">Financial Reports</p>
+    <h1>Report Runs</h1>
+  </div>
+  <a class="button primary" href="{% url 'financial_reporting:run_report' %}">Run a report</a>
+</header>
+
+<form method="get" class="qb-filter-form filter-form" data-filter-form>
+  <label>Status
+    <select name="status">
+      <option value="">All statuses</option>
+      {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Report
+    <select name="report">
+      <option value="">All reports</option>
+      {% for defn in definitions %}
+        <option value="{{ defn.pk }}" {% if defn.pk|stringformat:"s" == report_filter %}selected{% endif %}>{{ defn.report_name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div class="filter-actions">
+    <button class="button secondary" type="submit">Filter</button>
+    <a class="button secondary" href="{% url 'financial_reporting:report_run_list' %}">Clear</a>
+  </div>
+</form>
+
+{% if page.object_list %}
+<div class="table-wrap">
+  <table data-server-sort="orm">
+    <thead>
+      <tr>
+        <th data-sort-key="report">Report</th>
+        <th data-sort-key="date">Generated</th>
+        <th data-sort-key="status">Status</th>
+        <th data-sort-key="format">Format</th>
+        <th>Period</th>
+        <th>Records</th>
+        <th></th>
+      </tr>
+    </thead>
+    {% paginate page as qb_pg1 %}<tbody>
+    {% for run in qb_pg1 %}
+      <tr>
+        <td><a href="{% url 'financial_reporting:report_run_detail' run.pk %}">{{ run.report_definition.report_name }}</a>
+          <small class="muted">{{ run.report_definition.report_code }}</small></td>
+        <td>{{ run.generated_at|date:"d M Y H:i" }}</td>
+        <td><span class="badge badge-{{ run.status }}">{{ run.get_status_display }}</span></td>
+        <td>{{ run.output_format|upper }}</td>
+        <td>{{ run.from_date }} &ndash; {{ run.to_date }}</td>
+        <td>{{ run.record_count }}</td>
+        <td>
+          <a href="{% url 'financial_reporting:report_run_detail' run.pk %}">View</a>
+          {% if run.generated_file %}
+            &middot; <a href="{% url 'financial_reporting:report_run_download' run.pk %}">Download</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% pager qb_pg1 %}
+</div>
+{% else %}
+<p class="muted">No report runs found.</p>
+{% endif %}
+{% endblock %}

@@ -5,6 +5,7 @@ from . import lifecycle_views
 from . import sharing_views
 from . import automation_views
 from . import document_reports
+from . import filtered_views
 
 app_name = 'document_generation'
 urlpatterns = [
@@ -59,5 +60,17 @@ urlpatterns = [
     path('generate/', views.generate_document, name='generate'),
     path('template-preview/<int:version_id>/', views.template_preview, name='template_preview'),
     path('download/<int:document_id>/<str:output_format>/', views.download, name='download'),
+    # Filtered list sections (replace placeholder for these 10 slugs)
+    path('client-documents/', filtered_views.client_documents, name='client_documents'),
+    path('freelancer-documents/', filtered_views.freelancer_documents, name='freelancer_documents'),
+    path('candidate-documents/', filtered_views.candidate_documents, name='candidate_documents'),
+    path('employee-documents/', filtered_views.employee_documents, name='employee_documents'),
+    path('internal-documents/', filtered_views.internal_documents, name='internal_documents'),
+    path('vendors/', filtered_views.vendor_documents, name='vendor_documents'),
+    path('acknowledgements/', filtered_views.acknowledgements, name='acknowledgements'),
+    path('signed/', filtered_views.signed_documents, name='signed'),
+    path('expiring/', filtered_views.expiring_agreements, name='expiring'),
+    path('history/', filtered_views.document_history, name='history'),
+    # Catch-all for any remaining unknown section slugs
     path('<slug:section>/', views.placeholder, name='placeholder'),
 ]

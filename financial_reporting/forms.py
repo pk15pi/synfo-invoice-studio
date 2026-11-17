@@ -7,6 +7,8 @@ from django.core.exceptions import ValidationError
 
 from reporting import periods
 
+from .models import ComplianceSubmission, ReportDefinition
+
 
 PERIOD_CHOICES = [
     ('current_fy', 'Current financial year'),
@@ -117,3 +119,83 @@ class ReportingPeriodForm(forms.Form):
             params['date_from'] = self.cleaned_data['date_from'].isoformat()
             params['date_to'] = self.cleaned_data['date_to'].isoformat()
         return params
+
+
+FORMAT_CHOICES = [('xlsx', 'Excel (.xlsx)'), ('pdf', 'PDF'), ('csv', 'CSV')]
+
+
+class RunReportForm(forms.Form):
+    report_definition = forms.ModelChoiceField(
+        queryset=ReportDefinition.objects.filter(active_status=True).select_related('category').order_by('report_name'),
+        label='Report',
+        empty_label='— choose a report —',
+    )
+    output_format = forms.ChoiceField(choices=FORMAT_CHOICES, initial='xlsx', label='Output format')
+    period_mode = forms.ChoiceField(
+        required=False,
+        choices=[('financial', 'Financial year'), ('calendar', 'Calendar year'), ('custom', 'Custom dates')],
+        initial='financial',
+    )
+    fy = forms.IntegerField(required=False, min_value=1900, max_value=9998, label='Financial year (start)')
+    period_type = forms.ChoiceField(
+        required=False,
+        choices=[('full_fy', 'Full year'), ('quarterly', 'Quarter'), ('half_yearly', 'Half-year'), ('monthly', 'Month')],
+        initial='full_fy',
+    )
+    period_value = forms.CharField(required=False, max_length=8)
+    calendar_year = forms.IntegerField(required=False, min_value=1900, max_value=9998, label='Calendar year')
+    date_from = forms.DateField(
+        required=False, input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        label='From date',
+    )
+    date_to = forms.DateField(
+        required=False, input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        label='To date',
+    )
+
+    def clean(self):
+        cleaned = super().clean()
+        mode = cleaned.get('period_mode') or 'financial'
+        if mode == 'financial':
+            if not cleaned.get('fy'):
+                from reporting import periods as P
+                cleaned['fy'] = P.fy_start_year(P.today())
+        elif mode == 'calendar':
+            if not cleaned.get('calendar_year'):
+                self.add_error('calendar_year', 'Choose a calendar year.')
+        elif mode == 'custom':
+            start, end = cleaned.get('date_from'), cleaned.get('date_to')
+            if not start or not end:
+                self.add_error(
+                    'date_from' if not start else 'date_to',
+                    'Enter both custom date boundaries.',
+                )
+            elif end < start:
+                self.add_error('date_to', 'End date cannot be before start date.')
+        return cleaned
+
+    def period_params(self):
+        if not self.is_valid():
+            raise ValueError('Form must be valid before calling period_params().')
+        d = self.cleaned_data
+        mode = d.get('period_mode') or 'financial'
+        params = {'period_mode': mode}
+        for key in ('fy', 'period_type', 'period_value', 'calendar_year'):
+            v = d.get(key)
+            if v not in (None, ''):
+                params[key] = str(v)
+        if mode == 'custom':
+            params['date_from'] = d['date_from'].isoformat()
+            params['date_to'] = d['date_to'].isoformat()
+        return params
+
+
+class ComplianceSubmissionForm(forms.ModelForm):
+    class Meta:
+        model = ComplianceSubmission
+        fields = ['status', 'filing_date', 'acknowledgement_number', 'uploaded_acknowledgement']
+        widgets = {
+            'filing_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
+        }

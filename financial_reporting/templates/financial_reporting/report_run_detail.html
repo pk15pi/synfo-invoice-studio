@@ -1,0 +1,42 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Report Run &mdash; {{ run.report_definition.report_name }}{% endblock %}
+{% block content %}
+<header class="page-heading split">
+  <div>
+    <p class="eyebrow">Financial Reports &rsaquo; <a href="{% url 'financial_reporting:report_run_list' %}">Report Runs</a></p>
+    <h1>{{ run.report_definition.report_name }}</h1>
+    <p class="muted">{{ run.report_definition.report_code }}</p>
+  </div>
+  {% if run.generated_file %}
+    <a class="button primary" href="{% url 'financial_reporting:report_run_download' run.pk %}">Download {{ run.output_format|upper }}</a>
+  {% endif %}
+</header>
+
+<div class="panel">
+  <dl class="detail-list">
+    <dt>Status</dt>
+    <dd><span class="badge badge-{{ run.status }}">{{ run.get_status_display }}</span></dd>
+    <dt>Output format</dt>
+    <dd>{{ run.output_format|upper }}</dd>
+    <dt>Period</dt>
+    <dd>{{ run.from_date }} &ndash; {{ run.to_date }}</dd>
+    <dt>Financial period</dt>
+    <dd>{{ run.financial_period }}</dd>
+    <dt>Generated at</dt>
+    <dd>{{ run.generated_at|date:"d M Y H:i:s" }}</dd>
+    <dt>Record count</dt>
+    <dd>{{ run.record_count }}</dd>
+    <dt>Source data as of</dt>
+    <dd>{% if run.source_data_as_of %}{{ run.source_data_as_of|date:"d M Y H:i" }}{% else %}&mdash;{% endif %}</dd>
+    {% if run.error_details %}
+      <dt>Error / note</dt>
+      <dd><pre class="error-pre">{{ run.error_details }}</pre></dd>
+    {% endif %}
+  </dl>
+</div>
+
+<div class="form-actions">
+  <a class="button secondary" href="{% url 'financial_reporting:report_run_list' %}">Back to list</a>
+  <a class="button secondary" href="{% url 'financial_reporting:run_report' %}">Run another report</a>
+</div>
+{% endblock %}

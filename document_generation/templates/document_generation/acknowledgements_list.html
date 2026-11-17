@@ -1,0 +1,26 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}
+{% block title %}Digital Acknowledgements{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">DOCUMENT &amp; AGREEMENT MANAGEMENT</p><h1>Digital Acknowledgements</h1><p class="muted">Sharing events where acknowledgement was requested or recorded.</p></div><div class="heading-actions"><a class="button secondary" href="{% url 'document_generation:sharing_dashboard' %}">Sharing dashboard</a></div></div>
+<form method="get" class="qb-filter-form filter-toolbar" data-filter-form data-live-search>
+  <label>Search <input class="field" type="search" name="q" value="{{ q }}" placeholder="Document number, type or recipient"></label>
+  <label>Ack status <select class="field" name="ack_status"><option value="">All</option>{% for key,label in ack_statuses %}<option value="{{ key }}"{% if ack_status == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+  <button class="button primary" type="submit">Apply</button><a class="button secondary" href="?">Clear</a>
+</form>
+<section class="panel"><div class="table-wrap"><table class="table" data-server-sort="orm"><thead><tr>
+  <th data-sort-key="number">Document Number</th>
+  <th data-sort-key="type">Document Type</th>
+  <th data-sort-key="recipient">Recipient</th>
+  <th data-sort-key="shared">Shared Date</th>
+  <th data-sort-key="ack_status">Acknowledgement Status</th>
+  <th>Actions</th>
+</tr></thead>
+{% paginate page as qb_pg1 %}<tbody>{% for share in qb_pg1 %}<tr>
+  <td><a href="{% url 'document_generation:share_detail' share.pk %}">{{ share.generated_document.document_number }}</a></td>
+  <td>{{ share.generated_document.document_type.name }}</td>
+  <td>{{ share.recipient_name }}</td>
+  <td>{{ share.shared_at|date:'d M Y H:i' }}</td>
+  <td><span class="dg-status dg-status-{{ share.acknowledgement_status }}">{{ share.get_acknowledgement_status_display }}</span></td>
+  <td><a class="button secondary" href="{% url 'document_generation:share_detail' share.pk %}">View</a></td>
+</tr>{% empty %}<tr><td colspan="6" class="empty">No acknowledgements match these filters.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></section>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Run a Report{% endblock %}
+{% block content %}
+<header class="page-heading split">
+  <div>
+    <p class="eyebrow">Financial Reports</p>
+    <h1>Run a Report</h1>
+    <p>Choose a report definition, a reporting period, and an output format then click Run.</p>
+  </div>
+  <a class="button secondary" href="{% url 'financial_reporting:report_run_list' %}">All report runs</a>
+</header>
+
+<div class="panel">
+  <form method="post">
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    <div class="field-row">
+      <label for="{{ form.report_definition.id_for_label }}">{{ form.report_definition.label }}</label>
+      {{ form.report_definition }}
+      {% if form.report_definition.errors %}<p class="field-error">{{ form.report_definition.errors.0 }}</p>{% endif %}
+    </div>
+
+    <div class="field-row">
+      <label for="{{ form.output_format.id_for_label }}">{{ form.output_format.label }}</label>
+      {{ form.output_format }}
+      {% if form.output_format.errors %}<p class="field-error">{{ form.output_format.errors.0 }}</p>{% endif %}
+    </div>
+
+    <fieldset>
+      <legend>Reporting period</legend>
+      <div class="field-row">
+        <label for="{{ form.period_mode.id_for_label }}">Period type</label>
+        {{ form.period_mode }}
+      </div>
+      <div class="field-row">
+        <label for="{{ form.fy.id_for_label }}">{{ form.fy.label }}</label>
+        {{ form.fy }}
+        {% if form.fy.errors %}<p class="field-error">{{ form.fy.errors.0 }}</p>{% endif %}
+      </div>
+      <div class="field-row">
+        <label for="{{ form.period_type.id_for_label }}">Period subdivision</label>
+        {{ form.period_type }}
+      </div>
+      <div class="field-row">
+        <label for="{{ form.period_value.id_for_label }}">Period value <small class="muted">(e.g. Q1, H2, 4)</small></label>
+        {{ form.period_value }}
+      </div>
+      <div class="field-row">
+        <label for="{{ form.calendar_year.id_for_label }}">{{ form.calendar_year.label }}</label>
+        {{ form.calendar_year }}
+        {% if form.calendar_year.errors %}<p class="field-error">{{ form.calendar_year.errors.0 }}</p>{% endif %}
+      </div>
+      <div class="field-row">
+        <label for="{{ form.date_from.id_for_label }}">{{ form.date_from.label }}</label>
+        {{ form.date_from }}
+        {% if form.date_from.errors %}<p class="field-error">{{ form.date_from.errors.0 }}</p>{% endif %}
+      </div>
+      <div class="field-row">
+        <label for="{{ form.date_to.id_for_label }}">{{ form.date_to.label }}</label>
+        {{ form.date_to }}
+        {% if form.date_to.errors %}<p class="field-error">{{ form.date_to.errors.0 }}</p>{% endif %}
+      </div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button class="button primary" type="submit">Run report</button>
+      <a class="button secondary" href="{% url 'financial_reporting:report_run_list' %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

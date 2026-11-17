@@ -816,6 +816,46 @@ _add("document_generation:template_preview", "Template preview", "Preview a temp
      ["Review the version and sample output.", "Check placeholder substitutions, clause order and page layout.", "Return to the version record to request changes or approve when authorized."],
      rules=["Sample values are illustrative and do not confirm a real party’s data."],
      related=["Template versions and approval workflow."])
+_add("document_generation:client_documents", "Client Documents", "Browse generated documents where the primary party is a client.",
+     "Quickly find all client-facing agreements, letters and issued documents.",
+     ["Search by document number or client name.", "Filter by document type or lifecycle status.", "Open a document row to review its full lifecycle detail."],
+     related=["Document lifecycle dashboard, sharing dashboard and document generation."])
+_add("document_generation:freelancer_documents", "Freelancer Documents", "Browse generated documents where the primary party is a freelancer.",
+     "Find agreements, offer letters and service contracts raised for freelancers.",
+     ["Search by document number or freelancer name.", "Filter by type or status.", "Open a row to review or act on the document."],
+     related=["Document lifecycle dashboard and document generation."])
+_add("document_generation:candidate_documents", "Candidate Documents", "Browse generated documents where the primary party is a candidate.",
+     "Track offer letters, NDAs and other documents issued to recruitment candidates.",
+     ["Search by document number or candidate name.", "Filter by type or status.", "Open a row to review the document lifecycle."],
+     related=["Document lifecycle dashboard, recruitment module and document generation."])
+_add("document_generation:employee_documents", "Employee Documents", "Browse generated documents where the primary party is an employee.",
+     "Find appointment letters, appraisal letters and contracts associated with employees.",
+     ["Search by document number or employee name.", "Filter by type or status.", "Open a row for lifecycle detail, sharing or approval steps."],
+     related=["Document lifecycle dashboard, employee management and document generation."])
+_add("document_generation:internal_documents", "Internal Documents", "Browse documents generated for internal use with no external party.",
+     "Find board resolutions, internal policies and company-use agreements.",
+     ["Search by document number.", "Filter by type or status.", "Open a row to review or act on the document."],
+     related=["Document lifecycle dashboard and document generation."])
+_add("document_generation:vendor_documents", "Vendor Documents", "Browse generated documents where the primary party is a vendor.",
+     "Find vendor agreements, NDAs and purchase-related contracts.",
+     ["Search by document number or vendor name.", "Filter by type or status.", "Open a row to review the document lifecycle."],
+     related=["Document lifecycle dashboard and document generation."])
+_add("document_generation:acknowledgements", "Digital Acknowledgements", "Track receipt acknowledgement status for all shared documents.",
+     "This page shows every share event where acknowledgement was requested, so follow-ups can be managed in one place.",
+     ["Search by document number or recipient name.", "Filter by acknowledgement status.", "Open a share to record an acknowledgement or send a reminder."],
+     related=["Sharing dashboard and share detail."])
+_add("document_generation:signed", "Signed Documents", "Review the signature status of every document signatory record.",
+     "Track which parties have signed, which have declined and which are still pending.",
+     ["Search by signatory name, document number or recipient.", "Filter by signature status.", "Open the linked share to upload a signed copy or record a decision."],
+     related=["Sharing dashboard, share detail and sharing history."])
+_add("document_generation:expiring", "Expiring Agreements", "Review issued documents with expiry dates, sorted by expiry date.",
+     "Identify documents expiring soon so renewal or extension workflows can begin in time.",
+     ["Rows within 30 days of expiry are highlighted.", "Search by document number or party name.", "Filter by lifecycle status.", "Open a document to begin an amendment or renewal."],
+     related=["Document lifecycle dashboard, renewal tracking and automation dashboard."])
+_add("document_generation:history", "Document History", "Review the full activity log for all generated documents.",
+     "The audit trail records every lifecycle event, approval decision and status change across all documents.",
+     ["Search by document number, document type or actor name.", "Filter by action type.", "Open the linked document to review its current state."],
+     related=["Document lifecycle dashboard and audit log."])
 _add("document_generation:placeholder", "Document module page", "Review the document section shown on this page and its currently available actions.",
      "Some document sections are navigation or placeholder screens; use only features visibly available on this page.",
      ["Read the page status and available actions.", "Use the linked standard library or document index for implemented workflows."],
@@ -867,6 +907,44 @@ _add("reporting:sources", "Report data sources", "Review the available report so
      "The source catalogue explains where report values originate.",
      ["Select a source and review its description and included fields.", "Use the source module to correct underlying records."],
      related=["Custom report builder and reporting dashboard."])
+_add("financial_reporting:run_report", "Run a report", "Select a report definition, choose a period and output format, then generate the output file.",
+     "Running a report creates a ReportRun record and stores the output in private storage.",
+     ["Choose a report from the available definitions.", "Select the financial period and output format.", "Submit the form; the page redirects to the run detail once generation completes."],
+     rules=["Only reports with a configured legacy implementation can produce a file; unrecognised implementations are recorded as incomplete."],
+     related=["Report runs list, report catalogue and financial reports dashboard."])
+_add("financial_reporting:report_run_list", "Report runs", "Browse previous and pending report generation runs.",
+     "The list shows every ReportRun with its status, period and output format.",
+     ["Filter by status or report definition.", "Open a run to download the output file or review error details."],
+     related=["Run a report, report run detail and financial reports dashboard."])
+_add("financial_reporting:report_run_detail", "Report run details", "Review one report run, its metadata and the generated output file.",
+     "Use this page to confirm the run succeeded and download the report file.",
+     ["Check the status, period, record count and any error message.", "Use the Download button to retrieve the output file."],
+     related=["Report runs list and run a report."])
+_add("financial_reporting:package_list", "Export packages", "Browse export packages and their generation status.",
+     "An export package bundles multiple report outputs into a single ZIP for a financial period.",
+     ["Review the package type, period and status.", "Open a package to trigger generation or download the ZIP."],
+     related=["Package detail and financial reports dashboard."])
+_add("financial_reporting:package_detail", "Export package details", "Review one export package, its included items and the generated ZIP.",
+     "Use this page to trigger generation or download the completed package.",
+     ["Review included report runs and their status.", "Use Generate package to create the ZIP.", "Download the ZIP once generation succeeds."],
+     related=["Export packages list and financial reports dashboard."])
+_add("financial_reporting:reconciliation_list", "Reconciliation runs", "Browse reconciliation runs and their match/mismatch counts.",
+     "Reconciliation runs compare figures between two sources and record unmatched items.",
+     ["Filter by reconciliation type.", "Open a run to review matched, unmatched and total counts.", "Review any ReconciliationIssue records for outstanding differences."],
+     related=["Financial reports dashboard and audit checklist."])
+_add("financial_reporting:audit_checklist", "Audit checklist", "Review audit checklist items and their pass/fail results for each financial period.",
+     "The checklist groups configured audit checks and their most recent results.",
+     ["Review status badges per checklist item.", "Items with Warning or Failed status need investigation.", "Results are created by the compliance/audit workflow."],
+     related=["Financial reports dashboard, compliance submissions and reconciliations."])
+_add("financial_reporting:compliance_submissions", "Compliance submissions", "Browse statutory compliance submissions and their filing status.",
+     "Submissions track whether compliance returns have been drafted, reviewed and filed externally.",
+     ["Filter by status.", "Open a submission to update its status, filing date and acknowledgement number.", "Upload the acknowledgement PDF when a return has been filed."],
+     related=["Financial reports dashboard and audit checklist."])
+_add("financial_reporting:compliance_submission_edit", "Edit compliance submission", "Update the status, filing date, acknowledgement number or upload the acknowledgement PDF for a submission.",
+     "Filing information is recorded here after the actual statutory filing has been completed externally.",
+     ["Confirm the compliance template and reporting period shown.", "Update the status and enter the filing date and acknowledgement number if available.", "Upload the acknowledgement PDF and save."],
+     rules=["This page records what has been filed; it does not submit anything to a government portal."],
+     related=["Compliance submissions list and financial reports dashboard."])
 _add("financial_reporting:dashboard", "Financial reports and audit centre", "Review financial reporting work and open the report catalogue.",
      "This module organizes financial statements, reconciliations and audit support.",
      ["Choose a report or audit workflow.", "Set the financial period and review source coverage before relying on totals."],
@@ -1033,6 +1111,8 @@ NON_PAGE_ROUTES = {
     "document_generation:notification_mark_read", "document_generation:compliance_run",
     "document_generation:compliance_requirement_toggle",
     "performance_review:daily_brief_delete",
+    "financial_reporting:report_run_download", "financial_reporting:package_generate",
+    "financial_reporting:package_download",
     "document_generation:template_duplicate", "document_generation:template_new_version",
     "document_generation:template_version_action", "document_generation:clause_new_version",
     "document_generation:clause_action", "em:advance_action", "em:department_toggle", "em:department_delete",

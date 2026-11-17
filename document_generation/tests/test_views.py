@@ -71,12 +71,15 @@ class DocumentGenerationViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_phase_later_links_are_explicit_placeholders(self):
+        # The 10 nav sections now have real list views. Verify the client-documents
+        # URL (which base.html still builds via the 'placeholder' named URL) serves
+        # the real Client Documents page, not a placeholder.
         response = self.client.get(
             reverse('document_generation:placeholder', args=['client-documents']),
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'not included in the current document-generation release')
-        self.assertContains(response, 'not a legally certified electronic signature')
+        self.assertContains(response, 'Client Documents')
+        # Seed data integrity checks (independent of view changes)
         self.assertEqual(DocumentCategory.objects.count(), 9)
         self.assertGreater(DocumentType.objects.count(), 100)
 

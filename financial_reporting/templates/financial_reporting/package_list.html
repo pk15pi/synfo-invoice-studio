@@ -1,0 +1,47 @@
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}
+{% block title %}Export Packages{% endblock %}
+{% block content %}
+<header class="page-heading split">
+  <div>
+    <p class="eyebrow">Financial Reports</p>
+    <h1>Export Packages</h1>
+  </div>
+</header>
+
+{% if page.object_list %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Package number</th>
+        <th>Type</th>
+        <th>Period</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    {% paginate page as qb_pg1 %}<tbody>
+    {% for pkg in qb_pg1 %}
+      <tr>
+        <td><a href="{% url 'financial_reporting:package_detail' pkg.pk %}">{{ pkg.package_number }}</a></td>
+        <td>{{ pkg.get_package_type_display }}</td>
+        <td>{{ pkg.from_date }} &ndash; {{ pkg.to_date }}</td>
+        <td><span class="badge badge-{{ pkg.generation_status }}">{{ pkg.get_generation_status_display }}</span></td>
+        <td>{{ pkg.created_at|date:"d M Y" }}</td>
+        <td>
+          <a href="{% url 'financial_reporting:package_detail' pkg.pk %}">View</a>
+          {% if pkg.zip_file %}
+            &middot; <a href="{% url 'financial_reporting:package_download' pkg.pk %}">Download ZIP</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% pager qb_pg1 %}
+</div>
+{% else %}
+<p class="muted">No export packages have been created.</p>
+{% endif %}
+{% endblock %}

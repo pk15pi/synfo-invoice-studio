@@ -1,0 +1,41 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Audit Checklist{% endblock %}
+{% block content %}
+<header class="page-heading">
+  <p class="eyebrow">Financial Reports</p>
+  <h1>Audit Checklist</h1>
+</header>
+
+{% if grouped %}
+  {% for checklist, results in grouped.items %}
+  <div class="panel">
+    <h2>{{ checklist.name }}</h2>
+    {% if checklist.description %}<p class="muted">{{ checklist.description }}</p>{% endif %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Status</th>
+            <th>Summary</th>
+            <th>Checked</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for result in results %}
+            <tr>
+              <td>{{ result.financial_period }}</td>
+              <td><span class="badge badge-{{ result.status }}">{{ result.get_status_display }}</span></td>
+              <td>{% if result.summary %}{{ result.summary }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+              <td>{{ result.checked_at|date:"d M Y H:i" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <p class="muted">No audit checklist results have been recorded.</p>
+{% endif %}
+{% endblock %}

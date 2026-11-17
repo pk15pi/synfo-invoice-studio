@@ -49,7 +49,7 @@
 <div class="navgroup"><a href="{% url 'assets:home' %}">Asset Management &#9662;</a><div class="navmenu"><a href="{% url 'assets:home' %}">Asset dashboard</a><a href="{% url 'assets:register' %}">Asset register</a><a href="{% url 'assets:locations' %}">Locations</a><a href="{% url 'assets:assignments' %}">Assignments</a><a href="{% url 'assets:leases' %}">Leases</a><a href="{% url 'assets:maintenance' %}">Maintenance</a></div></div>
 {% endif %}
 {% if 'financial_reports' in allowed_modules %}
-<div class="navgroup"><a href="{% url 'financial_reporting:dashboard' %}">Financial Reports &amp; Audit Centre &#9662;</a><div class="navmenu"><a href="{% url 'financial_reporting:dashboard' %}">Dashboard</a><a href="{% url 'financial_reporting:catalogue' %}">Report catalogue</a></div></div>
+<div class="navgroup"><a href="{% url 'financial_reporting:dashboard' %}">Financial Reports &amp; Audit Centre &#9662;</a><div class="navmenu"><a href="{% url 'financial_reporting:dashboard' %}">Dashboard</a><a href="{% url 'financial_reporting:catalogue' %}">Report catalogue</a><a href="{% url 'financial_reporting:report_run_list' %}">Report Runs</a><a href="{% url 'financial_reporting:run_report' %}">Run a Report</a><a href="{% url 'financial_reporting:package_list' %}">Export Packages</a><a href="{% url 'financial_reporting:reconciliation_list' %}">Reconciliations</a><a href="{% url 'financial_reporting:audit_checklist' %}">Audit Checklist</a><a href="{% url 'financial_reporting:compliance_submissions' %}">Compliance Submissions</a></div></div>
 {% endif %}
 {% if 'documents' in allowed_modules %}
 <div class="navgroup"><a href="{% url 'document_generation:dashboard' %}">Document &amp; Agreement Management &#9662;</a><div class="navmenu">

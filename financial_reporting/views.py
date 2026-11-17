@@ -1,21 +1,25 @@
 from django.contrib import messages
 from django.core.paginator import Paginator
 from invoice_app.pagination import paginate as qb_paginate
-from django.http import HttpResponse
-from django.shortcuts import render
+from django.http import FileResponse, Http404, HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
 from django.utils.http import urlencode
+from django.views.decorators.http import require_POST
 
 from employee_management.security import local_only
 from invoice_app.table_sorting import apply_queryset_sort, apply_sequence_sort
 from reporting import periods
 from reporting.exports import period_workbook
 
-from .forms import ReportingPeriodForm
+from .forms import ComplianceSubmissionForm, ReportingPeriodForm, RunReportForm
 from .models import (
+    AuditChecklist,
     AuditChecklistResult,
+    ComplianceSubmission,
     ExportPackage,
+    ReconciliationRun,
     ReportCategory,
     ReportDefinition,
     ReportRun,
@@ -105,4 +109,220 @@ def catalogue(request):
         'selected_category': category,
         'selected_period_type': period_type,
         'page_query': page_query.urlencode(),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Report runs
+# ---------------------------------------------------------------------------
+
+@local_only
+def run_report(request):
+    """GET: show form to pick report + period + format.  POST: execute and redirect."""
+    initial_fy = str(periods.fy_start_year(periods.today()))
+    if request.method == 'POST':
+        form = RunReportForm(request.POST)
+        if form.is_valid():
+            from reporting import periods as P
+            from .services.run_service import execute_report_run
+            params = form.period_params()
+            period = P.resolve(params)
+            run = execute_report_run(
+                form.cleaned_data['report_definition'],
+                period,
+                form.cleaned_data['output_format'],
+                request.user,
+            )
+            if run.status == ReportRun.FAILED:
+                messages.error(request, f'Report generation failed: {run.error_details[:200]}')
+            elif run.status == ReportRun.INCOMPLETE:
+                messages.warning(request, f'Report incomplete: {run.error_details[:200]}')
+            else:
+                messages.success(request, 'Report generated successfully.')
+            return redirect(reverse('financial_reporting:report_run_detail', args=[run.pk]))
+    else:
+        form = RunReportForm(initial={'period_mode': 'financial', 'fy': initial_fy, 'period_type': 'full_fy'})
+    return render(request, 'financial_reporting/run_report.html', {'form': form})
+
+
+@local_only
+def report_run_list(request):
+    runs = ReportRun.objects.select_related('report_definition').order_by('-generated_at', '-id')
+    status_filter = request.GET.get('status', '').strip()
+    report_filter = request.GET.get('report', '').strip()
+    if status_filter:
+        runs = runs.filter(status=status_filter)
+    if report_filter and report_filter.isdigit():
+        runs = runs.filter(report_definition_id=int(report_filter))
+    sort_fields = {
+        'report': 'report_definition__report_name',
+        'date': 'generated_at',
+        'status': 'status',
+        'format': 'output_format',
+    }
+    runs, sort_key, sort_dir = apply_queryset_sort(runs, request, sort_fields)
+    page = qb_paginate(request, runs)
+    definitions = ReportDefinition.objects.filter(active_status=True).order_by('report_name')
+    return render(request, 'financial_reporting/report_run_list.html', {
+        'page': page,
+        'status_choices': ReportRun.STATUSES,
+        'status_filter': status_filter,
+        'report_filter': report_filter,
+        'definitions': definitions,
+        'sort_key': sort_key,
+        'sort_dir': sort_dir,
+    })
+
+
+@local_only
+def report_run_detail(request, pk):
+    run = get_object_or_404(ReportRun.objects.select_related('report_definition', 'financial_period'), pk=pk)
+    return render(request, 'financial_reporting/report_run_detail.html', {'run': run})
+
+
+@local_only
+def report_run_download(request, pk):
+    run = get_object_or_404(ReportRun, pk=pk)
+    if not run.generated_file or not run.generated_file.name:
+        raise Http404('No file is available for this report run.')
+    ext = run.output_format or 'bin'
+    content_types = {
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'pdf': 'application/pdf',
+        'csv': 'text/csv',
+        'zip': 'application/zip',
+    }
+    ct = content_types.get(ext, 'application/octet-stream')
+    fname = slugify(f'{run.report_definition.report_code}-{run.from_date}-{run.to_date}') + f'.{ext}'
+    response = FileResponse(run.generated_file.open('rb'), content_type=ct)
+    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Export packages
+# ---------------------------------------------------------------------------
+
+@local_only
+def package_list(request):
+    packages = ExportPackage.objects.select_related('financial_period').order_by('-created_at', '-id')
+    page = qb_paginate(request, packages)
+    return render(request, 'financial_reporting/package_list.html', {'page': page})
+
+
+@local_only
+def package_detail(request, pk):
+    package = get_object_or_404(
+        ExportPackage.objects.select_related('financial_period').prefetch_related(
+            'items__report_run__report_definition', 'items__source_document',
+        ),
+        pk=pk,
+    )
+    return render(request, 'financial_reporting/package_detail.html', {'package': package})
+
+
+@local_only
+@require_POST
+def package_generate(request, pk):
+    package = get_object_or_404(ExportPackage, pk=pk)
+    from .services.package_service import generate_package
+    package = generate_package(package, request.user)
+    if package.generation_status == ExportPackage.FAILED:
+        messages.error(request, 'Package generation failed. See manifest for details.')
+    elif package.generation_status == ExportPackage.INCOMPLETE:
+        messages.warning(request, 'Package generated with some errors. See manifest for details.')
+    else:
+        messages.success(request, 'Export package generated successfully.')
+    return redirect(reverse('financial_reporting:package_detail', args=[pk]))
+
+
+@local_only
+def package_download(request, pk):
+    package = get_object_or_404(ExportPackage, pk=pk)
+    if not package.zip_file or not package.zip_file.name:
+        raise Http404('No ZIP file is available for this package.')
+    fname = slugify(f'export-package-{package.package_number}') + '.zip'
+    response = FileResponse(package.zip_file.open('rb'), content_type='application/zip')
+    response['Content-Disposition'] = f'attachment; filename="{fname}"'
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Reconciliations
+# ---------------------------------------------------------------------------
+
+@local_only
+def reconciliation_list(request):
+    runs = ReconciliationRun.objects.select_related('financial_period').order_by('-generated_at', '-id')
+    status_filter = request.GET.get('status', '').strip()
+    if status_filter:
+        runs = runs.filter(status=status_filter)
+    page = qb_paginate(request, runs)
+    return render(request, 'financial_reporting/reconciliation_list.html', {
+        'page': page,
+        'status_choices': ReconciliationRun.STATUSES,
+        'status_filter': status_filter,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Audit checklist
+# ---------------------------------------------------------------------------
+
+@local_only
+def audit_checklist(request):
+    results = (
+        AuditChecklistResult.objects
+        .select_related('checklist', 'financial_period')
+        .order_by('checklist__display_order', 'checklist__name', '-checked_at')
+    )
+    # Group by checklist
+    grouped = {}
+    for r in results:
+        grouped.setdefault(r.checklist, []).append(r)
+    return render(request, 'financial_reporting/audit_checklist.html', {
+        'grouped': grouped,
+        'status_choices': AuditChecklistResult.STATUSES,
+    })
+
+
+# ---------------------------------------------------------------------------
+# Compliance submissions
+# ---------------------------------------------------------------------------
+
+@local_only
+def compliance_submissions(request):
+    submissions = (
+        ComplianceSubmission.objects
+        .select_related('compliance_template', 'reporting_period')
+        .order_by('-reporting_period__start_date', '-created_at')
+    )
+    status_filter = request.GET.get('status', '').strip()
+    if status_filter:
+        submissions = submissions.filter(status=status_filter)
+    page = qb_paginate(request, submissions)
+    return render(request, 'financial_reporting/compliance_submissions.html', {
+        'page': page,
+        'status_choices': ComplianceSubmission.STATUSES,
+        'status_filter': status_filter,
+    })
+
+
+@local_only
+def compliance_submission_edit(request, pk):
+    submission = get_object_or_404(
+        ComplianceSubmission.objects.select_related('compliance_template', 'reporting_period'),
+        pk=pk,
+    )
+    if request.method == 'POST':
+        form = ComplianceSubmissionForm(request.POST, request.FILES, instance=submission)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Submission updated.')
+            return redirect(reverse('financial_reporting:compliance_submissions'))
+    else:
+        form = ComplianceSubmissionForm(instance=submission)
+    return render(request, 'financial_reporting/compliance_submission_edit.html', {
+        'form': form,
+        'submission': submission,
     })

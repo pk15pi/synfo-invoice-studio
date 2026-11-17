@@ -1,0 +1,61 @@
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}
+{% block title %}Reconciliation Runs{% endblock %}
+{% block content %}
+<header class="page-heading split">
+  <div>
+    <p class="eyebrow">Financial Reports</p>
+    <h1>Reconciliation Runs</h1>
+  </div>
+</header>
+
+<form method="get" class="qb-filter-form filter-form" data-filter-form>
+  <label>Status
+    <select name="status">
+      <option value="">All</option>
+      {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div class="filter-actions">
+    <button class="button secondary" type="submit">Filter</button>
+    <a class="button secondary" href="{% url 'financial_reporting:reconciliation_list' %}">Clear</a>
+  </div>
+</form>
+
+{% if page.object_list %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Period</th>
+        <th>Status</th>
+        <th>Total</th>
+        <th>Matched</th>
+        <th>Unmatched</th>
+        <th>Difference</th>
+        <th>Generated</th>
+      </tr>
+    </thead>
+    {% paginate page as qb_pg1 %}<tbody>
+    {% for run in qb_pg1 %}
+      <tr>
+        <td>{{ run.reconciliation_type }}</td>
+        <td>{{ run.start_date }} &ndash; {{ run.end_date }}</td>
+        <td><span class="badge badge-{{ run.status }}">{{ run.get_status_display }}</span></td>
+        <td>{{ run.total_records }}</td>
+        <td>{{ run.matched_records }}</td>
+        <td>{{ run.unmatched_records }}</td>
+        <td>{% if run.difference_amount %}{{ run.difference_amount }}{% else %}&mdash;{% endif %}</td>
+        <td>{{ run.generated_at|date:"d M Y H:i" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% pager qb_pg1 %}
+</div>
+{% else %}
+<p class="muted">No reconciliation runs found.</p>
+{% endif %}
+{% endblock %}

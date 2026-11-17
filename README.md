@@ -1,8 +1,6 @@
 # QuantBud Invoice Studio
 
-A local-only Django monolith (no login for its business workflows, no payment gateway) for keeping business,
-customer and project details and generating invoice PDFs that reproduce the QuantBud sample
-invoice on US Letter.
+A local-only Django monolith for keeping business, customer and project details, generating invoice PDFs, managing employees and payroll, tracking assets, and producing financial reports. Access to business workflows requires signing in with a local account that has an appropriate role.
 
 ## Run on Windows
 
@@ -32,6 +30,56 @@ the favicon) on the local server with either value of `QB_DEBUG`; `collectstatic
 prepares assets for deployments that serve collected files.
 
 Tests: `.venv\Scripts\python.exe manage.py test`
+
+## Access control and sign-in
+
+Every business page requires a signed-in local account. The first time you run the app,
+create a superuser through Django admin (see below) or through the Users & Roles page at
+`/access-control/users/` once an admin account exists.
+
+### Roles
+
+Each account is assigned one role that controls which modules it can open.
+
+| Role | Typical use |
+|---|---|
+| Admin | Full access; can manage all users and roles |
+| Director | Full read + action access to all modules |
+| CA | Financial reports, accounting, compliance |
+| Head HR | Full HR, payroll, attendance, documents |
+| Head Accountant | Accounting, bank, invoicing, financial reports |
+| Accountant | Accounting, bank, invoicing |
+| HR | Employees, attendance, leave |
+| Recruiter / Senior Recruiter | Recruitment, performance review |
+| Project Manager | Invoices, customers, projects |
+| Auditor | Audit log, financial reports, read-only |
+| IT / System Administrator | Users, access control (cannot grant Admin or Director) |
+| Payroll Executive | Payroll, attendance |
+| Billing / Accounts Receivable | Invoices, customers, receipts |
+| Compliance Officer | Compliance, GST/TDS registers |
+| Document Controller / Legal | Document generation, lifecycle, sharing |
+| Asset / Admin Manager | Asset management |
+| Management / Executive Viewer | Dashboard and reports, read-only |
+| Employee Self-Service | Own attendance, leave balances and payslips only |
+
+Custom roles with specific module access can be created at `/access-control/roles/`.
+
+### First run / initial account
+
+Migrations create the access control tables automatically. Create the first superuser with:
+
+```powershell
+.venv\Scripts\python.exe manage.py createsuperuser
+```
+
+Log in at http://127.0.0.1:8000/login/. A superuser is always treated as Admin regardless
+of the role setting on its profile.
+
+### Password reset
+
+Users can reset their own password at `/login/forgot-password/` using their registered
+email address. An OTP is delivered to that address if outgoing email is configured under
+Shared → Settings.
 
 ## Django Admin
 
@@ -149,10 +197,7 @@ A second Django app in the same project. It uses the same SQLite database, the s
 the Business Profile (company name, address, contact, GSTIN, signature) for payslips.
 `invoice_app`, its PDF and its migrations were not changed, apart from grouped navigation in `base.html`.
 
-**Security: there is no login.** Every employee/payroll URL refuses requests that are not from
-127.0.0.1 / ::1, and responses are `no-store`. That is a safety net, not access control. Keep
-`runserver 127.0.0.1:8000` and do NOT expose this app to a network or the internet without first
-adding authentication, HTTPS and permissions.
+**Security: access to employee and payroll pages requires signing in** with a local account that has an HR-level or higher role. Every employee/payroll URL also refuses requests that are not from 127.0.0.1 / ::1, and responses are `no-store`. Keep `runserver 127.0.0.1:8000` and do NOT expose this app to a network or the internet without first adding HTTPS.
 
 ## Screens (top navigation)
 * **Employees -> HR dashboard** `/hr/`: head-counts by status, document expiry alerts, missing bank or salary.

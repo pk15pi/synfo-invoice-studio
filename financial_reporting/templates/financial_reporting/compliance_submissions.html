@@ -1,0 +1,57 @@
+{% extends "invoice_app/base.html" %}{% load pagination_ui %}
+{% block title %}Compliance Submissions{% endblock %}
+{% block content %}
+<header class="page-heading">
+  <p class="eyebrow">Financial Reports</p>
+  <h1>Compliance Submissions</h1>
+</header>
+
+<form method="get" class="qb-filter-form filter-form" data-filter-form>
+  <label>Status
+    <select name="status">
+      <option value="">All</option>
+      {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if val == status_filter %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div class="filter-actions">
+    <button class="button secondary" type="submit">Filter</button>
+    <a class="button secondary" href="{% url 'financial_reporting:compliance_submissions' %}">Clear</a>
+  </div>
+</form>
+
+{% if page.object_list %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Template</th>
+        <th>Compliance type</th>
+        <th>Period</th>
+        <th>Status</th>
+        <th>Filing date</th>
+        <th>Acknowledgement</th>
+        <th></th>
+      </tr>
+    </thead>
+    {% paginate page as qb_pg1 %}<tbody>
+    {% for sub in qb_pg1 %}
+      <tr>
+        <td>{{ sub.compliance_template.template_name }}</td>
+        <td>{{ sub.compliance_template.compliance_type }}</td>
+        <td>{{ sub.reporting_period }}</td>
+        <td><span class="badge badge-{{ sub.status }}">{{ sub.get_status_display }}</span></td>
+        <td>{% if sub.filing_date %}{{ sub.filing_date|date:"d M Y" }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+        <td>{% if sub.acknowledgement_number %}{{ sub.acknowledgement_number }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+        <td><a href="{% url 'financial_reporting:compliance_submission_edit' sub.pk %}">Edit</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% pager qb_pg1 %}
+</div>
+{% else %}
+<p class="muted">No compliance submissions found.</p>
+{% endif %}
+{% endblock %}

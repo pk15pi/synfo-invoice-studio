@@ -1,0 +1,91 @@
+{% extends "invoice_app/base.html" %}
+{% block title %}Export Package &mdash; {{ package.package_number }}{% endblock %}
+{% block content %}
+<header class="page-heading split">
+  <div>
+    <p class="eyebrow">Financial Reports &rsaquo; <a href="{% url 'financial_reporting:package_list' %}">Export Packages</a></p>
+    <h1>{{ package.package_number }}</h1>
+    <p class="muted">{{ package.get_package_type_display }}</p>
+  </div>
+  <div class="heading-actions">
+    {% if package.zip_file %}
+      <a class="button primary" href="{% url 'financial_reporting:package_download' package.pk %}">Download ZIP</a>
+    {% endif %}
+    <form method="post" action="{% url 'financial_reporting:package_generate' package.pk %}" style="display:inline">
+      {% csrf_token %}
+      <button class="button secondary" type="submit"
+        onclick="return confirm('Re-generate this package? Existing items will be re-run.')">
+        {% if package.zip_file %}Re-generate{% else %}Generate{% endif %}
+      </button>
+    </form>
+  </div>
+</header>
+
+<div class="panel">
+  <dl class="detail-list">
+    <dt>Status</dt>
+    <dd><span class="badge badge-{{ package.generation_status }}">{{ package.get_generation_status_display }}</span></dd>
+    <dt>Period</dt>
+    <dd>{{ package.from_date }} &ndash; {{ package.to_date }}</dd>
+    <dt>Financial period</dt>
+    <dd>{{ package.financial_period }}</dd>
+    <dt>Generated at</dt>
+    <dd>{% if package.generated_at %}{{ package.generated_at|date:"d M Y H:i" }}{% else %}&mdash;{% endif %}</dd>
+  </dl>
+</div>
+
+{% if package.items.all %}
+<div class="panel">
+  <h2>Package items</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>File name</th>
+          <th>Type</th>
+          <th>Included</th>
+          <th>Records</th>
+          <th>File size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in package.items.all %}
+          <tr>
+            <td>{{ item.file_name }}</td>
+            <td>{{ item.get_item_type_display }}</td>
+            <td>{% if item.included %}Yes{% else %}<span class="muted">No</span>{% endif %}</td>
+            <td>{{ item.record_count }}</td>
+            <td>{% if item.file_size %}{{ item.file_size }} bytes{% else %}&mdash;{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if package.manifest %}
+<div class="panel">
+  <h2>Manifest</h2>
+  {% if package.manifest.errors %}
+    <p class="muted">Errors during generation:</p>
+    <ul>
+      {% for err in package.manifest.errors %}
+        <li><code>{{ err }}</code></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+  {% if package.manifest.files %}
+    <ul>
+      {% for f in package.manifest.files %}
+        <li>{{ f.file }} &mdash; {{ f.size }} bytes</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="form-actions">
+  <a class="button secondary" href="{% url 'financial_reporting:package_list' %}">Back to list</a>
+</div>
+{% endblock %}
