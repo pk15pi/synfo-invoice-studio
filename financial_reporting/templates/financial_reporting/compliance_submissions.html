@@ -44,7 +44,16 @@
         <td><span class="badge badge-{{ sub.status }}">{{ sub.get_status_display }}</span></td>
         <td>{% if sub.filing_date %}{{ sub.filing_date|date:"d M Y" }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
         <td>{% if sub.acknowledgement_number %}{{ sub.acknowledgement_number }}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
-        <td><a href="{% url 'financial_reporting:compliance_submission_edit' sub.pk %}">Edit</a></td>
+        <td class="row-actions">
+          <a href="{% url 'financial_reporting:compliance_submission_edit' sub.pk %}">Edit</a>
+          {% if sub.status != 'filed' %}
+            <button class="button-link js-file-trigger" type="button"
+              data-action="{% url 'financial_reporting:compliance_submission_file' sub.pk %}"
+              data-name="{{ sub.compliance_template.template_name }}">
+              Mark filed
+            </button>
+          {% endif %}
+        </td>
       </tr>
     {% endfor %}
     </tbody>
@@ -54,4 +63,51 @@
 {% else %}
 <p class="muted">No compliance submissions found.</p>
 {% endif %}
+
+{# Inline file modal — no JS framework needed #}
+<dialog id="file-dialog" class="qb-dialog">
+  <form method="post" id="file-form">
+    {% csrf_token %}
+    <h2 id="file-dialog-title">Mark submission as filed</h2>
+    <div class="field-row">
+      <label for="filing_date">Filing date</label>
+      <input type="date" name="filing_date" id="filing_date">
+    </div>
+    <div class="field-row">
+      <label for="acknowledgement_number">Acknowledgement number <span class="muted">(optional)</span></label>
+      <input type="text" name="acknowledgement_number" id="acknowledgement_number" maxlength="120">
+    </div>
+    <div class="form-actions">
+      <button class="button primary" type="submit">Confirm filing</button>
+      <button class="button secondary" type="button" id="file-dialog-cancel">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  var dialog = document.getElementById('file-dialog');
+  var form = document.getElementById('file-form');
+  var title = document.getElementById('file-dialog-title');
+  var dateInput = document.getElementById('filing_date');
+
+  // Set today as default
+  var today = new Date().toISOString().split('T')[0];
+  dateInput.value = today;
+
+  document.querySelectorAll('.js-file-trigger').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      form.action = btn.dataset.action;
+      title.textContent = 'Mark "' + btn.dataset.name + '" as filed';
+      dateInput.value = today;
+      document.getElementById('acknowledgement_number').value = '';
+      if (dialog.showModal) { dialog.showModal(); } else { dialog.setAttribute('open', ''); }
+    });
+  });
+
+  document.getElementById('file-dialog-cancel').addEventListener('click', function () {
+    if (dialog.close) { dialog.close(); } else { dialog.removeAttribute('open'); }
+  });
+})();
+</script>
 {% endblock %}

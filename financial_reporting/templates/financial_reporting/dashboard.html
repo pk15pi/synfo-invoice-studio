@@ -19,7 +19,15 @@
   <article class="fr-metric"><span>Financial year</span><strong>{{ period.label }}</strong><small>{{ period.range_text }}</small></article>
   <article class="fr-metric"><span>Available report definitions</span><strong>{{ report_count }}</strong><small>In the report catalogue</small></article>
   <article class="fr-metric"><span>Pending / warning audit checks</span><strong>{{ pending_checks }}</strong><small>Checks requiring attention</small></article>
-  <article class="fr-metric"><span>Audit readiness</span><strong class="fr-metric-note">Not assessed</strong><small>Phase 1</small></article>
+  <article class="fr-metric">
+    <span>Audit readiness</span>
+    {% if readiness_score is not None %}
+      <strong>{{ readiness_score }}%</strong><small>{{ readiness_label }}</small>
+    {% else %}
+      <strong class="fr-metric-note">{{ readiness_label }}</strong>
+      <small><a href="{% url 'financial_reporting:audit_checklist' %}">Run evaluation</a></small>
+    {% endif %}
+  </article>
 </div>
 <section class="fr-section">
   <h2>Report categories</h2>
@@ -35,9 +43,9 @@
   <h2>Recent report runs</h2>
   <ul class="link-list">
     {% for run in recent_runs %}
-      <li>{{ run.report_definition.report_name }} · {{ run.from_date }} to {{ run.to_date }} · {{ run.get_status_display }}</li>
+      <li><a href="{% url 'financial_reporting:report_run_detail' run.pk %}">{{ run.report_definition.report_name }}</a> &middot; {{ run.from_date }} to {{ run.to_date }} &middot; <span class="badge badge-{{ run.status }}">{{ run.get_status_display }}</span></li>
     {% empty %}
-      <li>No report runs have been recorded.</li>
+      <li>No report runs have been recorded. <a href="{% url 'financial_reporting:run_report' %}">Run a report</a></li>
     {% endfor %}
   </ul>
 </section>
@@ -45,12 +53,21 @@
   <h2>Recent export packages</h2>
   <ul class="link-list">
     {% for package in recent_packages %}
-      <li>{{ package.package_number }} · {{ package.get_package_type_display }} · {{ package.get_generation_status_display }}</li>
+      <li><a href="{% url 'financial_reporting:package_detail' package.pk %}">{{ package.package_number }}</a> &middot; {{ package.get_package_type_display }} &middot; <span class="badge badge-{{ package.generation_status }}">{{ package.get_generation_status_display }}</span></li>
     {% empty %}
       <li>No export packages have been generated.</li>
     {% endfor %}
   </ul>
 </section>
-<p class="notice fr-notice">Phase 1 provides reporting periods and a catalogue foundation. Reports already available in Reports &amp; Analytics open their existing report pages; tax filing, reconciliations, audit certification and package generation are not implemented here.</p>
+<section class="fr-section fr-quick-links">
+  <h2>Quick actions</h2>
+  <ul class="link-list">
+    <li><a href="{% url 'financial_reporting:run_report' %}">Run a report</a></li>
+    <li><a href="{% url 'financial_reporting:reconciliation_list' %}">Reconciliations</a></li>
+    <li><a href="{% url 'financial_reporting:audit_checklist' %}">Audit checklist</a></li>
+    <li><a href="{% url 'financial_reporting:compliance_submissions' %}">Compliance submissions</a></li>
+    <li><a href="{% url 'financial_reporting:package_list' %}">Export packages</a></li>
+  </ul>
+</section>
 </div>
 {% endblock %}

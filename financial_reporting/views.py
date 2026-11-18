@@ -4,6 +4,7 @@ from invoice_app.pagination import paginate as qb_paginate
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.text import slugify
 from django.utils.http import urlencode
 from django.views.decorators.http import require_POST
@@ -24,6 +25,8 @@ from .models import (
     ReportDefinition,
     ReportRun,
 )
+from .services.audit_service import evaluate_audit_readiness, get_readiness_for_period
+from .services.reconciliation_service import RECONCILIATION_TYPES, execute_reconciliation
 from .services.report_registry import active_reports
 
 
@@ -48,6 +51,11 @@ def dashboard(request):
         response['Content-Disposition'] = f'attachment; filename="{slugify(f"financial-report-{period.label}")}.xlsx"'
         return response
 
+    # Resolve the FinancialPeriod ORM row for audit readiness
+    from .services.period_service import get_or_create_period
+    fp = get_or_create_period(period)
+    readiness = get_readiness_for_period(fp)
+
     return render(request, 'financial_reporting/dashboard.html', {
         'period_form': form,
         'period': period,
@@ -58,6 +66,9 @@ def dashboard(request):
         'pending_checks': AuditChecklistResult.objects.filter(
             status__in=[AuditChecklistResult.PENDING, AuditChecklistResult.WARNING, AuditChecklistResult.FAILED],
         ).count(),
+        'readiness_score': readiness['score'],
+        'readiness_label': readiness['label'],
+        'financial_period': fp,
     })
 
 
@@ -262,7 +273,42 @@ def reconciliation_list(request):
         'page': page,
         'status_choices': ReconciliationRun.STATUSES,
         'status_filter': status_filter,
+        'reconciliation_types': RECONCILIATION_TYPES,
     })
+
+
+@local_only
+@require_POST
+def reconciliation_run(request):
+    """Execute a new reconciliation run and redirect to the list."""
+    rec_type = request.POST.get('reconciliation_type', '').strip()
+    valid_types = {k for k, _ in RECONCILIATION_TYPES}
+    if rec_type not in valid_types:
+        messages.error(request, 'Invalid reconciliation type.')
+        return redirect(reverse('financial_reporting:reconciliation_list'))
+
+    initial_period = {'period_mode': 'financial', 'fy': str(periods.fy_start_year(periods.today())),
+                      'period_type': 'full_fy'}
+    form = ReportingPeriodForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Invalid reporting period — could not run reconciliation.')
+        return redirect(reverse('financial_reporting:reconciliation_list'))
+
+    period = periods.resolve(form.period_params())
+    run = execute_reconciliation(rec_type, period, request.user)
+
+    if run.status == ReconciliationRun.FAILED:
+        messages.error(request, f'Reconciliation failed: {run.error_details[:300]}')
+    elif run.unmatched_records:
+        messages.warning(
+            request,
+            f'Reconciliation complete — {run.unmatched_records} of {run.total_records} '
+            f'check{"s" if run.total_records != 1 else ""} have differences.',
+        )
+    else:
+        messages.success(request, 'Reconciliation complete — all checks passed.')
+
+    return redirect(reverse('financial_reporting:reconciliation_list'))
 
 
 # ---------------------------------------------------------------------------
@@ -280,10 +326,48 @@ def audit_checklist(request):
     grouped = {}
     for r in results:
         grouped.setdefault(r.checklist, []).append(r)
+
+    # Latest score across all periods
+    all_results = list(results)
+    from .services.audit_service import _score, score_label
+    score = _score(all_results) if all_results else None
+    label = score_label(score) if score is not None else 'Not assessed'
+
     return render(request, 'financial_reporting/audit_checklist.html', {
         'grouped': grouped,
         'status_choices': AuditChecklistResult.STATUSES,
+        'readiness_score': score,
+        'readiness_label': label,
+        'checklist_count': AuditChecklist.objects.filter(active_status=True).count(),
     })
+
+
+@local_only
+@require_POST
+def audit_evaluate(request):
+    """Run all automated audit checks for the given financial period."""
+    from .services.period_service import get_or_create_period
+    form = ReportingPeriodForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, 'Invalid reporting period — could not evaluate audit readiness.')
+        return redirect(reverse('financial_reporting:audit_checklist'))
+
+    period = periods.resolve(form.period_params())
+    fp = get_or_create_period(period)
+    result = evaluate_audit_readiness(fp)
+
+    if result['errors']:
+        messages.warning(
+            request,
+            f'Evaluation completed with {len(result["errors"])} error(s). '
+            f'Score: {result["score"]}% — {result["label"]}.',
+        )
+    else:
+        messages.success(
+            request,
+            f'Audit readiness evaluated: {result["score"]}% — {result["label"]}.',
+        )
+    return redirect(reverse('financial_reporting:audit_checklist'))
 
 
 # ---------------------------------------------------------------------------
@@ -326,3 +410,42 @@ def compliance_submission_edit(request, pk):
         'form': form,
         'submission': submission,
     })
+
+
+@local_only
+@require_POST
+def compliance_submission_file(request, pk):
+    """Transition a submission to 'filed' status, recording the filing date."""
+    submission = get_object_or_404(ComplianceSubmission, pk=pk)
+    if submission.status == ComplianceSubmission.FILED:
+        messages.info(request, 'This submission is already marked as filed.')
+        return redirect(reverse('financial_reporting:compliance_submission_edit', args=[pk]))
+
+    # filing_date defaults to today if not provided
+    filing_date_raw = request.POST.get('filing_date', '').strip()
+    if filing_date_raw:
+        from django.utils.dateparse import parse_date
+        filing_date = parse_date(filing_date_raw)
+        if not filing_date:
+            messages.error(request, 'Invalid filing date format — use YYYY-MM-DD.')
+            return redirect(reverse('financial_reporting:compliance_submission_edit', args=[pk]))
+    else:
+        filing_date = timezone.now().date()
+
+    ack_number = request.POST.get('acknowledgement_number', '').strip()[:120]
+
+    submission.status = ComplianceSubmission.FILED
+    submission.filing_date = filing_date
+    if ack_number:
+        submission.acknowledgement_number = ack_number
+    update_fields = ['status', 'filing_date', 'updated_at']
+    if ack_number:
+        update_fields.append('acknowledgement_number')
+    submission.save(update_fields=update_fields)
+
+    messages.success(
+        request,
+        f'Submission marked as filed on {filing_date.strftime("%d %b %Y")}.'
+        + (f' Acknowledgement: {ack_number}.' if ack_number else ''),
+    )
+    return redirect(reverse('financial_reporting:compliance_submissions'))

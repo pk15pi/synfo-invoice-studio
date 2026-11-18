@@ -8,8 +8,27 @@
   </div>
 </header>
 
+<div class="panel">
+  <h2>Run a reconciliation</h2>
+  <form method="post" action="{% url 'financial_reporting:reconciliation_run' %}" class="qb-filter-form filter-form">
+    {% csrf_token %}
+    <label>Reconciliation type
+      <select name="reconciliation_type" required>
+        <option value="">— choose —</option>
+        {% for code, label in reconciliation_types %}
+          <option value="{{ code }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% include 'invoice_app/_standard_period_filter.html' %}
+    <div class="filter-actions">
+      <button class="button primary" type="submit">Run reconciliation</button>
+    </div>
+  </form>
+</div>
+
 <form method="get" class="qb-filter-form filter-form" data-filter-form>
-  <label>Status
+  <label>Filter by status
     <select name="status">
       <option value="">All</option>
       {% for val, label in status_choices %}
@@ -31,10 +50,10 @@
         <th>Type</th>
         <th>Period</th>
         <th>Status</th>
-        <th>Total</th>
+        <th>Total checks</th>
         <th>Matched</th>
         <th>Unmatched</th>
-        <th>Difference</th>
+        <th>Difference (₹)</th>
         <th>Generated</th>
       </tr>
     </thead>
@@ -56,6 +75,6 @@
   {% pager qb_pg1 %}
 </div>
 {% else %}
-<p class="muted">No reconciliation runs found.</p>
+<p class="muted">No reconciliation runs found. Use the form above to run one.</p>
 {% endif %}
 {% endblock %}

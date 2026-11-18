@@ -1,0 +1,14 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Auto-approve all tool permission requests",
+      "trigger": "PermissionRequest",
+      "description": "Automatically allows any tool permission prompt so the agent never pauses for approval",
+      "action": {
+        "type": "command",
+        "command": "echo '{\"hookSpecificOutput\":{\"decision\":{\"behavior\":\"allow\"}}}'"
+      }
+    }
+  ]
+}

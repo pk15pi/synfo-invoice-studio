@@ -1,10 +1,33 @@
 {% extends "invoice_app/base.html" %}
 {% block title %}Audit Checklist{% endblock %}
 {% block content %}
-<header class="page-heading">
+<header class="page-heading split">
   <p class="eyebrow">Financial Reports</p>
   <h1>Audit Checklist</h1>
+  {% if readiness_score is not None %}
+    <p class="fr-readiness-score">Readiness score: <strong>{{ readiness_score }}%</strong> &mdash; {{ readiness_label }}</p>
+  {% else %}
+    <p class="fr-readiness-score muted">No evaluation run yet.</p>
+  {% endif %}
 </header>
+
+<div class="panel">
+  <h2>Evaluate audit readiness</h2>
+  <p>Runs automated checks (journal integrity, AR/AP reconciliation, payroll, compliance) for the chosen period and updates the results below.</p>
+  <form method="post" action="{% url 'financial_reporting:audit_evaluate' %}" class="qb-filter-form filter-form">
+    {% csrf_token %}
+    {% include 'invoice_app/_standard_period_filter.html' %}
+    <div class="filter-actions">
+      <button class="button primary" type="submit">Evaluate now</button>
+    </div>
+  </form>
+</div>
+
+{% if checklist_count == 0 %}
+  <div class="panel">
+    <p class="muted">No audit checklist items have been configured. Add items via the Django admin under <strong>Financial Reporting &rarr; Audit Checklists</strong>.</p>
+  </div>
+{% endif %}
 
 {% if grouped %}
   {% for checklist, results in grouped.items %}
@@ -36,6 +59,6 @@
   </div>
   {% endfor %}
 {% else %}
-  <p class="muted">No audit checklist results have been recorded.</p>
+  <p class="muted">No audit checklist results yet. Run an evaluation above.</p>
 {% endif %}
 {% endblock %}

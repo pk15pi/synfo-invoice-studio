@@ -1,8 +1,14 @@
 {% extends "invoice_app/base.html" %}{% load pagination_ui %}{% load filter_ui %}
 {% block title %}Report Catalogue{% endblock %}
 {% block content %}
-<h1>Report Catalogue</h1>
-<p>Period: <strong>{{ period.label }}</strong> ({{ period.range_text }})</p>
+<header class="page-heading split">
+  <div>
+    <p class="eyebrow">Financial Reports</p>
+    <h1>Report Catalogue</h1>
+    <p class="muted">Period: <strong>{{ period.label }}</strong> ({{ period.range_text }})</p>
+  </div>
+  <a class="button primary" href="{% url 'financial_reporting:run_report' %}">Run a report</a>
+</header>
 <form method="get" class="qb-filter-form filter-form" data-filter-form>
   <label>Search <input name="q" value="{{ query }}" maxlength="100"></label>
   <label>Category
@@ -27,8 +33,20 @@
         <td>{{ report.category.name }}</td>
         <td>{{ report.source_application }}</td>
         <td>{{ report.supported_formats|join:", " }}</td>
-        <td>{% if report.existing_report_url %}Available{% else %}Not implemented{% endif %}</td>
-        <td>{% if report.existing_report_url %}<a href="{{ report.existing_report_url }}">Open report</a>{% else %}<span>Planned</span>{% endif %}</td>
+        <td>
+          {% if report.existing_report_url %}
+            <span class="badge badge-succeeded">Available</span>
+          {% else %}
+            <span class="badge badge-pending">Planned</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if report.existing_report_url %}
+            <a href="{{ report.existing_report_url }}">Open report</a>
+          {% else %}
+            <a href="{% url 'financial_reporting:run_report' %}?report={{ report.pk }}">Run via audit centre</a>
+          {% endif %}
+        </td>
       </tr>
     {% endfor %}
     </tbody>

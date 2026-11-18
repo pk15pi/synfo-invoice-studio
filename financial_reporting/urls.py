@@ -4,7 +4,7 @@ from . import views
 
 app_name = 'financial_reporting'
 urlpatterns = [
-    # --- existing ---
+    # --- dashboard & catalogue ---
     path('', views.dashboard, name='dashboard'),
     path('catalogue/', views.catalogue, name='catalogue'),
 
@@ -22,11 +22,14 @@ urlpatterns = [
 
     # --- reconciliations ---
     path('reconciliations/', views.reconciliation_list, name='reconciliation_list'),
+    path('reconciliations/run/', views.reconciliation_run, name='reconciliation_run'),
 
     # --- audit checklist ---
     path('audit-checklist/', views.audit_checklist, name='audit_checklist'),
+    path('audit-checklist/evaluate/', views.audit_evaluate, name='audit_evaluate'),
 
     # --- compliance submissions ---
     path('compliance/', views.compliance_submissions, name='compliance_submissions'),
     path('compliance/<int:pk>/edit/', views.compliance_submission_edit, name='compliance_submission_edit'),
+    path('compliance/<int:pk>/file/', views.compliance_submission_file, name='compliance_submission_file'),
 ]

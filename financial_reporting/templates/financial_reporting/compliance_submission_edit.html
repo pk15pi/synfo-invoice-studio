@@ -7,6 +7,18 @@
     <h1>Edit Submission</h1>
     <p class="muted">{{ submission.compliance_template.template_name }} &mdash; {{ submission.reporting_period }}</p>
   </div>
+  {% if submission.status != 'filed' %}
+    <form method="post" action="{% url 'financial_reporting:compliance_submission_file' submission.pk %}" style="display:inline">
+      {% csrf_token %}
+      <input type="hidden" name="filing_date" value="">
+      <button class="button secondary" type="submit"
+        onclick="this.form.elements.filing_date.value = new Date().toISOString().split('T')[0]; return confirm('Mark this submission as filed today?')">
+        Mark as filed
+      </button>
+    </form>
+  {% else %}
+    <span class="badge badge-succeeded">Filed {{ submission.filing_date|date:"d M Y" }}</span>
+  {% endif %}
 </header>
 
 <div class="panel">
