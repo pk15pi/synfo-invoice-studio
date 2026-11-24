@@ -296,6 +296,72 @@ def report_maintenance(maintenance):
 
 
 @transaction.atomic
+def transfer_asset(assignment, *, to_employee, transfer_date, issue_condition='', expected_return_date=None,
+                   issue_notes='', acknowledgement_type='', acknowledgement_name='', confirmation_text=''):
+    """
+    Transfer an active assignment from one employee to another in a single atomic step.
+
+    This closes the current assignment (returned) and immediately opens a new one for
+    to_employee, recording a 'transferred' event rather than separate returned/assigned events.
+
+    Returns the new AssetAssignment.
+    """
+    assignment = AssetAssignment.objects.select_for_update().select_related('asset', 'employee').get(
+        pk=assignment.pk,
+    )
+    if assignment.status != AssetAssignment.ACTIVE:
+        raise ValidationError('Only an active assignment can be transferred.')
+    if assignment.employee_id == to_employee.pk:
+        raise ValidationError('The asset is already assigned to this employee.')
+
+    asset = _locked_asset(assignment.asset)
+    from_employee = assignment.employee
+
+    # Close the current assignment
+    assignment.status = AssetAssignment.RETURNED
+    assignment.actual_return_date = transfer_date
+    assignment.return_notes = f'Transferred to {to_employee} on {transfer_date}.'
+    assignment.save(update_fields=['status', 'actual_return_date', 'return_notes', 'updated_at'])
+
+    # Open the new assignment
+    new_assignment = AssetAssignment.objects.create(
+        asset=asset,
+        employee=to_employee,
+        issue_date=transfer_date,
+        expected_return_date=expected_return_date,
+        issue_condition=issue_condition or assignment.issue_condition,
+        issue_notes=(issue_notes or '').strip(),
+        handover_number=next_handover_code(),
+        status=AssetAssignment.ACTIVE,
+    )
+
+    # Sync custody — the asset stays assigned, just to a different person
+    _sync_custody(asset)
+
+    # Record a single 'transferred' event
+    record_event(
+        asset, 'transferred',
+        from_employee=from_employee,
+        to_employee=to_employee,
+        previous_status=Asset.ASSIGNED,
+        new_status=asset.current_status,
+        reference_type='assignment',
+        reference_id=str(new_assignment.pk),
+        remarks=f'Transferred from {from_employee} to {to_employee} on {transfer_date}.',
+    )
+
+    if acknowledgement_type:
+        AssetAcknowledgement.objects.create(
+            assignment=new_assignment,
+            acknowledgement_type=acknowledgement_type,
+            acknowledgement_name=(acknowledgement_name or '').strip() or to_employee.full_name,
+            confirmation_text=(confirmation_text or '').strip(),
+        )
+
+    return new_assignment
+
+
+@transaction.atomic
 def update_maintenance(maintenance):
     asset = _locked_asset(maintenance.asset)
     previous_status = asset.current_status
@@ -323,3 +389,74 @@ def update_maintenance(maintenance):
         remarks=f'Maintenance marked {maintenance.get_status_display()}.',
     )
     return maintenance
+
+
+@transaction.atomic
+def mark_lost(asset, *, loss_date, remarks=''):
+    """Record an asset as lost. Any active assignments must be returned first."""
+    asset = _locked_asset(asset)
+    if asset.current_status == Asset.LOST:
+        raise ValidationError('This asset is already marked as lost.')
+    if asset.current_status == Asset.DISPOSED:
+        raise ValidationError('A disposed asset cannot be marked as lost.')
+    active = AssetAssignment.objects.filter(asset=asset, status=AssetAssignment.ACTIVE).count()
+    if active:
+        raise ValidationError(
+            'Return all active assignments before marking this asset as lost.'
+        )
+    previous_status = asset.current_status
+    asset.current_status = Asset.LOST
+    asset.current_employee = None
+    asset.save(update_fields=['current_status', 'current_employee', 'updated_at'])
+    record_event(
+        asset, 'lost',
+        event_date=timezone.datetime.combine(loss_date, timezone.datetime.min.time()).replace(
+            tzinfo=timezone.get_current_timezone()
+        ),
+        previous_status=previous_status,
+        new_status=Asset.LOST,
+        remarks=(remarks or '').strip() or f'Asset {asset.asset_code} marked as lost.',
+    )
+    return asset
+
+
+@transaction.atomic
+def dispose_asset(asset, *, disposal_date, disposal_method='', sale_proceeds=None, remarks=''):
+    """
+    Record an asset as disposed.
+
+    disposal_method: one of 'sold', 'scrapped', 'donated', 'transferred', 'other'.
+    sale_proceeds: Decimal or None (only relevant when method='sold').
+    """
+    VALID_METHODS = {'sold', 'scrapped', 'donated', 'transferred', 'other', ''}
+    if disposal_method not in VALID_METHODS:
+        raise ValidationError(f'Invalid disposal method "{disposal_method}".')
+    asset = _locked_asset(asset)
+    if asset.current_status == Asset.DISPOSED:
+        raise ValidationError('This asset is already disposed.')
+    active = AssetAssignment.objects.filter(asset=asset, status=AssetAssignment.ACTIVE).count()
+    if active:
+        raise ValidationError(
+            'Return all active assignments before disposing of this asset.'
+        )
+    previous_status = asset.current_status
+    asset.current_status = Asset.DISPOSED
+    asset.current_employee = None
+    asset.save(update_fields=['current_status', 'current_employee', 'updated_at'])
+    note_parts = [f'Asset {asset.asset_code} disposed.']
+    if disposal_method:
+        note_parts.append(f'Method: {disposal_method}.')
+    if sale_proceeds is not None:
+        note_parts.append(f'Sale proceeds: {sale_proceeds}.')
+    if (remarks or '').strip():
+        note_parts.append(remarks.strip())
+    record_event(
+        asset, 'disposed',
+        event_date=timezone.datetime.combine(disposal_date, timezone.datetime.min.time()).replace(
+            tzinfo=timezone.get_current_timezone()
+        ),
+        previous_status=previous_status,
+        new_status=Asset.DISPOSED,
+        remarks=' '.join(note_parts),
+    )
+    return asset

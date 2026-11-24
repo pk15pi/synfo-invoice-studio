@@ -301,6 +301,62 @@ class MaintenanceForm(StyledForm, forms.ModelForm):
             self.initial['service_date'] = timezone.localdate()
 
 
+class TransferForm(StyledForm, forms.Form):
+    to_employee = forms.ModelChoiceField(
+        queryset=Employee.objects.none(),
+        label='Transfer to',
+        help_text='The employee receiving custody of this asset.',
+    )
+    transfer_date = forms.DateField(
+        label='Transfer date', widget=DATE,
+    )
+    expected_return_date = forms.DateField(
+        label='Expected return date', widget=DATE, required=False,
+    )
+    issue_condition = forms.ChoiceField(
+        label='Condition at transfer', choices=Asset.CONDITIONS, required=False,
+    )
+    issue_notes = forms.CharField(
+        label='Notes', required=False,
+        widget=forms.Textarea(attrs={'rows': 2}),
+    )
+    acknowledgement_type = forms.ChoiceField(
+        label='Acknowledgement', required=False,
+        choices=[('', 'No acknowledgement recorded')] + AssetAcknowledgement.TYPES,
+    )
+    acknowledgement_name = forms.CharField(
+        label='Acknowledged by', required=False, max_length=180,
+        help_text='Defaults to the receiving employee name when left blank.',
+    )
+    confirmation_text = forms.CharField(
+        label='Employee confirmation', required=False,
+        widget=forms.Textarea(attrs={'rows': 2}),
+        help_text='Required for a digital acknowledgement.',
+    )
+
+    def __init__(self, *args, assignment=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            import django.utils.timezone as tz
+            self.initial['transfer_date'] = tz.localdate()
+        self.fields['to_employee'].queryset = Employee.objects.filter(
+            status__in=Employee.EMPLOYED,
+        ).exclude(pk=assignment.employee_id if assignment else None)
+
+    def clean(self):
+        cleaned = super().clean()
+        transfer_date = cleaned.get('transfer_date')
+        expected = cleaned.get('expected_return_date')
+        if transfer_date and expected and expected < transfer_date:
+            self.add_error('expected_return_date', 'Expected return date cannot be before the transfer date.')
+        if cleaned.get('acknowledgement_type') == AssetAcknowledgement.DIGITAL:
+            if not (cleaned.get('acknowledgement_name') or '').strip():
+                self.add_error('acknowledgement_name', 'Enter the name of the person confirming receipt.')
+            if not (cleaned.get('confirmation_text') or '').strip():
+                self.add_error('confirmation_text', 'An explicit employee confirmation is required.')
+        return cleaned
+
+
 class MaintenanceUpdateForm(StyledForm, forms.ModelForm):
     class Meta:
         model = AssetMaintenance
@@ -320,4 +376,66 @@ class MaintenanceUpdateForm(StyledForm, forms.ModelForm):
             self.add_error('completion_date', 'Enter the date the work was completed.')
         if completion and service_date and completion < service_date:
             self.add_error('completion_date', 'The completion date cannot be before the service date.')
+        return cleaned
+
+
+class LostForm(StyledForm, forms.Form):
+    loss_date = forms.DateField(
+        label='Date lost', widget=DATE,
+        help_text='The date the asset was discovered missing.',
+    )
+    remarks = forms.CharField(
+        label='Remarks', required=False,
+        widget=forms.Textarea(attrs={'rows': 2}),
+        help_text='Describe the circumstances, police report reference, etc.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            import django.utils.timezone as tz
+            self.initial['loss_date'] = tz.localdate()
+
+
+DISPOSAL_METHODS = [
+    ('', '— choose —'),
+    ('sold', 'Sold'),
+    ('scrapped', 'Scrapped'),
+    ('donated', 'Donated'),
+    ('transferred', 'Transferred to another entity'),
+    ('other', 'Other'),
+]
+
+
+class DisposalForm(StyledForm, forms.Form):
+    disposal_date = forms.DateField(
+        label='Disposal date', widget=DATE,
+    )
+    disposal_method = forms.ChoiceField(
+        label='Disposal method', choices=DISPOSAL_METHODS,
+        help_text='How the asset left the company.',
+    )
+    sale_proceeds = forms.DecimalField(
+        label='Sale proceeds (₹)', required=False,
+        min_value=0, decimal_places=2, max_digits=14,
+        help_text='Leave blank if the asset was not sold.',
+    )
+    remarks = forms.CharField(
+        label='Remarks', required=False,
+        widget=forms.Textarea(attrs={'rows': 2}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            import django.utils.timezone as tz
+            self.initial['disposal_date'] = tz.localdate()
+
+    def clean(self):
+        cleaned = super().clean()
+        method = cleaned.get('disposal_method', '')
+        proceeds = cleaned.get('sale_proceeds')
+        if proceeds is not None and method not in ('sold', ''):
+            # Allow proceeds to be entered with any method but warn if method isn't sold
+            pass  # no validation error; just informational
         return cleaned
