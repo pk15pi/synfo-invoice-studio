@@ -402,12 +402,24 @@ def payroll_generate(request):
 @require_POST
 def payroll_refresh_drafts(request, pid):
     period = get_object_or_404(PayrollPeriod, pk=pid)
+    eligible_ids = {e.pk for e in engine.eligible_employees(period)}
     drafts = period.payrolls.filter(status=EmployeePayroll.DRAFT).select_related(
         'employee', 'period').order_by('employee__employee_id')
     refreshed = 0
+    removed = 0
     errors = []
     for payroll in drafts:
+        if payroll.employee_id not in eligible_ids:
+            payroll.delete()
+            removed += 1
+            continue
         inputs = {field: getattr(payroll, field) for field in EmployeePayroll.INPUT_FIELDS}
+        if payroll.input_source != EmployeePayroll.SOURCE_OVERRIDE:
+            st = EmployeeSalaryStructure.applicable(payroll.employee, period.start, period.end)
+            in_service = engine.default_days(payroll.employee, period, engine.period_divisor(period, st))
+            if payroll.working_days != in_service and payroll.payable_days <= payroll.divisor_days:
+                inputs.pop('working_days', None)
+                inputs.pop('payable_days', None)
         saved, calc = engine.recalculate(payroll, inputs)
         if saved is None:
             errors.append(f'{payroll.code}: {"; ".join(calc.errors)}')
@@ -416,7 +428,9 @@ def payroll_refresh_drafts(request, pid):
 
     if refreshed:
         messages.success(request, f'{refreshed} draft payroll record(s) refreshed for {period.label}.')
-    elif not errors:
+    if removed:
+        messages.info(request, f'{removed} ineligible draft payroll record(s) removed for {period.label}.')
+    if not refreshed and not removed and not errors:
         messages.info(request, f'There are no draft payroll records to refresh for {period.label}.')
     for error in errors:
         messages.error(request, error)

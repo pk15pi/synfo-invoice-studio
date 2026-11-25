@@ -127,6 +127,7 @@ def calculate(employee, period, inputs=None, settings=None):
     if inputs.get('payable_days') not in (None, ''):
         c.payable_days = D(inputs['payable_days'])
     else:
+        # c.payable_days = c.working_days
         c.payable_days = max(ZERO, c.working_days - c.lwp_days - c.unpaid_leave_days)
     for f in ('payable_days', 'lwp_days', 'unpaid_leave_days', 'paid_leave_days', 'approved_hours'):
         if getattr(c, f) < 0:

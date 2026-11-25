@@ -508,6 +508,52 @@ class PayrollLifecycleTests(Base):
         draft.refresh_from_db()
         self.assertEqual(draft.payable_days, D('31.00'))
 
+    def test_refresh_drafts_removes_ineligible_employee(self):
+        period = self.period()
+        leaving_emp = self.make_emp(first_name='Former', date_of_leaving=date(2026, 11, 10))
+        self.structure(emp=leaving_emp)
+        drafts, _ = engine.generate(period)
+        leaving_draft = next(record for record in drafts if record.employee_id == leaving_emp.pk)
+
+        leaving_emp.date_of_leaving = date(2025, 11, 3)
+        leaving_emp.status = Employee.LEFT
+        leaving_emp.save()
+
+        response = self.client.post(reverse('em:payroll_refresh_drafts', args=[period.pk]), follow=True)
+        self.assertRedirects(response, f'{reverse("em:payroll")}?year={period.year}&month={period.month}')
+        self.assertFalse(EmployeePayroll.objects.filter(pk=leaving_draft.pk).exists())
+        self.assertContains(response, '1 ineligible draft payroll record(s) removed')
+
+    def test_refresh_drafts_updates_days_when_leaving_date_changes(self):
+        period = self.period()
+        emp = self.make_emp(first_name='MidMonth')
+        self.structure(emp=emp)
+        drafts, _ = engine.generate(period)
+        draft = next(record for record in drafts if record.employee_id == emp.pk)
+        self.assertEqual(draft.payable_days, D('30.00'))
+
+        emp.date_of_leaving = date(2026, 11, 20)
+        emp.status = Employee.LEFT
+        emp.save()
+
+        self.client.post(reverse('em:payroll_refresh_drafts', args=[period.pk]))
+        draft.refresh_from_db()
+        self.assertEqual(draft.working_days, D('20.00'))
+        self.assertEqual(draft.payable_days, D('20.00'))
+
+    def test_payroll_dashboard_highlights_all_leaving_employees(self):
+        period = self.period()
+        emp_a = self.make_emp(first_name='LeaveA', date_of_leaving=date(2026, 11, 15))
+        emp_b = self.make_emp(first_name='LeaveB', date_of_leaving=date(2026, 11, 20))
+        self.structure(emp=emp_a)
+        self.structure(emp=emp_b)
+        engine.generate(period)
+
+        response = self.client.get(f'{reverse("em:payroll")}?year={period.year}&month={period.month}')
+        html = response.content.decode()
+        self.assertIn(f'<tr class="leaving"><td><input type="checkbox" name="ids" value="{EmployeePayroll.objects.get(period=period, employee=emp_a).pk}" checked></td><td>{emp_a.employee_id}</td>', html)
+        self.assertIn(f'<tr class="leaving"><td><input type="checkbox" name="ids" value="{EmployeePayroll.objects.get(period=period, employee=emp_b).pk}" checked></td><td>{emp_b.employee_id}</td>', html)
+
     def test_finalize_freezes_and_snapshots(self):
         p = self.period()
         rec = engine.generate(p)[0][0]

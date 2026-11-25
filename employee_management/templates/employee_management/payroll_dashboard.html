@@ -1,4 +1,15 @@
 {% extends 'invoice_app/base.html' %}{% load filter_ui %}{% load ui_icons %}{% block content %}
+<style>
+main table:not(.pdfcols) tbody tr.leaving td,
+main table:not(.pdfcols) tbody tr.leaving:hover td,
+span.leaving {
+    background-color: #ffcccc;
+}
+span.leaving {
+    padding: 1px 4px;
+    border-radius: 3px;
+}
+</style>
 <div class="page-heading split payroll-heading"><div><p class="eyebrow">Payroll</p><h1>Payroll &middot; {{ label }}</h1></div>
 <div class="payroll-toolbar"><form method="get" class="qb-filter-form filters" title="Choose the payroll month, year and department to display." data-filter-form><label class="compact-filter-label"><span>Month</span><select class="field" name="month" aria-label="Payroll month">{% for i, n in months %}<option value="{{ i }}" {% if i == m %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
 <label class="compact-filter-label"><span>Year</span><select class="field" name="year" aria-label="Payroll year">{% for yy in years %}<option {% if yy == y %}selected{% endif %}>{{ yy }}</option>{% endfor %}</select></label>
@@ -8,12 +19,12 @@
 {% if period %}<div class="panel payroll-period-panel"><div class="split"><div>Status: <b>{{ period.get_status_display }}</b> &middot; Divisor: <b>{{ period.get_divisor_display }}</b> ({{ period.divisor_days }} days) &middot; Payment date: <b>{{ period.payment_date|date:"d-m-Y"|default:"not set" }}</b></div>
 <form method="post" action="{% url 'em:period_update' period.pk %}" class="filters" title="Change the divisor or planned payment date for this payroll period.">{% csrf_token %}{{ period_form.divisor }}{{ period_form.payment_date }}<button class="button secondary" type="submit" title="Save the divisor and planned payment date for this payroll period.">{% icon "update" %} Update month</button></form></div></div>{% endif %}
 {% if pending %}<form method="post" action="{% url 'em:payroll_generate' %}" class="panel">{% csrf_token %}<input type="hidden" name="year" value="{{ y }}"><input type="hidden" name="month" value="{{ m }}">
-<p>{{ pending|length }} eligible employee(s) without payroll for {{ label }}: {% for e in pending %}{{ e.employee_id }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+<p>{{ pending|length }} eligible employee(s) without payroll for {{ label }}: {% for e in pending %}<span class="{% if e.date_of_leaving and period_start <= e.date_of_leaving and e.date_of_leaving <= period_end %}leaving{% endif %}">{{ e.employee_id }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}</p>
 {% if not period %}<label>Divisor <select class="field" name="divisor">{% for k, l in divisors %}<option value="{{ k }}" {% if k == default_divisor %}selected{% endif %}>{{ l }}</option>{% endfor %}</select></label>{% endif %}
 <button class="button primary" type="submit" title="Create draft payroll records for eligible employees who do not yet have a record for this month.">Generate draft payroll</button></form>{% endif %}
 {% if rows %}<form method="post" action="{% url 'em:payroll_finalize' period.pk %}" onsubmit="return confirm('Finalize the selected payroll? Finalized records cannot be edited (only revised).')">{% csrf_token %}
 <div class="panel"><div class="table-wrap"><table><thead><tr><th></th><th>ID</th><th>Name</th><th>Department</th><th class="num">Payable</th><th class="num">LWP</th><th class="num">Gross</th><th class="num">Deductions</th><th class="num">Employer</th><th class="num">Net</th><th>Status</th><th class="num">Paid</th><th></th></tr></thead><tbody>
-{% for r in rows %}<tr><td>{% if r.status == 'draft' %}<input type="checkbox" name="ids" value="{{ r.pk }}" checked>{% endif %}</td><td>{{ r.code }}</td><td>{{ r.snap_name }}</td><td>{{ r.snap_department }}</td><td class="num">{{ r.payable_days }}</td><td class="num">{{ r.lwp_days }}</td><td class="num">{{ r.gross_earnings }}</td><td class="num">{{ r.total_deductions }}</td><td class="num">{{ r.employer_contributions }}</td><td class="num"><b>{{ r.net_salary }}</b></td>
+{% for r in rows %}<tr class="{% if r.employee.date_of_leaving and period.start <= r.employee.date_of_leaving and r.employee.date_of_leaving <= period.end %}leaving{% endif %}"><td>{% if r.status == 'draft' %}<input type="checkbox" name="ids" value="{{ r.pk }}" checked>{% endif %}</td><td>{{ r.code }}</td><td>{{ r.snap_name }}</td><td>{{ r.snap_department }}</td><td class="num">{{ r.payable_days }}</td><td class="num">{{ r.lwp_days }}</td><td class="num">{{ r.gross_earnings }}</td><td class="num">{{ r.total_deductions }}</td><td class="num">{{ r.employer_contributions }}</td><td class="num"><b>{{ r.net_salary }}</b></td>
 <td><span class="badge {% if r.status == 'finalized' %}ok{% endif %}">{{ r.get_status_display }}{% if r.revision > 1 %} r{{ r.revision }}{% endif %}</span></td>
 <td class="num">{% if r.status == 'finalized' %}{{ r.salary.paid }} <small class="muted">{{ r.salary.status }}</small>{% endif %}</td>
 <td><a class="icon-btn" href="{% url 'em:payroll_detail' r.pk %}" title="View this employee's payroll details." aria-label="Open">{% icon "view" %}</a>{% if r.status == 'draft' %} <a class="icon-btn" href="{% url 'em:payroll_edit' r.pk %}" title="Review or adjust this draft payroll." aria-label="Adjust">{% icon "adjust" %}</a>{% endif %} <a class="icon-btn" href="{% url 'em:payslip' r.pk %}" target="_blank" title="Open this employee's payslip PDF." aria-label="Payslip">{% icon "pdf" %}</a></td></tr>{% endfor %}
