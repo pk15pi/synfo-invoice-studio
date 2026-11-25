@@ -44,7 +44,10 @@ from .models import (
     GeneratedDocument,
 )
 from .lifecycle_services import can_view_document
-from .services import create_clause_version, create_template_version, transition_clause, transition_template_version
+from .services import (
+    create_clause_version, create_template_version, transition_clause,
+    transition_template_version, approve_template_and_all_related,
+)
 from .template_engine import html_document_content, resolve_template
 
 
@@ -728,6 +731,27 @@ def template_duplicate(request, template_id):
     _library_audit(request, duplicate, 'create', 'Template duplicated', {'source_template': source.pk})
     _library_audit(request, version, 'create', 'Draft version created from duplicated template')
     return redirect('document_generation:template_version_edit', version_id=version.pk)
+
+
+@local_only
+@require_POST
+def template_approve_all_related(request, template_id):
+    template = get_object_or_404(DocumentTemplate, pk=template_id)
+    try:
+        approved = approve_template_and_all_related(template, request.user, request)
+        if approved:
+            messages.success(
+                request,
+                f'Approved {len(approved)} template version(s) for "{template.name}" and all related templates.'
+            )
+        else:
+            messages.info(
+                request,
+                f'No new template versions were approved for "{template.name}".'
+            )
+    except (PermissionDenied, ValidationError) as error:
+        messages.error(request, error.messages[0] if hasattr(error, 'messages') else str(error))
+    return redirect('document_generation:template_detail', template_id=template.pk)
 
 
 @local_only

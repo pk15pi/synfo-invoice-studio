@@ -1129,7 +1129,7 @@ NON_PAGE_ROUTES = {
     "financial_reporting:report_run_download", "financial_reporting:package_generate",
     "financial_reporting:package_download",
     "document_generation:template_duplicate", "document_generation:template_new_version",
-    "document_generation:template_version_action", "document_generation:clause_new_version",
+    "document_generation:template_approve_all_related", "document_generation:template_version_action", "document_generation:clause_new_version",
     "document_generation:clause_action", "em:advance_action", "em:department_toggle", "em:department_delete",
     "em:employee_photo", "em:contact_delete", "em:document_view", "em:document_download", "em:document_delete",
     "em:payroll_generate", "em:payroll_refresh_drafts", "em:period_update", "em:payroll_finalize", "em:payslip_zip",

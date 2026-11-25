@@ -177,6 +177,80 @@ def transition_clause(clause, action, request=None, actor=None):
 
 
 @transaction.atomic
+def approve_template_and_all_related(template, actor=None, request=None):
+    """Approve a template version under review and every related template version at any depth.
+
+    Related templates are discovered transitively through shared clauses:
+    Template A uses Clause X → Clause X is used by Template B → Template B uses Clause Y
+    → Clause Y is used by Template C. All of A, B, C form one related set.
+
+    All clauses in the set are submitted (if draft) then approved (if review).
+    All template versions in the set are submitted (if draft) then approved (if review).
+    Returns the list of template versions that were approved.
+    """
+    from .models import DocumentClause, DocumentTemplate, DocumentTemplateClause, DocumentTemplateVersion
+
+    # Find the latest REVIEW version of the starting template
+    start_version = template.versions.filter(
+        status=DocumentTemplateVersion.REVIEW
+    ).order_by('-version_number').first()
+    if not start_version:
+        raise ValidationError(
+            f'No template version under review found for template "{template.name}".'
+        )
+
+    # BFS: collect all related templates, versions, and clauses
+    visited_templates = {template.pk}
+    visited_clauses = set()
+    related_versions = [start_version]
+    queue = [template]
+
+    while queue:
+        current = queue.pop(0)
+        version = current.versions.filter(
+            status=DocumentTemplateVersion.REVIEW
+        ).order_by('-version_number').first()
+        if not version:
+            continue
+        if version.pk not in {v.pk for v in related_versions}:
+            related_versions.append(version)
+        for assignment in version.template_clauses.select_related('clause'):
+            clause = assignment.clause
+            if clause.pk in visited_clauses:
+                continue
+            visited_clauses.add(clause.pk)
+            for other in DocumentTemplateClause.objects.filter(
+                clause=clause
+            ).select_related('template_version__template'):
+                other_template = other.template_version.template
+                if other_template.pk not in visited_templates:
+                    visited_templates.add(other_template.pk)
+                    queue.append(other_template)
+
+    # 1. Approve all clauses first (template version approval requires approved clauses)
+    for clause_pk in visited_clauses:
+        clause = DocumentClause.objects.select_for_update().get(pk=clause_pk)
+        if clause.approval_status == DocumentClause.DRAFT:
+            transition_clause(clause, 'submit', request, actor)
+        clause = DocumentClause.objects.get(pk=clause_pk)
+        if clause.approval_status == DocumentClause.REVIEW:
+            transition_clause(clause, 'approve', request, actor)
+
+    # 2. Approve all related template versions
+    approved = []
+    for version in related_versions:
+        version = DocumentTemplateVersion.objects.select_for_update().get(pk=version.pk)
+        if version.status == DocumentTemplateVersion.DRAFT:
+            transition_template_version(version, 'submit', request, actor)
+        version = DocumentTemplateVersion.objects.get(pk=version.pk)
+        if version.status == DocumentTemplateVersion.REVIEW:
+            transition_template_version(version, 'approve', request, actor)
+            approved.append(version)
+
+    return approved
+
+
+@transaction.atomic
 def allocate_document_number(document_type, on_date=None):
     if not document_type.pk:
         raise ValidationError('Save the document type before allocating a number.')

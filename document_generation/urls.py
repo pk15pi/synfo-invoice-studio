@@ -49,6 +49,7 @@ urlpatterns = [
     path('library/templates/<int:template_id>/', views.template_detail, name='template_detail'),
     path('library/templates/<int:template_id>/edit/', views.template_edit, name='template_edit'),
     path('library/templates/<int:template_id>/duplicate/', views.template_duplicate, name='template_duplicate'),
+    path('library/templates/<int:template_id>/approve-all-related/', views.template_approve_all_related, name='template_approve_all_related'),
     path('library/templates/<int:template_id>/versions/new/', views.template_new_version, name='template_new_version'),
     path('library/versions/<int:version_id>/edit/', views.template_version_edit, name='template_version_edit'),
     path('library/versions/<int:version_id>/<str:action>/', views.template_version_action, name='template_version_action'),
