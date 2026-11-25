@@ -56,6 +56,7 @@ urlpatterns = [
     path('invoice/<int:pk>/finalize/', views.invoice_finalize, name='invoice_finalize'),
     path('invoice/<int:pk>/post-ledger/', views.invoice_post_ledger, name='invoice_post_ledger'),
     path('invoice/<int:pk>/cancel/', views.invoice_cancel, name='invoice_cancel'),
+    path('invoice/<int:pk>/delete/', views.invoice_delete, name='invoice_delete'),
     path('invoice/<int:pk>/credit-notes/add/', views.credit_note_add, name='credit_note_add'),
     path('invoice/<int:pk>/credit-notes/<int:cn_pk>/cancel/', views.credit_note_cancel, name='credit_note_cancel'),
     path('invoice/<int:pk>/payments/add/', views.payment_edit, name='payment_add'),

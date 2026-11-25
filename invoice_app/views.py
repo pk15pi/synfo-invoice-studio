@@ -757,8 +757,23 @@ def invoice_list(request):
             str(start_year) for start_year, _ in financial_year_options
         } else ''
     )
+    # Sequence-aware action flags (computed on the un-paginated set, ordered by invoice number)
+    invoice_rows = list(_with_pay(qs.order_by('-invoice_date', '-id')))
+    by_number = sorted(invoice_rows, key=lambda r: r.invoice_number)
+    prev_finalized = True  # first invoice has no previous, so it can be finalized
+    last_draft = None
+    for inv in by_number:
+        if inv.status == Invoice.DRAFT:
+            last_draft = inv  # by_number is ascending, so the last draft seen is the highest-numbered
+    for inv in by_number:
+        inv.can_finalize = (inv.status == Invoice.DRAFT and prev_finalized)
+        inv.can_delete = (inv.status == Invoice.DRAFT and last_draft is not None and inv.pk == last_draft.pk)
+        if inv.status == Invoice.FINALIZED:
+            prev_finalized = True
+        else:
+            prev_finalized = False
     return render(request, 'invoice_app/invoice_list.html', {
-        'invoices': _with_pay(qs.order_by('-invoice_date', '-id')),
+        'invoices': invoice_rows,
         'period': period or 'all',
         'year': year,
         'month': month,
@@ -806,8 +821,16 @@ def _errors(request, e):
 def invoice_finalize(request, pk):
     inv = get_object_or_404(Invoice, pk=pk)
     try:
-        ledger.finalize_invoice(inv)
-        messages.success(request, f'Invoice {inv.invoice_number} finalized and posted to the ledger.')
+        with transaction.atomic():
+            i = Invoice.objects.select_for_update().get(pk=inv.pk)
+            if i.status != Invoice.DRAFT:
+                raise ValidationError(f'Only draft invoices can be finalized ({i.invoice_number} is {i.get_status_display()}).')
+            # Previous invoice must be finalized (unless this is the first invoice)
+            previous = Invoice.objects.filter(invoice_number__lt=i.invoice_number).order_by('-invoice_number').first()
+            if previous is not None and previous.status != Invoice.FINALIZED:
+                raise ValidationError(f'Cannot finalize {i.invoice_number}: previous invoice {previous.invoice_number} is not finalized.')
+            ledger.finalize_invoice(i)
+        messages.success(request, f'Invoice {i.invoice_number} finalized and posted to the ledger.')
     except ValidationError as e:
         _errors(request, e)
     return redirect('invoice_detail', pk=pk)
@@ -833,6 +856,32 @@ def invoice_cancel(request, pk):
     except ValidationError as e:
         _errors(request, e)
     return redirect('invoice_detail', pk=pk)
+
+
+@require_POST
+def invoice_delete(request, pk):
+    inv = get_object_or_404(Invoice, pk=pk)
+    try:
+        with transaction.atomic():
+            i = Invoice.objects.select_for_update().get(pk=inv.pk)
+            if i.status != Invoice.DRAFT:
+                raise ValidationError(f'Only draft invoices can be deleted ({i.invoice_number} is {i.get_status_display()}).')
+            # Only the last draft (highest number) can be deleted
+            last_draft = Invoice.objects.filter(status=Invoice.DRAFT).order_by('-invoice_number').first()
+            if i.pk != last_draft.pk:
+                raise ValidationError(f'Only the last draft invoice ({last_draft.invoice_number}) can be deleted. Delete invoices in reverse order: {last_draft.invoice_number} first.')
+            # Reset next_invoice_number so the deleted number can be reused
+            profile = BusinessProfile.current()
+            prefix = profile.invoice_prefix
+            num = int(i.invoice_number[len(prefix):])
+            if profile.next_invoice_number == num + 1:
+                profile.next_invoice_number = num
+                profile.save(update_fields=['next_invoice_number'])
+            i.delete()
+        messages.success(request, f'Invoice {inv.invoice_number} deleted.')
+    except ValidationError as e:
+        _errors(request, e)
+    return redirect('invoice_list')
 
 
 @require_POST
