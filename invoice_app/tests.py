@@ -169,7 +169,7 @@ class NumberingTests(Fixture):
         with patch('invoice_app.views.render_for_invoice', return_value=b'%PDF-preview') as render:
             response = self.client.post(reverse('new_invoice'), {**data, 'action': 'preview'})
             self.assertEqual(response['Content-Type'], 'application/pdf')
-            self.assertIn('QB021-preview.pdf', response['Content-Disposition'])
+            self.assertIn('preview-preview.pdf', response['Content-Disposition'])
             self.assertIsNone(render.call_args.kwargs['number'])
 
             response = self.client.post(

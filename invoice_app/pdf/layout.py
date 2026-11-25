@@ -86,7 +86,7 @@ DATES = dict(
 TABLE = dict(
     left=51.38, right=554.15,
     # inner separator x positions (centre of 0.72pt black bars)
-    separators=[226.39, 383.96, 426.92, 496.19],
+    separators=[171.38, 381.38, 421.38, 476.38],
     rule_width=0.72,
     top=218.05,                 # top black rule centre (217.69-218.41)
     header_top=217.93, header_bottom=237.25,
@@ -94,7 +94,7 @@ TABLE = dict(
     header_font=('Trebuchet-Bold', 6.96),
     headers=['Consultant -Project Name', 'Memo/Description', 'Qty ', 'Unit Price', 'Amount'],
     # header text placement: ('left', x) or ('center', None)
-    header_align=[('left', 52.44), ('left', 276.65), ('left', 385.51), ('left', 428.47), ('left', 497.74)],
+    header_align=[('left', 52.38), ('left', 172.38), ('left', 382.38), ('left', 422.38), ('left', 477.38)],
     body_top=237.25,
     body_rows=9,                # configurable default (sample: 9 body rows + total row)
     row_height=8.0822,          # (309.99 - 237.25) / 9
@@ -106,7 +106,7 @@ TABLE = dict(
     number_font=('Trebuchet', 6.98),
     text_pad_left=0.94,         # 52.32 - 51.38 ; memo 228.05 - 226.75
     # right edge for right-aligned numbers per numeric column (measured)
-    num_right=[425.35, 492.80, 553.32],
+    num_right=[420.38, 475.38, 553.15],
     total_font=('Trebuchet', 6.98),
 )
 

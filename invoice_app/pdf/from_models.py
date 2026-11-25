@@ -55,11 +55,16 @@ def build_invoice_data(invoice, profile, lines=None, number=None):
     client = invoice.client
     if lines is None:
         lines = list(invoice.lines.all())
-    display_lines = [LineData(l.project_name,
-                              (f'{l.designation_snapshot}: ' if getattr(invoice, 'service_type', '') == 'general_manpower' and
-                               getattr(invoice, 'resource_display_format', '') == 'name' and l.designation_snapshot else '') + l.description,
-                              l.quantity_days, l.unit_price, l.amount,
-                              getattr(l, 'sac_code', '') or '') for l in lines]
+    display_lines = []
+    for l in lines:
+        desc = (f'{l.designation_snapshot}: ' if getattr(invoice, 'service_type', '') == 'general_manpower' and
+                getattr(invoice, 'resource_display_format', '') == 'name' and l.designation_snapshot else '') + l.description
+        extra = getattr(l, 'extra_days', Decimal('0')) or Decimal('0')
+        if extra:
+            desc = f'{desc} (+{str(extra)} extra days)' if desc else f'(+{str(extra)} extra days)'
+        display_lines.append(LineData(l.project_name, desc,
+                                      l.quantity_days, l.unit_price, l.amount,
+                                      getattr(l, 'sac_code', '') or '', getattr(l, 'extra_days', Decimal('0')) or Decimal('0')))
     service_type = getattr(invoice, 'service_type', '')
     period_start = getattr(invoice, 'billing_period_start', None) or getattr(invoice, 'billing_month', None)
     period_end = getattr(invoice, 'billing_period_end', None) or getattr(invoice, 'billing_month', None)

@@ -28,10 +28,10 @@ needs_fitz = unittest.skipIf(fitz is None, 'PyMuPDF not installed')
 # sample_invoice(kind, 'QB020') + BusinessProfile(). Standard export (US Letter, 5 columns) and the GST
 # Tax Invoice (intra / inter) and the LUT note line must stay byte-identical.
 PINNED = {
-    'export': '3b06365ca951482d39c5e2de35cab9c441449d6ce8ef32d43a9e544f744fdb34',
-    'lut': 'f7bf6f6220b9f87abb4193189d200f2ed00f5d06eeef422d80268076533552be',
-    'gst_intra': '6098b8ce4b5f0facf9b379f1edeeab24522882d91342545096a39f364d9ecd47',
-    'gst_inter': 'd13e65206e251c09267650e640da2aac8f625d68278a136c667be8d4f9684826',
+    'export': '3c1efebd94bfc5f6ea355582a3ee71b40b6afa07c0ea546ecc12fbd7f495caff',
+    'lut': 'd231aace164903898cd48e83e04b566b64adad398367a3860962dc8cd9eaeb37',
+    'gst_intra': '8b5102d51e0482e2e9a01f9f5e9e773f64bcda10d0d037272409f0e5e5224678',
+    'gst_inter': '5537a2b5d22b8ec4e0e655f376626327d6312700c434c52d4fb2bc98b1f424c0',
 }
 NEW_CODES = ['modern-minimal', 'corporate-classic', 'compact', 'bold-header', 'timesheet']
 A4 = (595.28, 841.89)

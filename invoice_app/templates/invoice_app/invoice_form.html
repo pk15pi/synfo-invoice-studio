@@ -44,7 +44,7 @@
 {{ projects_json|json_script:"projects-data" }}{{ init_json|json_script:"init-data" }}{{ client_formats_json|json_script:"client-formats" }}{{ work_calendar_json|json_script:"work-calendar" }}
 <template id="rowtpl"><tr>
 <td><input type="hidden" name="line_project"><select class="field deployment-select" name="line_deployment" aria-label="Optional saved manpower deployment"><option value="">Manual resource line</option></select><select class="field placement-select" name="line_placement" aria-label="Approved candidate placement"><option value="">Select approved placement</option></select><div class="pj-combo"><input class="field pj-text" name="line_name" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Consultant - Project Name or resource designation" placeholder="Type project, designation, or service"><button type="button" class="pj-toggle" tabindex="-1" title="Show saved projects" aria-label="Show saved projects">&#9662;</button><ul class="pj-list" role="listbox" hidden></ul></div><small class="muted pj"></small><small class="muted pjtax"></small></td><td><input class="field" type="date" name="line_from"></td><td><input class="field" type="date" name="line_to"></td>
-<td><input class="field" name="line_days" style="width:70px"></td><td><input class="field" name="line_desc"></td>
+<td><input class="field" name="line_days" style="width:70px"><input class="field" name="line_extra_days" style="width:62px" placeholder="+days"></td><td><input class="field" name="line_desc"></td>
 <td class="method-cell"><select class="field line-method" name="line_method"><option value="monthly">Monthly</option><option value="daily">Per day</option><option value="hourly">Per hour</option><option value="fixed">Fixed contract</option></select><select class="field line-proration" name="line_proration" aria-label="Monthly proration"><option value="calendar">Actual calendar days</option><option value="30_day">Fixed 30-day divisor</option><option value="working_days">Configured working days</option><option value="full_month">Full-month fixed</option><option value="manual">Manual override</option></select><textarea class="field" name="line_remarks" rows="1" placeholder="Reason for manual adjustment"></textarea></td>
 <td><input class="field" name="line_unit" style="width:90px"></td><td><input class="field" name="line_amount" style="width:100px"></td>
 <td class="num u"></td><td class="num a"></td><td><button class="icon-btn danger del" type="button" title="Remove" aria-label="Remove">{% icon "remove" %}</button></td></tr></template>
@@ -119,18 +119,18 @@ function calc(tr){
   }
   if(a&&b&&b>=a&&tr.dataset.daysAuto!=='0')g('line_days').value=Math.round((b-a)/864e5)+1;
   if(p&&tr.dataset.descAuto!=='0')autoDesc(tr,p);
-  const days=parseFloat(g('line_days').value)||0; let unit=null, amount=0; const bt=billing();
+  const days=parseFloat(g('line_days').value)||0; const extra=($('service_type').value==='project_manpower'||$('service_type').value==='other_service')?(parseFloat(g('line_extra_days').value)||0):0; const totalDays=days+extra; let unit=null, amount=0; const bt=billing();
   const blank=!!p&&bt==='monthly_fixed'; g('line_unit').disabled=blank; if(blank)g('line_unit').value='';
-  if(p){ if(bt==='per_day'){unit=parseFloat(p.daily);amount=amt(unit*days);}
+  if(p){ if(bt==='per_day'){unit=parseFloat(p.daily);amount=amt(unit*totalDays);}
     else if(bt==='monthly_fixed'){amount=r2(parseFloat(p.monthly));}
     else{const ref=b||a||pd($('invoice_date').value)||new Date();const div=new Date(Date.UTC(ref.getUTCFullYear(),ref.getUTCMonth()+1,0)).getUTCDate();
-      const m=parseFloat(p.monthly);unit=r2(m/div);amount=amt(m*days/div);}}
-  if(!blank&&g('line_unit').value!==''){unit=parseFloat(g('line_unit').value)||0;if(!p)amount=amt(unit*days);}
+      const m=parseFloat(p.monthly);unit=r2(m/div);amount=amt(m*totalDays/div);}}
+  if(!blank&&g('line_unit').value!==''){unit=parseFloat(g('line_unit').value)||0;if(!p)amount=amt(unit*totalDays);}
   if(g('line_amount').value!=='')amount=parseFloat(g('line_amount').value)||0;
   tr.querySelector('.u').textContent=unit===null?'':fmt(unit);tr.querySelector('.a').textContent=fmt(amount);
   const sac=p?(p.sac||'998314'):'998314', rate=p?(parseFloat(p.gst_rate)||0):18;
   {const s=tr.querySelector('.pjtax');if(s)s.textContent=(g('line_name').value.trim()&&$('tx_treat')&&$('tx_treat').value==='domestic_gst')?` SAC ${sac} | GST ${rate}%`:'';}
-  return {name:g('line_name').value,desc:g('line_desc').value,days,unit,amount,sac,rate};
+  return {name:g('line_name').value,desc:g('line_desc').value,days:totalDays,unit,amount,sac,rate};
 }
 function refresh(){const pv=document.querySelector('#preview tbody');pv.innerHTML='';let t=0;
   const L=[];tb.querySelectorAll('tr').forEach(tr=>{const r=calc(tr);if(!r.name)return;t+=r.amount;L.push(r);const row=pv.insertRow();
@@ -162,7 +162,7 @@ function syncMode(){const m=manpower(),r=recruitment();document.querySelectorAll
  tb.querySelectorAll('tr').forEach(tr=>{tr.querySelector('[name=line_deployment]').hidden=!m;tr.querySelector('[name=line_placement]').hidden=!r;tr.querySelector('.pj-combo').hidden=r;tr.querySelector('.method-cell').hidden=!m;});fillProjects();}
 function addRow(d){d=d||{};const tr=document.getElementById('rowtpl').content.firstElementChild.cloneNode(true);tb.appendChild(tr);
   const g=n=>tr.querySelector(`[name=${n}]`);g('line_project').value=d.project||'';
-  g('line_name').value=d.name||'';g('line_from').value=d.start||'';g('line_to').value=d.end||'';g('line_days').value=d.days||'';
+  g('line_name').value=d.name||'';g('line_from').value=d.start||'';g('line_to').value=d.end||'';  g('line_days').value=d.days||'';g('line_extra_days').value=d.extra_days||'';
   g('line_desc').value=d.desc||'';g('line_unit').value=d.unit||'';g('line_amount').value=d.amount||'';
   g('line_method').value=d.method||'monthly';g('line_proration').value=d.proration||'calendar';g('line_remarks').value=d.remarks||'';tr.dataset.deployment=d.deployment||'';
   if(d.desc)tr.dataset.descAuto='0'; if(d.days&&d.start&&d.end){const a=pd(d.start),b=pd(d.end);if(Math.round((b-a)/864e5)+1!=parseFloat(d.days))tr.dataset.daysAuto='0';}

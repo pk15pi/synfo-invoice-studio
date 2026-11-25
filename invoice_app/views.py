@@ -531,11 +531,11 @@ def invoice_edit(request, pk=None):
                 messages.error(request, 'Enter a manual PDF number to preview with that number.')
             if not data.errors and not missing_manual_number:
                 if action in ('preview', 'preview_manual', 'download'):
-                    number = invoice.invoice_number if invoice else profile.next_number()
+                    number = invoice.invoice_number if invoice else None
                     inv, lines = services.unsaved_invoice(data, number)
                     manual_number = data.pdf_number_override if action == 'preview_manual' else None
                     pdf = render_for_invoice(inv, profile, lines=lines, number=manual_number)
-                    display_number = manual_number or inv.invoice_number
+                    display_number = manual_number or inv.invoice_number or 'preview'
                     return _pdf_response(pdf, f'{display_number}-preview.pdf', action == 'download')
                 try:
                     invoice = services.save_invoice(data, invoice)
@@ -564,11 +564,11 @@ def invoice_edit(request, pk=None):
                    'billing_period_start': data.billing_period_start, 'billing_period_end': data.billing_period_end,
                    'supplementary': data.supplementary,
                    'lines': [dict(project=l.project.pk if l.project else '', name=l.project_name, desc=l.description,
-                                  start=l.from_date, end=l.to_date, days=l.days,
-                                  unit=l.unit_override if l.unit_override is not None else '',
-                                  amount=l.amount_override if l.amount_override is not None else '',
-                                  deployment=l.deployment.pk if l.deployment else '', method=l.billing_method,
-                                  placement=l.placement.pk if l.placement else '', remarks=l.line_remarks) for l in data.lines]}
+                                   start=l.from_date, end=l.to_date, days=l.days, extra_days=l.extra_days,
+                                   unit=l.unit_override if l.unit_override is not None else '',
+                                   amount=l.amount_override if l.amount_override is not None else '',
+                                   deployment=l.deployment.pk if l.deployment else '', method=l.billing_method,
+                                   placement=l.placement.pk if l.placement else '', remarks=l.line_remarks) for l in data.lines]}
     elif invoice is not None:
         initial = {'client': invoice.client_id, 'invoice_date': invoice.invoice_date, 'terms_mode': invoice.terms_mode,
                    'terms_text': invoice.terms_display,
@@ -582,8 +582,10 @@ def invoice_edit(request, pk=None):
                    'resource_display_format': invoice.resource_display_format,
                    'billing_period_start': invoice.billing_period_start, 'billing_period_end': invoice.billing_period_end,
                    'supplementary': invoice.supplementary,
-                   'lines': [dict(project=l.project_id or '', name=l.project_name, desc=l.description, start=l.from_date,
-                                  end=l.to_date, days=l.quantity_days, unit='' if (l.project_id or l.unit_price is None) else l.unit_price,
+                     'lines': [dict(project=l.project_id or '', name=l.project_name, desc=l.description, start=l.from_date,
+                                    end=l.to_date, days=(l.quantity_days or Decimal('0')) - (l.extra_days or Decimal('0')),
+                                    extra_days=l.extra_days,
+                                   unit='' if (l.project_id or l.unit_price is None) else l.unit_price,
                                   amount=l.amount if (l.amount_overridden or (not l.project_id and not l.recruitment_placement_id)) else '',
                                   deployment=l.manpower_deployment_id or '', method=l.billing_method_snapshot,
                                   placement=l.recruitment_placement_id or '',

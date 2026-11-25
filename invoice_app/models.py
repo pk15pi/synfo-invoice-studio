@@ -703,6 +703,8 @@ class InvoiceLine(models.Model):
         help_text='Template configured on the project when this line was saved (audit/delete protection only; '
                   'the PDF prints the saved description).')
     quantity_days = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    extra_days = models.DecimalField(max_digits=8, decimal_places=2, default=0,
+                                     help_text='Extra billable days added to the memo period (e.g. days from the previous month that were skipped).')
     from_date = models.DateField(null=True, blank=True)
     to_date = models.DateField(null=True, blank=True)
     unit_price = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True, help_text='Blank for billing type 3')

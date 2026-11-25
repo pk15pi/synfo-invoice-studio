@@ -21,6 +21,7 @@ class LineInput:
     days: Decimal
     from_date: date | None
     to_date: date | None
+    extra_days: Decimal = Decimal('0.00')
     unit_price: Decimal | None = Decimal('0.00')
     amount: Decimal = Decimal('0.00')
     amount_override: Decimal | None = None
@@ -99,6 +100,8 @@ def _dec(value):
 def compute_line(line: LineInput, invoice_date, rounding, billing_month=None, service_type=Invoice.PROJECT_MANPOWER,
                  proration_method=None):
     """Server-side (authoritative) calculation for one line."""
+    if service_type in (Invoice.PROJECT_MANPOWER, Invoice.OTHER_SERVICE):
+        line.days = billing.q2(line.days) + billing.q2(line.extra_days)
     if line.project is not None:
         calc = billing.calculate_for_project(line.project, line.days, period_end=line.to_date,
                                              fallback_date=line.from_date or invoice_date, rounding=rounding)
@@ -252,7 +255,7 @@ def parse_invoice_post(post, client, profile, invoice=None):
             errors.append('Invoice for (month): pick a valid month.')
     get = post.getlist if hasattr(post, 'getlist') else (lambda k: post.get(k, []))
     cols = {k: get(k) for k in ('line_project', 'line_name', 'line_desc', 'line_from', 'line_to',
-                                 'line_days', 'line_unit', 'line_amount', 'line_deployment', 'line_method',
+                                 'line_days', 'line_extra_days', 'line_unit', 'line_amount', 'line_deployment', 'line_method',
                                  'line_proration', 'line_remarks', 'line_placement')}
     n = max((len(v) for v in cols.values()), default=0)
     projects = {str(p.pk): p for p in ProjectTemplate.objects.filter(client=client)} if client else {}
@@ -282,6 +285,7 @@ def parse_invoice_post(post, client, profile, invoice=None):
             project = next((p for p in projects.values() if p.active and p.name.casefold() == typed), None)
         name = val('line_name') or (project.name if project else '')
         days = _dec(val('line_days')) or Decimal('0')
+        extra_days = _dec(val('line_extra_days')) or Decimal('0')
         amount_ov = _dec(val('line_amount'))
         unit_ov = _dec(val('line_unit'))
         deployment = None
@@ -335,7 +339,7 @@ def parse_invoice_post(post, client, profile, invoice=None):
         if days <= 0 and amount_ov is None:
             errors.append(f'Row {i + 1} ({name}): enter a billable quantity or an amount.')
             continue
-        line = LineInput(project, name, val('line_desc'), days, _date(val('line_from')), _date(val('line_to')),
+        line = LineInput(project, name, val('line_desc'), days, _date(val('line_from')), _date(val('line_to')), extra_days,
                          amount_override=amount_ov, unit_override=unit_ov, deployment=deployment,
                          resource_name=(deployment.employee.full_name if deployment and deployment.employee_id else deployment.resource_name if deployment else name),
                          designation=deployment.designation if deployment else name,
@@ -434,7 +438,7 @@ def _write_lines(invoice, lines):
                                   if invoice.service_type == Invoice.RECRUITMENT_PLACEMENT else
                                   (l.resource_name if display_format == 'name' and l.resource_name else
                                    l.designation if invoice.service_type == Invoice.GENERAL_MANPOWER else l.project_name)),
-                    description=l.description, quantity_days=billing.q2(l.days), from_date=l.from_date,
+                    description=l.description, quantity_days=billing.q2(l.days), extra_days=l.extra_days, from_date=l.from_date,
                     description_template_id=(l.project.description_template_id if l.project is not None and
                                              l.project.invoice_description_type == 'template' else None),
                     to_date=l.to_date, unit_price=l.unit_price, amount=l.amount,
@@ -611,7 +615,7 @@ def unsaved_invoice(data: InvoiceInput, number: str):
                                       if data.service_type == Invoice.RECRUITMENT_PLACEMENT else
                                       (l.resource_name if data.resource_display_format == 'name' and l.resource_name else
                                        l.designation if data.service_type == Invoice.GENERAL_MANPOWER else l.project_name)),
-                         description=l.description, quantity_days=billing.q2(l.days),
+                         description=l.description, quantity_days=billing.q2(l.days), extra_days=l.extra_days,
                          from_date=l.from_date, to_date=l.to_date, unit_price=l.unit_price, amount=l.amount,
                          sac_code=l.sac_code, gst_rate=l.gst_rate,
                          manpower_deployment=l.deployment, recruitment_placement=l.placement,

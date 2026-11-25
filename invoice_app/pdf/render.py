@@ -26,6 +26,7 @@ class LineData:
     unit_price: Decimal | None  # None -> Unit Price cell left empty (billing type 3)
     amount: Decimal
     sac_code: str = ''  # printed only on GST tax invoices
+    extra_days: Decimal = Decimal('0.00')  # billable days added beyond the memo period
 
 
 @dataclass
@@ -228,7 +229,8 @@ class InvoiceCanvas:
             base = self._row_top(i) + t['baseline_offset']
             self.text(ln.project_name, edges[0] + pad, base, bf, bs, max_width=edges[1] - edges[0] - 2 * pad)
             self.text(ln.description, edges[1] + pad + 0.36, base, bf, bs, max_width=edges[2] - edges[1] - 2 * pad)
-            vals = [f'{Decimal(ln.quantity):.2f}', '' if ln.unit_price is None else format_western(ln.unit_price), format_western(ln.amount)]
+            total_days = ln.quantity  # quantity_days already includes extra_days (memo + extra)
+            vals = [f'{Decimal(total_days):.2f}', '' if ln.unit_price is None else format_western(ln.unit_price), format_western(ln.amount)]
             for j, v in enumerate(vals):
                 self.text(v, t['num_right'][j], base, nf, ns, align='right',
                           max_width=edges[3 + j] - edges[2 + j] - 2)
