@@ -1,0 +1,21 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
+{% block title %}Asset categories &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Asset categories</h1><p class="muted">Group assets as fixed/capital items, bulk returnable items, or consumables.</p></div>
+<div><a class="button secondary" href="{% url 'assets:register' %}">Asset register</a> <a class="button primary" href="{% url 'assets:category_new' %}">+ Add category</a></div></div>
+<form method="get" class="qb-filter-form panel filters" data-filter-form>
+<label class="compact-filter-label"><span>Search</span><input class="field" type="search" name="q" value="{{ search }}" placeholder="Name, code or description"></label>
+<label class="compact-filter-label"><span>Item class</span><select class="field" name="item_class"><option value="">All classes</option>{% for value, label in item_classes %}<option value="{{ value }}" {% if value == item_class %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+{% filter_actions %}</form>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Category</th><th>Code</th><th>Item class</th><th>Assets</th><th>State</th><th></th></tr></thead>
+{% paginate categories as qb_pg1 %}<tbody>{% for category in qb_pg1 %}<tr>
+<td><strong>{{ category.name }}</strong></td>
+<td>{{ category.code }}</td>
+<td>{{ category.get_item_class_display }}</td>
+<td>{{ category.assets.count }}</td>
+<td>{% if category.is_active %}<span class="badge ok">Active</span>{% else %}<span class="badge off">Inactive</span>{% endif %}</td>
+<td><a href="{% url 'assets:category_edit' category.pk %}">Edit</a></td>
+</tr>{% empty %}<tr><td colspan="6" class="empty">No categories found. Add categories so they can be selected when registering assets and consumables.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
+<p class="muted" style="margin-top:12px">Inactive categories stay on existing assets but are no longer offered on forms.</p>
+</div>
+{% endblock %}

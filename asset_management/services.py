@@ -460,3 +460,79 @@ def dispose_asset(asset, *, disposal_date, disposal_method='', sale_proceeds=Non
         remarks=' '.join(note_parts),
     )
     return asset
+
+
+def allocate_consumable_code(category=None):
+    """Return a generated consumable item code that is not already in use."""
+    cat_code = category.code if category else ''
+    for _ in range(1000):
+        code = _allocate_sequence('next_consumable_sequence', 'consumable_prefix', cat_code)
+        if not ConsumableItem.objects.filter(item_code=code).exists():
+            return code
+    raise RuntimeError('Could not allocate a unique consumable code.')
+
+
+@transaction.atomic
+def create_consumable(item, *, remarks=''):
+    item.item_code = allocate_consumable_code(item.category)
+    item.save()
+    if item.current_stock > 0:
+        ConsumableMovement.objects.create(
+            consumable=item,
+            movement_type=ConsumableMovement.STOCK_IN,
+            quantity=item.current_stock,
+            movement_date=timezone.localdate(),
+            location=item.location,
+            unit_cost=item.unit_cost,
+            remarks=(remarks or '').strip() or 'Opening stock.',
+        )
+    return item
+
+
+@transaction.atomic
+def record_consumable_stock_in(consumable, *, quantity, movement_date, unit_cost=None, location=None,
+                                reference='', remarks=''):
+    if quantity < 1:
+        raise ValidationError('Quantity must be at least 1.')
+    item = ConsumableItem.objects.select_for_update().get(pk=consumable.pk)
+    item.current_stock += quantity
+    update_fields = ['current_stock', 'updated_at']
+    if unit_cost is not None:
+        item.unit_cost = unit_cost
+        update_fields.append('unit_cost')
+    item.save(update_fields=update_fields)
+    return ConsumableMovement.objects.create(
+        consumable=item,
+        movement_type=ConsumableMovement.STOCK_IN,
+        quantity=quantity,
+        movement_date=movement_date,
+        location=location or item.location,
+        unit_cost=unit_cost if unit_cost is not None else item.unit_cost,
+        reference=(reference or '').strip(),
+        remarks=(remarks or '').strip(),
+    )
+
+
+@transaction.atomic
+def issue_consumable(consumable, *, quantity, movement_date, employee=None, location=None,
+                     reference='', remarks=''):
+    if quantity < 1:
+        raise ValidationError('Quantity must be at least 1.')
+    item = ConsumableItem.objects.select_for_update().get(pk=consumable.pk)
+    if item.current_stock < quantity:
+        raise ValidationError(
+            f'Insufficient stock for {item.name}: only {item.current_stock} {item.get_unit_display().lower()} available.'
+        )
+    item.current_stock -= quantity
+    item.save(update_fields=['current_stock', 'updated_at'])
+    return ConsumableMovement.objects.create(
+        consumable=item,
+        movement_type=ConsumableMovement.ISSUE,
+        quantity=quantity,
+        movement_date=movement_date,
+        employee=employee,
+        location=location or item.location,
+        unit_cost=item.unit_cost,
+        reference=(reference or '').strip(),
+        remarks=(remarks or '').strip(),
+    )

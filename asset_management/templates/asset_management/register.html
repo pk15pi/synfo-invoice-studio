@@ -1,20 +1,23 @@
 {% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
 {% block title %}Asset Register &middot; QuantBud{% endblock %}
 {% block content %}
-<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Asset Register</h1><p class="muted">Individual assets and their recorded custody.</p></div>
-<div><a class="button secondary" href="{% url 'assets:home' %}">Dashboard</a> <a class="button primary" href="{% url 'assets:asset_new' %}">+ Register asset</a></div></div>
-<section class="panel">
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Asset Register</h1><p class="muted">Fixed/capital items are tracked individually by serial number; bulk returnable items are tracked by quantity; consumables are managed separately under Consumables.</p></div>
+<div><a class="button secondary" href="{% url 'assets:home' %}">Dashboard</a> <a class="button primary" href="{% url 'assets:asset_new' %}?item_class=fixed">+ Register fixed asset</a> <a class="button primary" href="{% url 'assets:asset_new' %}?item_class=bulk">+ Register bulk item</a> <a class="button secondary" href="{% url 'assets:consumables' %}">Manage consumables</a></div></div>
 <form method="get" class="qb-filter-form filters" data-filter-form>
 <label class="compact-filter-label"><span>Search</span><input id="asset-filter" class="field" type="search" name="q" value="{{ search }}" placeholder="Asset ID, name, brand, or serial number"></label>
+<label class="compact-filter-label"><span>Item class</span><select class="field" name="item_class"><option value="">All</option><option value="fixed" {% if item_class == 'fixed' %}selected{% endif %}>Fixed / capital</option><option value="bulk" {% if item_class == 'bulk' %}selected{% endif %}>Bulk / returnable</option></select></label>
 <label class="compact-filter-label"><span>Status</span><select class="field" name="status"><option value="">All statuses</option>{% for value, label in statuses %}<option value="{{ value }}" {% if value == status %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
 {% filter_actions %}</form>
-<div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Name</th><th>Category</th><th>Ownership</th><th>Usage</th><th>Status</th><th>Number of items</th><th>Items available</th><th>Employee</th><th>Location</th></tr></thead>
+<section class="panel"><div class="table-wrap"><table><thead><tr><th>Asset ID</th><th>Name</th><th>Category</th><th>Item class</th><th>Ownership</th><th>Usage</th><th>Status</th><th>Number of items</th><th>Items available</th><th>Employee</th><th>Location</th></tr></thead>
 {% paginate assets as qb_pg1 %}<tbody>{% for asset in qb_pg1 %}<tr>
-<td><a href="{% url 'assets:asset_detail' asset.pk %}"><strong>{{ asset.asset_code }}</strong></a></td><td>{{ asset.name }}</td><td>{{ asset.category.name }}</td>
+<td><a href="{% url 'assets:asset_detail' asset.pk %}"><strong>{{ asset.asset_code }}</strong></a></td>
+<td>{{ asset.name }}</td>
+<td>{{ asset.category.name }}</td>
+<td>{{ asset.category.get_item_class_display }}</td>
 <td>{{ asset.get_ownership_type_display }}</td><td>{{ asset.get_usage_type_display }}</td>
 <td>{{ asset.get_current_status_display }}</td><td>{{ asset.quantity }}</td><td>{{ asset.available_quantity }}</td>
 <td>{{ asset.current_employee|default:"—" }}</td>
 <td>{{ asset.current_location|default:"—" }}</td>
-</tr>{% empty %}<tr><td colspan="10" class="empty">No assets have been registered.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
+</tr>{% empty %}<tr><td colspan="11" class="empty">No assets have been registered.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
 </section>
 {% endblock %}

@@ -8,6 +8,7 @@ from employee_management.models import Employee
 
 from .models import (
     Asset, AssetAcknowledgement, AssetAssignment, AssetCategory, AssetLease, AssetLocation, AssetMaintenance,
+    ConsumableItem, ConsumableMovement,
 )
 
 
@@ -42,12 +43,19 @@ def _assignable_assets():
 
 
 class AssetForm(StyledForm, forms.ModelForm):
+    item_class = forms.ChoiceField(
+        label='Item class',
+        choices=[('', '— choose —')] + AssetCategory.ITEM_CLASSES,
+        required=False,
+        widget=forms.Select(attrs={'data-item-class': '1'}),
+    )
+
     class Meta:
         model = Asset
         fields = [
-            'name', 'category', 'brand', 'model_number', 'serial_number', 'quantity', 'ownership_type',
-            'usage_type', 'condition', 'current_location', 'purchase_date', 'purchase_price', 'vendor_name',
-            'invoice_number', 'warranty_expiry', 'description',
+            'item_class', 'name', 'category', 'brand', 'model_number', 'serial_number', 'quantity',
+            'ownership_type', 'usage_type', 'condition', 'current_location', 'purchase_date',
+            'purchase_price', 'vendor_name', 'invoice_number', 'warranty_expiry', 'description',
         ]
         widgets = {
             'quantity': forms.NumberInput(attrs={'min': 1}),
@@ -56,32 +64,83 @@ class AssetForm(StyledForm, forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 3}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, item_class='', **kwargs):
         super().__init__(*args, **kwargs)
-        categories = AssetCategory.objects.filter(is_active=True)
+        selected = self.data.get('item_class') or item_class or self.fields['item_class'].initial or ''
+        if self.instance.pk and self.instance.category_id:
+            selected = self.instance.category.item_class
+            self.fields['item_class'].initial = selected
+        elif not selected:
+            selected = AssetCategory.FIXED
+            self.fields['item_class'].initial = selected
+
+        categories = AssetCategory.objects.filter(is_active=True).exclude(
+            item_class=AssetCategory.CONSUMABLE,
+        )
+        if selected in (AssetCategory.FIXED, AssetCategory.BULK):
+            categories = categories.filter(item_class=selected)
         if self.instance.pk and self.instance.category_id:
             categories = categories | AssetCategory.objects.filter(pk=self.instance.category_id)
-        self.fields['category'].queryset = categories
+        self.fields['category'].queryset = categories.distinct()
+        self.fields['item_class'].help_text = (
+            'Choose Fixed/capital for individually tracked items (laptops, monitors) with serial numbers; '
+            'choose Bulk/returnable for items bought in quantity (mice, headphones, keyboards) tracked by count.'
+        )
+        self.fields['category'].help_text = (
+            'Pick a category matching the item class above. Fixed/capital items are tracked individually; '
+            'bulk returnable items are registered in bulk and issued one by one.'
+        )
         self.fields['current_location'].queryset = AssetLocation.objects.filter(is_active=True)
         self.fields['current_location'].empty_label = 'No specific location'
         self.fields['current_location'].help_text = (
             'Physical place where the asset is kept. Add or rename places in Asset Management \u2192 Locations.'
         )
-        self.fields['category'].help_text = (
-            'Select the category. The asset ID is generated from its code when the asset is saved.'
-        )
         self.fields['quantity'].required = False
         self.fields['quantity'].label = 'Number of items'
         self.fields['quantity'].help_text = (
-            'For items without a serial number, enter how many units this record covers. '
-            'Items with a serial number are always tracked as one item.'
+            'For bulk items, enter how many units this record covers. '
+            'Fixed items are always tracked as one item (quantity = 1).'
         )
+        self.fields['serial_number'].help_text = (
+            'Required for fixed items so each unit is tracked individually. Leave blank for bulk items.'
+        )
+        self.fields['quantity'].widget.attrs['data-depends-on'] = 'id_item_class'
+        self.fields['serial_number'].widget.attrs['data-depends-on'] = 'id_item_class'
         if not self.is_bound and not self.instance.pk:
             self.fields['quantity'].initial = 1
 
     def clean(self):
         cleaned = super().clean()
-        if (cleaned.get('serial_number') or '').strip():
+        item_class = cleaned.get('item_class') or self.data.get('item_class') or ''
+        if not item_class:
+            if self.instance.pk and self.instance.category_id:
+                item_class = self.instance.category.item_class
+            else:
+                item_class = AssetCategory.FIXED
+        cleaned['item_class'] = item_class
+        category = cleaned.get('category')
+        serial = (cleaned.get('serial_number') or '').strip()
+        quantity = cleaned.get('quantity')
+
+        if category and category.item_class != item_class:
+            self.add_error(
+                'item_class',
+                f'The category "{category.name}" is a {category.get_item_class_display()} item, '
+                f'not {dict(AssetCategory.ITEM_CLASSES).get(item_class, item_class)}. '
+                'Change the item class or the category.',
+            )
+
+        if item_class == AssetCategory.FIXED:
+            if not serial:
+                self.add_error(
+                    'serial_number',
+                    'A serial number is required for fixed/capital items so each unit is tracked individually.',
+                )
+            cleaned['quantity'] = 1
+        elif item_class == AssetCategory.BULK:
+            if not quantity or quantity < 1:
+                cleaned['quantity'] = 1
+        if serial:
             cleaned['quantity'] = 1
         elif not cleaned.get('quantity'):
             cleaned['quantity'] = 1
@@ -439,3 +498,80 @@ class DisposalForm(StyledForm, forms.Form):
             # Allow proceeds to be entered with any method but warn if method isn't sold
             pass  # no validation error; just informational
         return cleaned
+
+
+class AssetCategoryForm(StyledForm, forms.ModelForm):
+    class Meta:
+        model = AssetCategory
+        fields = ['name', 'code', 'item_class', 'description', 'is_active']
+        widgets = {'description': forms.Textarea(attrs={'rows': 2})}
+
+    def clean_code(self):
+        return (self.cleaned_data.get('code') or '').strip().upper()
+
+
+class ConsumableItemForm(StyledForm, forms.ModelForm):
+    class Meta:
+        model = ConsumableItem
+        fields = [
+            'name', 'category', 'unit', 'current_stock', 'reorder_level',
+            'unit_cost', 'vendor_name', 'location', 'description', 'is_active',
+        ]
+        widgets = {
+            'current_stock': forms.NumberInput(attrs={'min': 0}),
+            'reorder_level': forms.NumberInput(attrs={'min': 0}),
+            'description': forms.Textarea(attrs={'rows': 2}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        cats = AssetCategory.objects.filter(is_active=True, item_class=AssetCategory.CONSUMABLE)
+        if self.instance.pk and self.instance.category_id:
+            cats = cats | AssetCategory.objects.filter(pk=self.instance.category_id)
+        self.fields['category'].queryset = cats.distinct()
+        self.fields['location'].queryset = AssetLocation.objects.filter(is_active=True)
+        self.fields['location'].empty_label = 'No specific location'
+        if self.instance.pk:
+            self.fields['current_stock'].disabled = True
+            self.fields['current_stock'].help_text = 'Use Stock in or Issue to update stock levels.'
+        else:
+            self.fields['current_stock'].label = 'Opening stock'
+
+
+class ConsumableStockInForm(StyledForm, forms.Form):
+    quantity = forms.IntegerField(min_value=1, label='Quantity received')
+    movement_date = forms.DateField(label='Date received', widget=DATE)
+    unit_cost = forms.DecimalField(
+        label='Unit cost (₹)', required=False, min_value=0, decimal_places=2, max_digits=14,
+    )
+    location = forms.ModelChoiceField(
+        queryset=AssetLocation.objects.none(), required=False, empty_label='Default item location',
+    )
+    reference = forms.CharField(label='Invoice / bill reference', required=False, max_length=100)
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 2}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['location'].queryset = AssetLocation.objects.filter(is_active=True)
+        if not self.is_bound:
+            self.initial['movement_date'] = timezone.localdate()
+
+
+class ConsumableIssueForm(StyledForm, forms.Form):
+    quantity = forms.IntegerField(min_value=1, label='Quantity to issue')
+    movement_date = forms.DateField(label='Issue date', widget=DATE)
+    employee = forms.ModelChoiceField(
+        queryset=Employee.objects.none(), required=False, empty_label='General / office use',
+    )
+    location = forms.ModelChoiceField(
+        queryset=AssetLocation.objects.none(), required=False, empty_label='Default item location',
+    )
+    reference = forms.CharField(label='Reference', required=False, max_length=100)
+    remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 2}))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['employee'].queryset = Employee.objects.filter(status__in=Employee.EMPLOYED)
+        self.fields['location'].queryset = AssetLocation.objects.filter(is_active=True)
+        if not self.is_bound:
+            self.initial['movement_date'] = timezone.localdate()

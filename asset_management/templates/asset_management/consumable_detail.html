@@ -1,0 +1,35 @@
+{% extends 'invoice_app/base.html' %}
+{% block title %}{{ item.item_code }} &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>{{ item.name }}</h1><p class="muted">{{ item.item_code }} &middot; {{ item.category.name }} &middot; {{ item.get_unit_display }}</p></div>
+<div><a class="button primary" href="{% url 'assets:consumable_restock' item.pk %}">Stock in</a> <a class="button secondary" href="{% url 'assets:consumable_issue' item.pk %}">Issue</a> <a class="button secondary" href="{% url 'assets:consumable_edit' item.pk %}">Edit item</a> <a class="button secondary" href="{% url 'assets:consumables' %}">Consumables</a></div></div>
+
+<div class="panel"><div class="panel-head"><h2>Item details</h2></div>
+<div class="form-grid">
+<div class="form-field"><label>Item code</label><div class="field readonly">{{ item.item_code }}</div></div>
+<div class="form-field"><label>Category</label><div class="field readonly">{{ item.category.name }}</div></div>
+<div class="form-field"><label>Unit</label><div class="field readonly">{{ item.get_unit_display }}</div></div>
+<div class="form-field"><label>Current stock</label><div class="field readonly">{{ item.current_stock }}</div></div>
+<div class="form-field"><label>Reorder level</label><div class="field readonly">{{ item.reorder_level }}</div></div>
+<div class="form-field"><label>Unit cost</label><div class="field readonly">{{ item.unit_cost|default:"—" }}</div></div>
+<div class="form-field"><label>Vendor</label><div class="field readonly">{{ item.vendor_name|default:"—" }}</div></div>
+<div class="form-field"><label>Location</label><div class="field readonly">{{ item.location|default:"—" }}</div></div>
+<div class="form-field"><label>State</label><div class="field readonly">{% if not item.is_active %}Inactive{% elif item.is_low_stock %}Low stock{% else %}Active{% endif %}</div></div>
+</div>
+{% if item.description %}<p class="muted">{{ item.description|linebreaksbr }}</p>{% endif %}
+</div>
+
+<div class="panel"><div class="panel-head"><h2>Stock movements</h2></div>
+{% if movements %}<div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Quantity</th><th>Unit cost</th><th>Employee</th><th>Location</th><th>Reference</th><th>Remarks</th></tr></thead><tbody>
+{% for movement in movements %}<tr>
+<td>{{ movement.movement_date|date:"d-m-Y" }}</td>
+<td>{{ movement.get_movement_type_display }}</td>
+<td>{{ movement.quantity }}</td>
+<td>{{ movement.unit_cost|default:"—" }}</td>
+<td>{{ movement.employee|default:"—" }}</td>
+<td>{{ movement.location|default:"—" }}</td>
+<td>{{ movement.reference|default:"—" }}</td>
+<td>{{ movement.remarks|default:"—" }}</td>
+</tr>{% endfor %}</tbody></table></div>{% else %}<p class="muted">No stock movements recorded yet.</p>{% endif %}
+</div>
+{% endblock %}

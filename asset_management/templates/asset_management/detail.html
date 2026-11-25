@@ -2,7 +2,7 @@
 {% block title %}{{ asset.asset_code }} &middot; QuantBud{% endblock %}
 {% block content %}
 <div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>{{ asset.name }}</h1><p class="muted">{{ asset.asset_code }} &middot; {{ asset.category.name }} &middot; {{ asset.get_current_status_display }}</p></div>
-<div>{% if asset.is_editable %}<a class="button secondary" href="{% url 'assets:asset_edit' asset.pk %}">Edit asset</a> {% endif %}{% if asset.current_status == 'available' %}<a class="button primary" href="{% url 'assets:assignment_new' %}?asset={{ asset.pk }}">Assign asset{% if asset.quantity > 1 %} ({{ asset.available_quantity }} available){% endif %}</a> {% endif %}<a class="button secondary" href="{% url 'assets:maintenance_new' %}?asset={{ asset.pk }}">Report maintenance</a> <a class="button secondary" href="{% url 'assets:register' %}">Register</a></div></div>
+<div>{% if asset.is_editable %}<a class="button secondary" href="{% url 'assets:asset_edit' asset.pk %}">Edit asset</a> {% endif %}{% if asset.current_status == 'available' %}<a class="button primary" href="{% url 'assets:assignment_new' %}?asset={{ asset.pk }}">Assign asset{% if asset.quantity > 1 %} ({{ asset.available_quantity }} available){% endif %}</a> {% endif %}{% if asset.current_status != 'lost' and asset.current_status != 'disposed' %}<a class="button secondary" href="{% url 'assets:maintenance_new' %}?asset={{ asset.pk }}">Report maintenance</a> {% if not active_assignments %}<a class="button secondary" href="{% url 'assets:asset_mark_lost' asset.pk %}">Mark lost</a> <a class="button secondary" href="{% url 'assets:asset_dispose' asset.pk %}">Dispose</a> {% endif %}{% endif %}<a class="button secondary" href="{% url 'assets:register' %}">Register</a></div></div>
 
 <div class="panel"><div class="panel-head"><h2>Asset details</h2></div>
 <div class="form-grid">
@@ -28,7 +28,7 @@
 {% if asset.description %}<p class="muted">{{ asset.description|linebreaksbr }}</p>{% endif %}
 </div>
 
-<div class="panel"><div class="panel-head"><h2>Current custody</h2>{% if active_assignments|length == 1 %}<span><a href="{% url 'assets:assignment_receipt' active_assignment.pk %}">Receipt &amp; email</a> &middot; <a href="{% url 'assets:assignment_return' active_assignment.pk %}">Return asset</a></span>{% endif %}</div>
+<div class="panel"><div class="panel-head"><h2>Current custody</h2>{% if active_assignments|length == 1 %}<span><a href="{% url 'assets:assignment_receipt' active_assignment.pk %}">Receipt &amp; email</a> &middot; <a href="{% url 'assets:assignment_transfer' active_assignment.pk %}">Transfer</a> &middot; <a href="{% url 'assets:assignment_return' active_assignment.pk %}">Return asset</a></span>{% endif %}</div>
 {% if active_assignments %}{% if active_assignments|length == 1 and asset.quantity == 1 %}<p><b>{{ active_assignment.employee }}</b> has held this asset since {{ active_assignment.issue_date|date:"d-m-Y" }}{% if active_assignment.expected_return_date %}; expected back by {{ active_assignment.expected_return_date|date:"d-m-Y" }}{% endif %}.</p>
 {% if active_assignment.handover_number %}<p class="muted">Handover {{ active_assignment.handover_number }}{% if active_assignment.receipt_emailed_at %} &middot; receipt emailed to {{ active_assignment.receipt_email_to }} on {{ active_assignment.receipt_emailed_at|date:"d-m-Y" }}{% endif %}</p>{% endif %}
 {% if active_assignment.parent_assignment %}<p class="muted">Issued as an accessory with <a href="{% url 'assets:asset_detail' active_assignment.parent_assignment.asset.pk %}">{{ active_assignment.parent_assignment.asset.asset_code }}</a>{% if active_assignment.parent_assignment.handover_number %} (handover {{ active_assignment.parent_assignment.handover_number }}){% endif %}.</p>{% endif %}
@@ -40,7 +40,7 @@
 <td>{{ assignment.issue_date|date:"d-m-Y" }}</td>
 <td>{{ assignment.expected_return_date|date:"d-m-Y"|default:"—" }}</td>
 <td>{{ assignment.handover_number|default:"—" }}{% if assignment.receipt_emailed_at %}<br><small class="muted">Receipt emailed</small>{% endif %}</td>
-<td><a href="{% url 'assets:assignment_receipt' assignment.pk %}">Receipt</a> &middot; <a href="{% url 'assets:assignment_return' assignment.pk %}">Return</a></td>
+<td><a href="{% url 'assets:assignment_receipt' assignment.pk %}">Receipt</a> &middot; <a href="{% url 'assets:assignment_transfer' assignment.pk %}">Transfer</a> &middot; <a href="{% url 'assets:assignment_return' assignment.pk %}">Return</a></td>
 </tr>{% endfor %}</tbody></table></div>{% endif %}
 {% else %}<p class="muted">This asset is not assigned to an employee.</p>{% endif %}
 </div>
@@ -53,7 +53,7 @@
 <td>{{ accessory.issue_date|date:"d-m-Y" }}</td>
 <td>{{ accessory.expected_return_date|date:"d-m-Y"|default:"—" }}</td>
 <td>{{ accessory.get_status_display }}{% if accessory.receipt_emailed_at %}<br><small class="muted">Receipt emailed</small>{% endif %}</td>
-<td><a href="{% url 'assets:assignment_receipt' accessory.pk %}">Receipt</a>{% if accessory.status == 'active' %} &middot; <a href="{% url 'assets:assignment_return' accessory.pk %}">Return</a>{% endif %}</td>
+<td><a href="{% url 'assets:assignment_receipt' accessory.pk %}">Receipt</a>{% if accessory.status == 'active' %} &middot; <a href="{% url 'assets:assignment_transfer' accessory.pk %}">Transfer</a> &middot; <a href="{% url 'assets:assignment_return' accessory.pk %}">Return</a>{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 </div>
 {% endif %}

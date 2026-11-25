@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -9,11 +9,13 @@ from employee_management.security import local_only
 
 from . import receipt_email, services
 from .forms import (
-    AssetForm, AssetLocationForm, AssetReceiptForm, AssignmentForm, LeaseForm, LeaseStatusForm,
-    MaintenanceForm, MaintenanceUpdateForm, ReturnForm,
+    AssetCategoryForm, AssetForm, AssetLocationForm, AssetReceiptForm, AssignmentForm, ConsumableIssueForm,
+    ConsumableItemForm, ConsumableStockInForm, DisposalForm, LeaseForm, LeaseStatusForm, LostForm,
+    MaintenanceForm, MaintenanceUpdateForm, ReturnForm, TransferForm,
 )
 from .models import (
     Asset, AssetAssignment, AssetCategory, AssetEvent, AssetLease, AssetLocation, AssetMaintenance,
+    ConsumableItem, ConsumableMovement,
 )
 from .receipt_pdf import receipt_number
 
@@ -32,12 +34,18 @@ def _comma_list(value):
 def dashboard(request):
     return render(request, 'asset_management/dashboard.html', {
         'asset_count': Asset.objects.count(),
+        'fixed_count': Asset.objects.filter(category__item_class=AssetCategory.FIXED).count(),
+        'bulk_count': Asset.objects.filter(category__item_class=AssetCategory.BULK).count(),
         'available_count': Asset.objects.filter(current_status=Asset.AVAILABLE).count(),
         'assigned_count': AssetAssignment.objects.filter(status=AssetAssignment.ACTIVE).count(),
         'company_count': Asset.objects.filter(current_status=Asset.COMPANY_STATUS).count(),
         'maintenance_count': AssetMaintenance.objects.filter(status__in=['reported', 'in_progress']).count(),
         'lease_count': AssetLease.objects.filter(status=AssetLease.ACTIVE).count(),
         'category_count': AssetCategory.objects.filter(is_active=True).count(),
+        'consumable_count': ConsumableItem.objects.filter(is_active=True).count(),
+        'low_stock_count': ConsumableItem.objects.filter(
+            is_active=True, reorder_level__gt=0, current_stock__lte=F('reorder_level'),
+        ).count(),
         'recent_events': AssetEvent.objects.select_related(
             'asset', 'from_employee', 'to_employee',
         )[:8],
@@ -62,8 +70,18 @@ def register(request):
     status = request.GET.get('status', '')
     if status in dict(Asset.STATUSES):
         assets = assets.filter(current_status=status)
+    item_class = request.GET.get('item_class', '')
+    if item_class in (AssetCategory.FIXED, AssetCategory.BULK):
+        assets = assets.filter(category__item_class=item_class)
+    category_id = request.GET.get('category', '')
+    if category_id.isdigit():
+        assets = assets.filter(category_id=int(category_id))
     return render(request, 'asset_management/register.html', {
         'assets': assets, 'search': search, 'status': status, 'statuses': Asset.STATUSES,
+        'item_class': item_class,
+        'item_classes': [(AssetCategory.FIXED, 'Fixed / capital assets'), (AssetCategory.BULK, 'Bulk returnable')],
+        'category_id': category_id,
+        'categories': AssetCategory.objects.filter(is_active=True).exclude(item_class=AssetCategory.CONSUMABLE),
     })
 
 
@@ -109,7 +127,7 @@ def location_edit(request, pk):
 
 @local_only
 def asset_new(request):
-    form = AssetForm(request.POST or None)
+    form = AssetForm(request.POST or None, item_class=request.GET.get('item_class', ''))
     if request.method == 'POST' and form.is_valid():
         with transaction.atomic():
             asset = form.save(commit=False)
@@ -330,6 +348,99 @@ def assignment_return(request, pk):
 
 
 @local_only
+def assignment_transfer(request, pk):
+    assignment = get_object_or_404(
+        AssetAssignment.objects.select_related('asset', 'employee'), pk=pk,
+    )
+    if assignment.status != AssetAssignment.ACTIVE:
+        messages.info(request, 'Only an active assignment can be transferred.')
+        return redirect('assets:assignments')
+    form = TransferForm(request.POST or None, assignment=assignment)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            new_assignment = services.transfer_asset(
+                assignment,
+                to_employee=form.cleaned_data['to_employee'],
+                transfer_date=form.cleaned_data['transfer_date'],
+                expected_return_date=form.cleaned_data.get('expected_return_date'),
+                issue_condition=form.cleaned_data.get('issue_condition') or '',
+                issue_notes=form.cleaned_data.get('issue_notes') or '',
+                acknowledgement_type=form.cleaned_data.get('acknowledgement_type') or '',
+                acknowledgement_name=form.cleaned_data.get('acknowledgement_name') or '',
+                confirmation_text=form.cleaned_data.get('confirmation_text') or '',
+            )
+        except ValidationError as exc:
+            form.add_error(None, ' '.join(exc.messages))
+        else:
+            messages.success(
+                request, f'{assignment.asset.asset_code} transferred to {new_assignment.employee}.',
+            )
+            return redirect(f"{reverse('assets:assignment_receipt', args=(new_assignment.pk,))}?confirm=1")
+    return _form_page(
+        request, form, f'Transfer {assignment.asset.asset_code}', reverse('assets:assignments'),
+    )
+
+
+@local_only
+def asset_mark_lost(request, pk):
+    asset = get_object_or_404(Asset, pk=pk)
+    if asset.current_status == Asset.LOST:
+        messages.info(request, f'{asset.asset_code} is already marked as lost.')
+        return redirect('assets:asset_detail', pk=asset.pk)
+    if asset.current_status == Asset.DISPOSED:
+        messages.error(request, 'A disposed asset cannot be marked as lost.')
+        return redirect('assets:asset_detail', pk=asset.pk)
+    if asset.assignments.filter(status=AssetAssignment.ACTIVE).exists():
+        messages.error(request, 'Return all active assignments before marking this asset as lost.')
+        return redirect('assets:asset_detail', pk=asset.pk)
+    form = LostForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            services.mark_lost(
+                asset,
+                loss_date=form.cleaned_data['loss_date'],
+                remarks=form.cleaned_data.get('remarks') or '',
+            )
+        except ValidationError as exc:
+            form.add_error(None, ' '.join(exc.messages))
+        else:
+            messages.success(request, f'{asset.asset_code} marked as lost.')
+            return redirect('assets:asset_detail', pk=asset.pk)
+    return _form_page(
+        request, form, f'Mark {asset.asset_code} as lost', reverse('assets:asset_detail', args=(asset.pk,)),
+    )
+
+
+@local_only
+def asset_dispose(request, pk):
+    asset = get_object_or_404(Asset, pk=pk)
+    if asset.current_status == Asset.DISPOSED:
+        messages.info(request, f'{asset.asset_code} is already disposed.')
+        return redirect('assets:asset_detail', pk=asset.pk)
+    if asset.assignments.filter(status=AssetAssignment.ACTIVE).exists():
+        messages.error(request, 'Return all active assignments before disposing of this asset.')
+        return redirect('assets:asset_detail', pk=asset.pk)
+    form = DisposalForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            services.dispose_asset(
+                asset,
+                disposal_date=form.cleaned_data['disposal_date'],
+                disposal_method=form.cleaned_data.get('disposal_method') or '',
+                sale_proceeds=form.cleaned_data.get('sale_proceeds'),
+                remarks=form.cleaned_data.get('remarks') or '',
+            )
+        except ValidationError as exc:
+            form.add_error(None, ' '.join(exc.messages))
+        else:
+            messages.success(request, f'{asset.asset_code} marked as disposed.')
+            return redirect('assets:asset_detail', pk=asset.pk)
+    return _form_page(
+        request, form, f'Dispose {asset.asset_code}', reverse('assets:asset_detail', args=(asset.pk,)),
+    )
+
+
+@local_only
 def leases(request):
     rows = AssetLease.objects.select_related('asset')
     search = request.GET.get('q', '').strip()[:100]
@@ -425,4 +536,152 @@ def maintenance_update(request, pk):
         return redirect('assets:maintenance')
     return _form_page(
         request, form, f'Update maintenance \u2013 {record.asset.asset_code}', reverse('assets:maintenance'),
+    )
+
+
+@local_only
+def categories(request):
+    rows = AssetCategory.objects.all()
+    search = request.GET.get('q', '').strip()[:100]
+    if search:
+        rows = rows.filter(
+            Q(name__icontains=search) | Q(code__icontains=search) | Q(description__icontains=search)
+        )
+    item_class = request.GET.get('item_class', '')
+    if item_class in dict(AssetCategory.ITEM_CLASSES):
+        rows = rows.filter(item_class=item_class)
+    return render(request, 'asset_management/categories.html', {
+        'categories': rows, 'search': search, 'item_class': item_class,
+        'item_classes': AssetCategory.ITEM_CLASSES,
+    })
+
+
+@local_only
+def category_new(request):
+    form = AssetCategoryForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        category = form.save()
+        messages.success(request, f'Category {category.name} added.')
+        return redirect('assets:categories')
+    return _form_page(request, form, 'Add a category', reverse('assets:categories'))
+
+
+@local_only
+def category_edit(request, pk):
+    category = get_object_or_404(AssetCategory, pk=pk)
+    form = AssetCategoryForm(request.POST or None, instance=category)
+    if request.method == 'POST' and form.is_valid():
+        category = form.save()
+        messages.success(request, f'Category {category.name} updated.')
+        return redirect('assets:categories')
+    return _form_page(request, form, f'Edit {category.name}', reverse('assets:categories'))
+
+
+@local_only
+def consumables(request):
+    rows = ConsumableItem.objects.select_related('category', 'location')
+    search = request.GET.get('q', '').strip()[:100]
+    if search:
+        rows = rows.filter(
+            Q(item_code__icontains=search) | Q(name__icontains=search)
+            | Q(vendor_name__icontains=search) | Q(category__name__icontains=search)
+        )
+    is_active = request.GET.get('active', '')
+    if is_active == '1':
+        rows = rows.filter(is_active=True)
+    elif is_active == '0':
+        rows = rows.filter(is_active=False)
+    return render(request, 'asset_management/consumables.html', {
+        'consumables': rows, 'search': search, 'active': is_active,
+    })
+
+
+@local_only
+def consumable_detail(request, pk):
+    item = get_object_or_404(
+        ConsumableItem.objects.select_related('category', 'location'), pk=pk,
+    )
+    movements = item.movements.all()[:50]
+    return render(request, 'asset_management/consumable_detail.html', {
+        'item': item, 'movements': movements,
+    })
+
+
+@local_only
+def consumable_new(request):
+    form = ConsumableItemForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            with transaction.atomic():
+                item = services.create_consumable(form.save(commit=False))
+        except ValidationError as exc:
+            form.add_error(None, ' '.join(exc.messages))
+        else:
+            messages.success(request, f'{item.item_code} added.')
+            return redirect('assets:consumable_detail', pk=item.pk)
+    return _form_page(request, form, 'Add a consumable', reverse('assets:consumables'))
+
+
+@local_only
+def consumable_edit(request, pk):
+    item = get_object_or_404(ConsumableItem, pk=pk)
+    form = ConsumableItemForm(request.POST or None, instance=item)
+    if request.method == 'POST' and form.is_valid():
+        item = form.save()
+        messages.success(request, f'{item.item_code} updated.')
+        return redirect('assets:consumable_detail', pk=item.pk)
+    return _form_page(
+        request, form, f'Edit {item.item_code}', reverse('assets:consumable_detail', args=(item.pk,)),
+    )
+
+
+@local_only
+def consumable_restock(request, pk):
+    item = get_object_or_404(ConsumableItem, pk=pk)
+    form = ConsumableStockInForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            with transaction.atomic():
+                services.record_consumable_stock_in(
+                    item, quantity=form.cleaned_data['quantity'],
+                    movement_date=form.cleaned_data['movement_date'],
+                    unit_cost=form.cleaned_data.get('unit_cost'),
+                    location=form.cleaned_data.get('location'),
+                    reference=form.cleaned_data.get('reference') or '',
+                    remarks=form.cleaned_data.get('remarks') or '',
+                )
+        except ValidationError as exc:
+            form.add_error(None, ' '.join(exc.messages))
+        else:
+            messages.success(request, f'Stock increased for {item.item_code}.')
+            return redirect('assets:consumable_detail', pk=item.pk)
+    return _form_page(
+        request, form, f'Restock {item.item_code}', reverse('assets:consumable_detail', args=(item.pk,)),
+    )
+
+
+@local_only
+def consumable_issue(request, pk):
+    item = get_object_or_404(ConsumableItem, pk=pk)
+    form = ConsumableIssueForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        try:
+            with transaction.atomic():
+                services.issue_consumable(
+                    item, quantity=form.cleaned_data['quantity'],
+                    movement_date=form.cleaned_data['movement_date'],
+                    employee=form.cleaned_data.get('employee'),
+                    location=form.cleaned_data.get('location'),
+                    reference=form.cleaned_data.get('reference') or '',
+                    remarks=form.cleaned_data.get('remarks') or '',
+                )
+        except ValidationError as exc:
+            form.add_error(None, ' '.join(exc.messages))
+        else:
+            messages.success(
+                request, f'{form.cleaned_data["quantity"]} x {item.name} issued.',
+            )
+            return redirect('assets:consumable_detail', pk=item.pk)
+    return _form_page(
+        request, form, f'Issue {item.item_code}', reverse('assets:consumable_detail', args=(item.pk,)),
     )

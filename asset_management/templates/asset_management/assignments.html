@@ -16,6 +16,6 @@
 <td>{{ assignment.actual_return_date|date:"d-m-Y"|default:"—" }}</td>
 <td>{{ assignment.get_issue_condition_display }}{% if assignment.return_condition %} &rarr; {{ assignment.get_return_condition_display }}{% endif %}</td>
 <td>{{ assignment.get_status_display }}{% if assignment.receipt_emailed_at %}<br><small class="muted">Receipt emailed</small>{% endif %}</td>
-<td><a href="{% url 'assets:assignment_receipt' assignment.pk %}">Receipt</a>{% if assignment.status == 'active' %} &middot; <a href="{% url 'assets:assignment_return' assignment.pk %}">Return</a>{% endif %}</td>
+<td><a href="{% url 'assets:assignment_receipt' assignment.pk %}">Receipt</a>{% if assignment.status == 'active' %} &middot; <a href="{% url 'assets:assignment_transfer' assignment.pk %}">Transfer</a> &middot; <a href="{% url 'assets:assignment_return' assignment.pk %}">Return</a>{% endif %}</td>
 </tr>{% empty %}<tr><td colspan="8" class="empty">No asset assignments yet.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div></div>
 {% endblock %}

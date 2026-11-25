@@ -239,7 +239,7 @@ class AssetManagementTests(TestCase):
         settings.asset_prefix = 'QB'
         settings.save()
         response = self.client.post(reverse('assets:asset_new'), {
-            'name': 'Dell monitor', 'category': self.category.pk, 'brand': 'Dell',
+            'item_class': 'fixed', 'name': 'Dell monitor', 'category': self.category.pk, 'brand': 'Dell',
             'model_number': 'P2422H', 'serial_number': 'CN-001', 'ownership_type': 'owned',
             'usage_type': 'company', 'condition': 'good', 'current_location': '',
             'purchase_date': '2026-04-01', 'purchase_price': '12000.00', 'vendor_name': 'Dell',
@@ -263,8 +263,9 @@ class AssetManagementTests(TestCase):
         settings.save()
         category = AssetCategory.objects.get(code='MONITOR')
         response = self.client.post(reverse('assets:asset_new'), {
-            'name': 'Seeded category monitor', 'category': category.pk, 'ownership_type': 'owned',
-            'usage_type': 'company', 'condition': 'good', 'current_location': '',
+            'item_class': 'fixed', 'name': 'Seeded category monitor', 'category': category.pk,
+            'serial_number': 'MON-001', 'ownership_type': 'owned', 'usage_type': 'company',
+            'condition': 'good', 'current_location': '',
         })
         asset = Asset.objects.get(name='Seeded category monitor')
         self.assertRedirects(response, reverse('assets:asset_detail', args=(asset.pk,)))
@@ -468,19 +469,20 @@ class AssetFeatureTests(TestCase):
 
     def test_asset_form_forces_one_item_for_serialized_assets(self):
         response = self.client.post(reverse('assets:asset_new'), {
-            'name': 'Serialized monitor', 'category': self.category.pk, 'serial_number': 'SN-QTY-1',
-            'quantity': '5', 'ownership_type': 'owned', 'usage_type': 'company', 'condition': 'good',
-            'current_location': '',
+            'item_class': 'fixed', 'name': 'Serialized monitor', 'category': self.category.pk,
+            'serial_number': 'SN-QTY-1', 'quantity': '5', 'ownership_type': 'owned',
+            'usage_type': 'company', 'condition': 'good', 'current_location': '',
         })
         asset = Asset.objects.get(name='Serialized monitor')
         self.assertRedirects(response, reverse('assets:asset_detail', args=(asset.pk,)))
         self.assertEqual(asset.quantity, 1)
 
     def test_asset_form_saves_quantity_for_items_without_serial_number(self):
+        bulk_category = AssetCategory.objects.create(name='Chair', code='CHR', item_class='bulk')
         response = self.client.post(reverse('assets:asset_new'), {
-            'name': 'Stock chairs', 'category': self.category.pk, 'serial_number': '',
-            'quantity': '6', 'ownership_type': 'owned', 'usage_type': 'employee', 'condition': 'good',
-            'current_location': '',
+            'item_class': 'bulk', 'name': 'Stock chairs', 'category': bulk_category.pk,
+            'serial_number': '', 'quantity': '6', 'ownership_type': 'owned',
+            'usage_type': 'employee', 'condition': 'good', 'current_location': '',
         })
         asset = Asset.objects.get(name='Stock chairs')
         self.assertRedirects(response, reverse('assets:asset_detail', args=(asset.pk,)))
@@ -813,4 +815,97 @@ class AssetFeatureTests(TestCase):
         self.assertEqual(
             self.client.get(reverse('assets:asset_edit', args=(self.asset.pk,)),
                             REMOTE_ADDR='10.1.1.1').status_code, 403,
+        )
+
+    def test_transfer_assignment_workflow(self):
+        other = Employee.objects.create(
+            employee_id='EMP-002', first_name='Ravi', last_name='Kumar',
+            department=self.department, designation='Engineer',
+            date_of_joining=date(2026, 1, 10), status=Employee.ACTIVE,
+        )
+        assignment = self.assignment()
+        detail_html = self.client.get(reverse('assets:asset_detail', args=(self.asset.pk,))).content.decode()
+        self.assertIn(reverse('assets:assignment_transfer', args=(assignment.pk,)), detail_html)
+        list_html = self.client.get(reverse('assets:assignments')).content.decode()
+        self.assertIn(reverse('assets:assignment_transfer', args=(assignment.pk,)), list_html)
+
+        url = reverse('assets:assignment_transfer', args=(assignment.pk,))
+        self.assertEqual(self.client.get(url).status_code, 200)
+        response = self.client.post(url, {
+            'to_employee': other.pk,
+            'transfer_date': assignment.issue_date.isoformat(),
+            'issue_condition': Asset.CONDITIONS[0][0],
+            'issue_notes': 'Reassigned to Ravi',
+        })
+        assignment.refresh_from_db()
+        self.asset.refresh_from_db()
+        new_assignment = AssetAssignment.objects.get(
+            asset=self.asset, employee=other, status=AssetAssignment.ACTIVE,
+        )
+        self.assertRedirects(
+            response, f"{reverse('assets:assignment_receipt', args=(new_assignment.pk,))}?confirm=1",
+        )
+        self.assertEqual(assignment.status, AssetAssignment.RETURNED)
+        self.assertEqual(assignment.actual_return_date, assignment.issue_date)
+        self.assertEqual(self.asset.current_status, Asset.ASSIGNED)
+        self.assertEqual(self.asset.current_employee, other)
+        self.assertTrue(
+            AssetEvent.objects.filter(
+                asset=self.asset, event_type='transferred',
+                from_employee=self.employee, to_employee=other,
+            ).exists()
+        )
+        # Returned assignment cannot be transferred again
+        returned_resp = self.client.get(url)
+        self.assertRedirects(returned_resp, reverse('assets:assignments'))
+
+    def test_mark_lost_and_dispose_workflows(self):
+        # Cannot mark lost or dispose while assigned
+        assignment = self.assignment()
+        lost_url = reverse('assets:asset_mark_lost', args=(self.asset.pk,))
+        dispose_url = reverse('assets:asset_dispose', args=(self.asset.pk,))
+        self.assertRedirects(self.client.get(lost_url), reverse('assets:asset_detail', args=(self.asset.pk,)))
+        self.assertRedirects(self.client.get(dispose_url), reverse('assets:asset_detail', args=(self.asset.pk,)))
+
+        # Return assignment, then mark lost
+        services.return_assignment(assignment, actual_return_date=assignment.issue_date)
+        detail_html = self.client.get(reverse('assets:asset_detail', args=(self.asset.pk,))).content.decode()
+        self.assertIn(lost_url, detail_html)
+        self.assertIn(dispose_url, detail_html)
+
+        self.assertEqual(self.client.get(lost_url).status_code, 200)
+        resp_lost = self.client.post(lost_url, {
+            'loss_date': '2026-05-12',
+            'remarks': 'Missing from desk',
+        })
+        self.assertRedirects(resp_lost, reverse('assets:asset_detail', args=(self.asset.pk,)))
+        self.asset.refresh_from_db()
+        self.assertEqual(self.asset.current_status, Asset.LOST)
+        self.assertTrue(AssetEvent.objects.filter(asset=self.asset, event_type='lost').exists())
+        # Cannot mark lost again
+        self.assertRedirects(self.client.get(lost_url), reverse('assets:asset_detail', args=(self.asset.pk,)))
+
+        # Dispose a second available asset
+        second = Asset.objects.create(
+            asset_code='QB-LAP-101', name='Spare laptop', category=self.category,
+        )
+        second_dispose_url = reverse('assets:asset_dispose', args=(second.pk,))
+        self.assertEqual(self.client.get(second_dispose_url).status_code, 200)
+        resp_disp = self.client.post(second_dispose_url, {
+            'disposal_date': '2026-05-20',
+            'disposal_method': 'sold',
+            'sale_proceeds': '15000.00',
+            'remarks': 'Sold to vendor',
+        })
+        self.assertRedirects(resp_disp, reverse('assets:asset_detail', args=(second.pk,)))
+        second.refresh_from_db()
+        self.assertEqual(second.current_status, Asset.DISPOSED)
+        event = AssetEvent.objects.get(asset=second, event_type='disposed')
+        self.assertIn('Method: sold.', event.remarks)
+        self.assertIn('Sale proceeds: 15000.00.', event.remarks)
+        # Cannot dispose again or mark lost after disposal
+        self.assertRedirects(self.client.get(second_dispose_url), reverse('assets:asset_detail', args=(second.pk,)))
+        self.assertRedirects(
+            self.client.get(reverse('assets:asset_mark_lost', args=(second.pk,))),
+            reverse('assets:asset_detail', args=(second.pk,)),
         )

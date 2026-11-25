@@ -8,8 +8,16 @@ from django.utils import timezone
 
 
 class AssetCategory(models.Model):
+    FIXED, BULK, CONSUMABLE = 'fixed', 'bulk', 'consumable'
+    ITEM_CLASSES = [
+        (FIXED, 'Fixed / capital asset'),
+        (BULK, 'Bulk returnable item'),
+        (CONSUMABLE, 'Consumable'),
+    ]
+
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, unique=True)
+    item_class = models.CharField(max_length=16, choices=ITEM_CLASSES, default=FIXED, db_index=True)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -379,6 +387,8 @@ class AssetSettings(models.Model):
     next_asset_sequence = models.PositiveIntegerField(default=1)
     handover_prefix = models.CharField(max_length=20, default='QB-AH')
     next_handover_sequence = models.PositiveIntegerField(default=1)
+    consumable_prefix = models.CharField(max_length=20, default='QB-CON')
+    next_consumable_sequence = models.PositiveIntegerField(default=1)
     default_currency = models.CharField(max_length=3, default='INR')
 
     class Meta:
@@ -392,3 +402,85 @@ class AssetSettings(models.Model):
 
     def __str__(self):
         return 'Asset settings'
+
+
+class ConsumableItem(models.Model):
+    UNITS = [
+        ('pcs', 'Pieces'), ('box', 'Boxes'), ('pack', 'Packs'),
+        ('ream', 'Reams'), ('set', 'Sets'), ('bottle', 'Bottles'), ('other', 'Other'),
+    ]
+
+    item_code = models.CharField(max_length=60, unique=True)
+    name = models.CharField(max_length=180)
+    category = models.ForeignKey(AssetCategory, on_delete=models.PROTECT, related_name='consumables')
+    unit = models.CharField(max_length=20, choices=UNITS, default='pcs')
+    current_stock = models.PositiveIntegerField(default=0)
+    reorder_level = models.PositiveIntegerField(default=0)
+    unit_cost = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0.00'))],
+    )
+    vendor_name = models.CharField(max_length=180, blank=True)
+    location = models.ForeignKey(
+        AssetLocation, null=True, blank=True, on_delete=models.PROTECT, related_name='consumables',
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['item_code']
+        indexes = [models.Index(fields=['category', 'is_active'], name='consumable_cat_active_idx')]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(unit_cost__isnull=True) | Q(unit_cost__gte=0),
+                name='consumable_unit_cost_nonnegative',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.item_code} - {self.name}'
+
+    @property
+    def is_low_stock(self):
+        return self.reorder_level > 0 and self.current_stock <= self.reorder_level
+
+
+class ConsumableMovement(models.Model):
+    STOCK_IN, ISSUE, ADJUSTMENT = 'stock_in', 'issue', 'adjustment'
+    MOVEMENT_TYPES = [
+        (STOCK_IN, 'Stock in'),
+        (ISSUE, 'Issued / consumed'),
+        (ADJUSTMENT, 'Adjustment'),
+    ]
+
+    consumable = models.ForeignKey(ConsumableItem, on_delete=models.PROTECT, related_name='movements')
+    movement_type = models.CharField(max_length=16, choices=MOVEMENT_TYPES, db_index=True)
+    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    movement_date = models.DateField(default=timezone.localdate, db_index=True)
+    employee = models.ForeignKey(
+        'employee_management.Employee', null=True, blank=True, on_delete=models.PROTECT,
+        related_name='consumable_issues',
+    )
+    location = models.ForeignKey(
+        AssetLocation, null=True, blank=True, on_delete=models.PROTECT,
+        related_name='consumable_movements',
+    )
+    unit_cost = models.DecimalField(
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(Decimal('0.00'))],
+    )
+    reference = models.CharField(max_length=100, blank=True)
+    remarks = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-movement_date', '-id']
+        indexes = [models.Index(fields=['consumable', 'movement_date'], name='consumable_move_date_idx')]
+        constraints = [
+            models.CheckConstraint(condition=Q(quantity__gte=1), name='consumable_move_qty_positive'),
+        ]
+
+    def __str__(self):
+        return f'{self.consumable.item_code}: {self.get_movement_type_display()} x{self.quantity}'

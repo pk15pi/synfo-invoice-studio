@@ -67,4 +67,4 @@ The billing type is set on the customer and applies to every project row. Change
   serial.addEventListener('input', syncQuantity);
   syncQuantity();
 })();
-</script>{% endif %}{% if form.has_accessory_picker %}<script src="{% static 'asset_management/accessory_picker.js' %}" defer></script>{% endif %}{% endblock %}
+</script>{% endif %}{% if form.has_accessory_picker %}<script src="{% static 'asset_management/accessory_picker.js' %}" defer></script>{% endif %}{% if form.item_class %}<script src="{% static 'asset_management/asset_form.js' %}" defer></script>{% endif %}{% endblock %}

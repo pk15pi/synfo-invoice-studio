@@ -1010,6 +1010,21 @@ _add("assets:maintenance_new assets:maintenance_update", "Asset maintenance", "L
      ["Select the asset and describe the maintenance work.", "Record the vendor, service date and cost.", "Update the entry when the work is completed and verify the cost against the invoice."],
      rules=["Maintenance history does not replace the vendor invoice or warranty documents."],
      related=["Asset details, vendors, expenses and accounting."])
+_add("assets:categories assets:category_new assets:category_edit", "Asset categories", "Maintain the classification used when registering assets and consumables.",
+     "Categories group items as Fixed/capital assets (tracked individually by serial number), Bulk/returnable items (tracked by quantity and issued one at a time), or Consumables (managed through separate stock-in/issue workflows).",
+     ["Review the category list and its item class.", "Use Add category to create a new classification, or Edit to rename it, change its item class or mark it inactive.", "Choose the item class that matches how the item is tracked: Fixed for individually tracked equipment, Bulk for quantity-tracked stock items."],
+     rules=["Inactive categories stay attached to existing records but are no longer offered on new forms.", "Consumable categories are managed through the Consumables workflow rather than the asset register."],
+     related=["Asset register, consumables and asset locations."])
+_add("assets:consumables assets:consumable_new assets:consumable_edit assets:consumable_detail", "Consumables", "Track stock of consumable items such as pens, paper and office supplies.",
+     "Consumables use a simple stock balance: stock in raises the balance and issue lowers it. Issues do not require strict per-person allocation.",
+     ["Review the consumable list and current stock levels.", "Use Add consumable to create a new item and set its opening stock, reorder level and unit cost.", "Use Stock in to record new purchases received, or Issue to record items given out.", "Low stock is flagged when current stock is at or below the reorder level."],
+     rules=["Employee is optional when issuing consumables; they are general-use items not tied to strict custody tracking.", "Current stock is only changed through Stock in and Issue, not directly on the item form."],
+     related=["Asset register and asset categories."])
+_add("assets:consumable_restock assets:consumable_issue", "Consumable stock in and issue", "Record consumable stock received or issued.",
+     "Stock in increases the current stock balance; issue reduces it and records who received the items.",
+     ["Select the consumable item and enter the quantity.", "Confirm the date and, for stock in, optionally the unit cost and reference.", "For issues, optionally select the employee receiving the items.", "Save and verify the updated stock balance on the consumable detail page."],
+     rules=["An issue cannot exceed the available stock.", "Stock movements are historical records and cannot be edited or deleted."],
+     related=["Consumables list and consumable details."])
 _add("access_control:users", "Users and roles", "Review local accounts and the business role assigned to each person.",
      "Each account signs in with its own username and password, and its role decides which modules the person can open.",
      ["Review the account list and confirm each person has the correct role.", "Use Edit to change a role, reset a password or deactivate an account.", "Use Add user to create a new local account and assign its starting role."],

@@ -1,0 +1,31 @@
+{% extends 'invoice_app/base.html' %}{% load pagination_ui %}{% load filter_ui %}
+{% block title %}Consumables &middot; QuantBud{% endblock %}
+{% block content %}
+<div class="page-heading split"><div><p class="eyebrow">Asset Management</p><h1>Consumables</h1><p class="muted">Track stock of pens, paper and other consumable items. Stock in raises the balance; issue lowers it.</p></div>
+<div><a class="button secondary" href="{% url 'assets:register' %}">Asset register</a> <a class="button primary" href="{% url 'assets:consumable_new' %}">+ Add consumable</a></div></div>
+<form method="get" class="qb-filter-form panel filters" data-filter-form>
+<label class="compact-filter-label"><span>Search</span><input class="field" type="search" name="q" value="{{ search }}" placeholder="Item code, name or vendor"></label>
+<label class="compact-filter-label"><span>State</span><select class="field" name="active"><option value="">All</option><option value="1" {% if active == '1' %}selected{% endif %}>Active only</option><option value="0" {% if active == '0' %}selected{% endif %}>Inactive only</option></select></label>
+{% filter_actions %}</form>
+<div class="panel"><div class="table-wrap"><table><thead><tr><th>Item code</th><th>Name</th><th>Category</th><th>Unit</th><th>Stock</th><th>Reorder</th><th>State</th><th></th></tr></thead>
+{% paginate consumables as qb_pg1 %}<tbody>{% for item in qb_pg1 %}<tr>
+<td><strong><a href="{% url 'assets:consumable_detail' item.pk %}">{{ item.item_code }}</a></strong></td>
+<td>{{ item.name }}</td>
+<td>{{ item.category.name }}</td>
+<td>{{ item.get_unit_display }}</td>
+<td>{{ item.current_stock }}</td>
+<td>{{ item.reorder_level }}</td>
+<td>
+{% if not item.is_active %}<span class="badge off">Inactive</span>
+{% elif item.is_low_stock %}<span class="badge warn">Low stock</span>
+{% else %}<span class="badge ok">Active</span>{% endif %}
+</td>
+<td>
+<a class="button secondary" href="{% url 'assets:consumable_restock' item.pk %}">Stock in</a>
+&nbsp;<a class="button secondary" href="{% url 'assets:consumable_issue' item.pk %}">Issue</a>
+&nbsp;<a href="{% url 'assets:consumable_edit' item.pk %}">Edit</a>
+</td>
+</tr>{% empty %}<tr><td colspan="8" class="empty">No consumables found. Add a consumable item to begin tracking stock.</td></tr>{% endfor %}</tbody></table>{% pager qb_pg1 %}</div>
+<p class="muted" style="margin-top:12px">Low stock means current stock is at or below the reorder level. Inactive items stay on past movements but are no longer offered for new stock or issues.</p>
+</div>
+{% endblock %}
