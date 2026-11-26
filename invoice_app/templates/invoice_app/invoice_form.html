@@ -117,7 +117,7 @@ function calc(tr){
     if(override!==null&&!d)amount=override;const valid=Number.isFinite(amount);tr.querySelector('.u').textContent=unit===null?'':fmt(unit);tr.querySelector('.a').textContent=valid?fmt(amount):'Review rate dates';
     const label=g('line_name').value.trim(),description=g('line_desc').value.trim();return {name:label,desc:description,days:qty,unit,amount:valid?amount:0,sac:'998314',rate:18};
   }
-  if(a&&b&&b>=a&&tr.dataset.daysAuto!=='0')g('line_days').value=Math.round((b-a)/864e5)+1;
+  if(a&&b&&b>=a&&tr.dataset.daysAuto!=='0')g('line_days').value=P[$('client').value]?.pay_working_days_only?countWorking(g('line_from').value,g('line_to').value):Math.round((b-a)/864e5)+1;
   if(p&&tr.dataset.descAuto!=='0')autoDesc(tr,p);
   const days=parseFloat(g('line_days').value)||0; const extra=($('service_type').value==='project_manpower'||$('service_type').value==='other_service')?(parseFloat(g('line_extra_days').value)||0):0; const totalDays=days+extra; let unit=null, amount=0; const bt=billing();
   const blank=!!p&&bt==='monthly_fixed'; g('line_unit').disabled=blank; if(blank)g('line_unit').value='';

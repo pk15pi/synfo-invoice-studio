@@ -85,7 +85,7 @@ class BusinessProfileForm(StyledForm):
 class ClientForm(StyledForm):
     class Meta:
         model = Client
-        fields = ['name', 'brand_name', 'address', 'country_ref', 'state_ref', 'district_ref', 'pin_code', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type',
+        fields = ['name', 'brand_name', 'address', 'country_ref', 'state_ref', 'district_ref', 'pin_code', 'contact_person', 'phone', 'email', 'tax_id', 'billing_type', 'pay_working_days_only',
                   'terms_mode', 'terms_text', 'tax_treatment', 'gstin', 'state_code', 'state_name', 'lut_number',
                   'vendor_code', 'invoice_format', 'cin_llpin', 'nda_signed_date', 'nda_expiry_date',
                   'is_email_active', 'invoice_email_to', 'invoice_email_cc', 'invoice_email_bcc',
@@ -95,7 +95,8 @@ class ClientForm(StyledForm):
         labels = {'name': 'Bill To (customer name)', 'invoice_format': 'Default invoice format'}
         widgets = {'nda_signed_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
                    'nda_expiry_date': forms.DateInput(attrs={'type': 'date'}, format='%Y-%m-%d'),
-                   'billing_type': forms.RadioSelect, 'terms_mode': forms.RadioSelect,'address': forms.Textarea(attrs={'rows': 3}), 'notes': forms.Textarea(attrs={'rows': 2})}
+                   'billing_type': forms.RadioSelect, 'terms_mode': forms.RadioSelect,'address': forms.Textarea(attrs={'rows': 3}), 'notes': forms.Textarea(attrs={'rows': 2}),
+                   'pay_working_days_only': forms.CheckboxInput()}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

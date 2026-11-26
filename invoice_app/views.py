@@ -464,6 +464,7 @@ def _projects_json(clients_qs, keep_project_ids=(), keep_placement_ids=()):
                                'invoice': placement.invoice_id or ''})
         data[c.pk] = {'last_pdf_ref_no': c.last_pdf_ref_no,
             'terms_mode': c.terms_mode, 'terms_text': c.terms_text, 'billing': c.billing_type, 'billing_label': c.get_billing_type_display(),
+            'pay_working_days_only': c.pay_working_days_only,
             'treatment': c.tax_treatment, 'state_code': c.state_code, 'gstin': c.gstin, 'lut': c.lut_number, 'projects': [{
                 'id': p.pk, 'name': p.name, 'description': p.description, 'desc_type': p.invoice_description_type, 'type': p.pricing_type,
                 'monthly': str(p.monthly_amount), 'daily': str(p.daily_rate), 'basis': p.proration_basis,

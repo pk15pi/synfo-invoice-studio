@@ -240,6 +240,10 @@ class Client(models.Model):
     billing_type = models.CharField('Payment term (billing type)', max_length=20, choices=BILLING_TYPES,
                                     default=MONTHLY_PRORATED,
                                     help_text='How every project row for this customer is priced. Separate from Terms (days until due).')
+    pay_working_days_only = models.BooleanField(
+        'Pay for working days only', default=False,
+        help_text='When on, invoice line Qty/days auto-fill uses working days (Mon–Fri, excluding holidays) '
+                  'instead of calendar days. Only affects new line day auto-fill; existing saved values are unchanged.')
     terms_mode = models.CharField('Terms (days until due) type', max_length=12, choices=TERMS_MODES,
                                   default=TERMS_CUSTOM)
     terms_text = models.CharField('Terms (custom text or number)', max_length=40, blank=True,
