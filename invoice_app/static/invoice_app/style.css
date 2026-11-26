@@ -412,6 +412,141 @@ main input:not([class]):focus,main select:not([class]):focus,main textarea:not([
 .field[readonly],.readonly{background:#f4f7f9;color:#65798a}
 .form-field small{line-height:1.45}
 .form-actions{margin-top:24px}
+
+/* ===== Document Generation: Generate Document form beauty ===== */
+.dgen-card{
+ background:#fff;
+ border:1px solid #dbe5ec;
+ border-radius:12px;
+ padding:28px 32px;
+ margin-top:18px;
+}
+.dgen-step{
+ font-size:14px;
+ font-weight:800;
+ letter-spacing:.06em;
+ color:#174b78;
+ margin:0 0 10px;
+ text-transform:uppercase;
+}
+.dgen-form{
+ display:flex;
+ flex-direction:column;
+ gap:16px;
+ margin-top:6px;
+}
+.dgen-form-grid{
+ display:grid;
+ grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
+ gap:14px 22px;
+ align-items:end;
+}
+.dgen-field{
+ display:flex;
+ flex-direction:column;
+ gap:6px;
+ min-width:0;
+}
+.dgen-field label{
+ font-size:12px;
+ font-weight:800;
+ color:#40576a;
+ letter-spacing:.01em;
+}
+.dgen-field select,
+.dgen-field input{
+ min-height:40px;
+ padding:9px 11px;
+ border:1px solid #d5e0e8;
+ border-radius:8px;
+ background:#fff;
+ color:#203749;
+ font-size:13px;
+ transition:border-color .15s ease,box-shadow .15s ease,background-color .15s ease;
+ width:100%;
+ box-sizing:border-box;
+}
+.dgen-field select:focus,
+.dgen-field input:focus{
+ border-color:#6e9fc2;
+ outline:none;
+ box-shadow:0 0 0 3px rgba(69,132,174,.14);
+}
+.dgen-actions{
+ margin-top:18px;
+ display:flex;
+ gap:10px;
+ align-items:center;
+}
+.dgen-field .field-error{
+ color:#b32828;
+ font-size:12px;
+ margin-top:4px;
+}
+.dgen-field small.muted{
+ font-size:11.5px;
+ color:#6d7d89;
+ margin-top:4px;
+ display:block;
+}
+
+.dgen-card.dgen-inline{
+ padding:24px 32px;
+}
+.dgen-form.dgen-inline-form{
+ flex-direction:row;
+ align-items:center;
+ gap:12px;
+ flex-wrap:wrap;
+ margin-top:4px;
+}
+.dgen-field-row{
+ display:flex;
+ flex-direction:row;
+ align-items:end;
+ gap:16px;
+ flex-wrap:wrap;
+ margin-top:4px;
+}
+.dgen-card.dgen-inline .dgen-actions{
+ margin-top:0;
+ margin-left:auto;
+}
+.dgen-field.dgen-inline{
+ display:flex;
+ align-items:center;
+ gap:8px;
+ flex-direction:row;
+ min-height:40px;
+ flex:1 1 auto;
+ min-width:0;
+}
+.dgen-field.dgen-inline label{
+ margin:0;
+ font-size:12px;
+ font-weight:800;
+ color:#40576a;
+ white-space:nowrap;
+}
+.dgen-field.dgen-inline select,
+.dgen-field.dgen-inline input{
+ min-height:34px;
+ padding:6px 10px;
+ font-size:13px;
+ flex:1 1 auto;
+ min-width:0;
+}
+.dgen-three-col{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:16px;
+ align-items:start;
+}
+.dgen-three-col .dgen-field{
+ flex:1;
+ min-width:0;
+}
+
 main button:not([class]),main input[type=submit]:not([class]){
  min-height:38px;
  border-color:#d5e0e8;

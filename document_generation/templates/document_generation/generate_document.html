@@ -14,8 +14,8 @@
   </div>
 {% endif %}
 
-<section class="card">
-  <h2>Step 1: Select document</h2>
+<section class="dgen-card dgen-inline">
+  <h2 class="dgen-step">Step 1: Select document</h2>
   {% if not has_any_approved_template %}
     <div class="message warning">
       No document templates are approved yet. Only approved templates are available for generation.
@@ -24,34 +24,44 @@
       to make its document type available here.
     </div>
   {% else %}
-  <form id="document-selection-form" method="get" class="filter-form">
-    <label for="id_category">Category</label>
-    <select id="id_category" name="category" required>
-      <option value="">Select a category</option>
-      {% for category in categories %}
-        <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
-      {% endfor %}
-    </select>
-    <label for="id_type">Document type</label>
-    <select id="id_type" name="type" required {% if not selected_category %}disabled{% endif %}>
-      <option value="">{% if selected_category %}Select a document type{% else %}Choose a category first{% endif %}</option>
-      {% for item in document_types %}
-        <option value="{{ item.pk }}" {% if selected_type.pk == item.pk %}selected{% endif %}>{{ item.name }}</option>
-      {% endfor %}
-    </select>
+  <form id="document-selection-form" method="get" class="dgen-form dgen-inline-form">
+    <div class="dgen-field-row">
+      <div class="dgen-field dgen-inline">
+        <label for="id_category">Category</label>
+        <select id="id_category" name="category" required>
+          <option value="">Select a category</option>
+          {% for category in categories %}
+            <option value="{{ category.pk }}" {% if selected_category == category.pk|stringformat:"s" %}selected{% endif %}>{{ category.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="dgen-field dgen-inline">
+        <label for="id_type">Document type</label>
+        <select id="id_type" name="type" required {% if not selected_category %}disabled{% endif %}>
+          <option value="">{% if selected_category %}Select a document type{% else %}Choose a category first{% endif %}</option>
+          {% for item in document_types %}
+            <option value="{{ item.pk }}" {% if selected_type.pk == item.pk %}selected{% endif %}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% if selected_type and has_approved_template %}
+      <div class="dgen-field dgen-inline">
+        <label for="id_template_version">Approved template</label>
+        <select id="id_template_version" name="template_version" required>
+          <option value="">Select a template</option>
+          {% for version in form.fields.template_version.queryset %}
+            <option value="{{ version.pk }}" {% if form.fields.template_version.initial == version.pk %}selected{% endif %}>
+              {{ version.template.name }} (v{{ version.version_number }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </div>
     {% if selected_type and has_approved_template %}
-      <label for="id_template_version">Approved template</label>
-      <select id="id_template_version" name="template_version" required>
-        <option value="">Select a template</option>
-        {% for version in form.fields.template_version.queryset %}
-          <option value="{{ version.pk }}" {% if form.fields.template_version.initial == version.pk %}selected{% endif %}>
-            {{ version.template.name }} (v{{ version.version_number }})
-          </option>
-        {% endfor %}
-      </select>
+      <div class="dgen-actions"><button class="button primary" type="submit">Load fields</button></div>
     {% endif %}
     {% if form.revision_of.value %}<input type="hidden" name="revise" value="{{ form.revision_of.value }}">{% endif %}
-    <button class="button primary" type="submit">Load fields</button>
   </form>
   {% endif %}
 </section>
@@ -64,33 +74,39 @@
     before generating this document.
   </div>
 {% elif selected_type and has_approved_template %}
-  <section class="card">
-    <h2>Step 2: Select related record (optional)</h2>
-    <p class="muted">Selecting a record fills configured fields where a safe source mapping exists. You can edit populated values below without changing the source record.</p>
-    <form method="get" class="filter-form">
+  <section class="dgen-card dgen-inline">
+    <h2 class="dgen-step">Step 2: Select related record (optional)</h2>
+    <p class="muted dgen-note">Selecting a record fills configured fields where a safe source mapping exists. You can edit populated values below without changing the source record.</p>
+    <form method="get" class="dgen-form dgen-inline-form">
       <input type="hidden" name="type" value="{{ selected_type.pk }}">
       {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
       {% if form.fields.template_version.initial %}<input type="hidden" name="template_version" value="{{ form.fields.template_version.initial }}">{% endif %}
       {% if form.revision_of.value %}<input type="hidden" name="revise" value="{{ form.revision_of.value }}">{% endif %}
-      <label for="id_entity">Related record</label>
-      <select id="id_entity" name="entity">
-        {% for value, label in form.fields.related_record.choices %}
-          <option value="{{ value }}" {% if form.fields.related_record.initial == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <button class="button primary" type="submit">Load record details</button>
-      {% if form.fields.related_asset.choices|length > 1 %}
-        <label for="id_asset">Related asset</label>
-        <select id="id_asset" name="asset">
-          {% for value, label in form.fields.related_asset.choices %}
-            <option value="{{ value }}" {% if form.fields.related_asset.initial|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      {% endif %}
+      <div class="dgen-field-row">
+        <div class="dgen-field dgen-inline">
+          <label for="id_entity">Related record</label>
+          <select id="id_entity" name="entity">
+            {% for value, label in form.fields.related_record.choices %}
+              <option value="{{ value }}" {% if form.fields.related_record.initial == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if form.fields.related_asset.choices|length > 1 %}
+        <div class="dgen-field dgen-inline">
+          <label for="id_asset">Related asset</label>
+          <select id="id_asset" name="asset">
+            {% for value, label in form.fields.related_asset.choices %}
+              <option value="{{ value }}" {% if form.fields.related_asset.initial|stringformat:"s" == value|stringformat:"s" %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% endif %}
+      </div>
+      <div class="dgen-actions"><button class="button primary" type="submit">Load record details</button></div>
     </form>
   </section>
 
-  <form method="post" class="card" novalidate>
+  <form method="post" class="dgen-card dgen-inline" novalidate>
     {% csrf_token %}
     <input type="hidden" name="action" value="preview">
     {{ form.category.as_hidden }}
@@ -101,10 +117,11 @@
     {{ form.revision_of.as_hidden }}
     {% if form.non_field_errors %}<div class="message error">{{ form.non_field_errors }}</div>{% endif %}
 
-    <h2>Step 3: Complete document details</h2>
+    <h2 class="dgen-step">Step 3: Complete document details</h2>
+    <div class="dgen-field-row dgen-three-col">
     {% for field in form %}
       {% if field.name != "category" and field.name != "document_type" and field.name != "template_version" and field.name != "related_record" and field.name != "related_asset" and field.name != "revision_of" %}
-        <div class="form-row" data-field-key="{{ field.name }}" data-condition="{{ field.field.condition|default:'{}' }}">
+        <div class="dgen-field" data-field-key="{{ field.name }}" data-condition="{{ field.field.condition|default:'{}' }}">
           <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-label="required">*</span>{% endif %}</label>
           {{ field }}
           {% if field.help_text %}<small class="muted">{{ field.help_text }}</small>{% endif %}
@@ -112,7 +129,8 @@
         </div>
       {% endif %}
     {% endfor %}
-    <button class="button primary" type="submit">Preview document</button>
+    </div>
+    <div class="dgen-actions"><button class="button primary" type="submit">Preview document</button></div>
   </form>
 {% elif request.GET.type %}
   <div class="message warning">That document type is inactive or does not exist. Choose an active type from the catalogue.</div>
